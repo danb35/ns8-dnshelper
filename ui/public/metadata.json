@@ -6,13 +6,13 @@
   "categories": ["system"],
   "authors": [
     {
-      "name": "dnshelper contributors"
+      "name": "Dan Brown"
     }
   ],
   "docs": {
     "documentation_url": "https://github.com/danb35/ns8-dnshelper",
-    "bug_url": "https://github.com/NethServer/dev",
+    "bug_url": "https://github.com/danb35/ns8-dnshelper/issues",
     "code_url": "https://github.com/danb35/ns8-dnshelper"
   },
-  "source": "ghcr.io/nethserver/dnshelper"
+  "source": "ghcr.io/danb35/dnshelper"
 }
