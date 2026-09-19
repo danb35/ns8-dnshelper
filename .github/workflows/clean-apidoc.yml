@@ -3,6 +3,11 @@ name: "Clean up API JSON Schema docs"
 on:
   delete:
 
+# The called workflow deletes the apidoc-<branch> branch, so it needs write access; a
+# reusable workflow cannot get more than its caller grants (see build-apidoc.yml).
+permissions:
+  contents: write
+
 jobs:
   build-apidoc:
     name: "Delete apidoc branch ${{ github.event.ref }}"
