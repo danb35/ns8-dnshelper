@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/libdns/cloudflare"
+	"github.com/libdns/godaddy"
 	"github.com/libdns/hetzner/v2"
 	"github.com/libdns/libdns"
+	"github.com/libdns/namedotcom"
 	"github.com/libdns/rfc2136"
 
 	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
@@ -25,6 +27,32 @@ func init() {
 		TXTForbidden: "\"\\",
 		New: func(c map[string]string) any {
 			return cloudflareProvider{&cloudflare.Provider{APIToken: c["api_token"], ZoneToken: c["zone_token"]}}
+		},
+	})
+	Register(Def{
+		Name:  "godaddy",
+		Label: "GoDaddy",
+		Fields: []contract.Field{
+			{Name: "api_key", Label: "API key", Secret: true, Required: true},
+			{Name: "api_secret", Label: "API secret", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Uses the production GoDaddy API. GoDaddy only enables its DNS API for accounts that meet its own requirements.",
+		New: func(c map[string]string) any {
+			return &godaddy.Provider{APIToken: c["api_key"] + ":" + c["api_secret"]}
+		},
+	})
+	Register(Def{
+		Name:  "namedotcom",
+		Label: "name.com",
+		Fields: []contract.Field{
+			{Name: "user", Label: "User name", Required: true},
+			{Name: "api_token", Label: "API token", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Uses the production name.com API (api.name.com).",
+		New: func(c map[string]string) any {
+			return &namedotcom.Provider{User: c["user"], Token: c["api_token"], Server: "https://api.name.com"}
 		},
 	})
 	Register(Def{

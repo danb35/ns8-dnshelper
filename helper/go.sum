@@ -18,10 +18,14 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/libdns/cloudflare v0.2.2 h1:XWHv+C1dDcApqazlh08Q6pjytYLgR2a+Y3xrXFu0vsI=
 github.com/libdns/cloudflare v0.2.2/go.mod h1:w9uTmRCDlAoafAsTPnn2nJ0XHK/eaUMh86DUk8BWi60=
+github.com/libdns/godaddy v1.1.0 h1:mxB107yFulEGApacljrCfaR4faR/9d9SyrGmjD2VubU=
+github.com/libdns/godaddy v1.1.0/go.mod h1:ZU6B93OoBN8jTbN97Ud5QdgbNvd6asV0EO8KVrGMWm4=
 github.com/libdns/hetzner/v2 v2.0.1 h1:phsNc9er8JbVOCsytLG7VuMbCdTPsv+WWwNX1WCbk4Q=
 github.com/libdns/hetzner/v2 v2.0.1/go.mod h1:IkEcr62KG0rXYhs2K5VWCG4SFPUQWuI1SzlpXBz9amk=
 github.com/libdns/libdns v1.1.1 h1:wPrHrXILoSHKWJKGd0EiAVmiJbFShguILTg9leS/P/U=
 github.com/libdns/libdns v1.1.1/go.mod h1:4Bj9+5CQiNMVGf87wjX4CY3HQJypUHRuLvlsfsZqLWQ=
+github.com/libdns/namedotcom v0.9.0 h1:tn8wydwbCPJcKx3SQGTQXB5BRbNhY2tlce+NLJmNpKo=
+github.com/libdns/namedotcom v0.9.0/go.mod h1:Ce395x/deS5/yTDXkICsqlscwsRv9r+ZV4gfSL4FBsM=
 github.com/libdns/rfc2136 v1.0.1 h1:aiztZgzI2cd9FAtBNPILz01mQcZs1jMqJ467KKI4UQ0=
 github.com/libdns/rfc2136 v1.0.1/go.mod h1:Uf4niCfXVgiMgwUrkPdIa5/sqLFdjVhkZj1ZfFAuSq4=
 github.com/miekg/dns v1.1.64 h1:wuZgD9wwCE6XMT05UU/mlSko71eRSXEAm2EbjQXLKnQ=
