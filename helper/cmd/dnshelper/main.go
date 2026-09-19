@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -25,6 +26,10 @@ func main() {
 	lockDir := flag.String("lock-dir", "", "directory for per-zone lock files (locking is off when empty)")
 	timeout := flag.Duration("timeout", 120*time.Second, "overall time limit (Hetzner alone takes 8-15 s per API action)")
 	flag.Parse()
+
+	// Provider packages write progress lines, including record contents, to the
+	// standard logger (godaddy does); the caller reads only the JSON response.
+	log.SetOutput(io.Discard)
 
 	var req contract.Request
 	dec := json.NewDecoder(io.LimitReader(os.Stdin, maxRequest))

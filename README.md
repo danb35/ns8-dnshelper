@@ -208,12 +208,22 @@ DNSHELPER_REAL_BIN=$PWD/helper/dnshelper python3 -m unittest discover -s tests/u
 which the test node lacks. The integration test assembles the same image layout with podman
 (`tests/integration/build-on-node.sh`).
 
-Supported providers today: Cloudflare, Hetzner (Cloud DNS API), RFC 2136. All three have been
-tested live: Cloudflare and Hetzner against real zones, RFC 2136 against a local BIND (see
-[helper/testdata/bind](helper/testdata/bind/README.md)). The live tests are in
+Supported providers today: Cloudflare, GoDaddy, Hetzner (Cloud DNS API), name.com, RFC 2136. All
+have been tested live: Cloudflare, GoDaddy, Hetzner and name.com against real zones, RFC 2136
+against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
+
+Credentials each provider needs:
+
+| Provider | Credential fields |
+|---|---|
+| Cloudflare | API token with Zone:DNS:Edit (and a Zone:Read token if the first is scoped to one zone) |
+| GoDaddy | A **classic** API key and secret, made at developer.godaddy.com (production key, not OTE) |
+| Hetzner | Hetzner Cloud API token with read & write |
+| name.com | User name and API token, made under Account Settings > API Tokens |
+| RFC 2136 | Server address, TSIG key name, algorithm and key | The live tests are in
 `helper/internal/app/live_test.go`, skipped unless a provider's variables are set (never put
 tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `dnsops` and the registry's `TXTForbidden`:
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/namedotcom.go`, `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
   outer quotes are present (a small adapter fixes the delete).
@@ -226,6 +236,17 @@ tokens or keys in a file). They found these provider-package quirks, handled in
 - Hetzner API actions take 8-15 seconds each; the helper's overall timeout is 120 s. Its RRsets
   share one TTL, so appending a record with a different explicit TTL to an existing RRset can be
   rejected by the provider.
+- The libdns GoDaddy package cannot be used for writing: its append PUTs a single record and so
+  replaces the whole `(type, name)` set, its delete removes the whole set whatever the value, and
+  it drops MX priorities and cannot write SRV records. `registry/godaddy.go` talks to the GoDaddy
+  API itself, reading the zone and rewriting the affected sets. GoDaddy accepts no TTL under 600
+  seconds (shorter or unset TTLs are raised) and allows about 60 requests a minute (a 429 answer is
+  retried). GoDaddy has no zone list, so the zone name is typed in the wizard. GoDaddy also serves
+  an apex A record whose value is a placeholder text, not an address; it is passed through as is.
+- name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
+  TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
+- An exact delete states the TTL; a provider that raised the TTL on write stores a different one,
+  so delete with the TTL left out, or as read back. (The write test does this itself.)
 - An RFC 2136 zone transfer lists the SOA twice; repeats are dropped.
 - RFC 2136 reading needs AXFR allowed for the TSIG key; a zone the server does not serve is
   reported as `auth_failed`.
