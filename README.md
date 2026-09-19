@@ -15,6 +15,19 @@ the real NS8 admin shell (the UI files are verified to be delivered and served, 
 was exercised in a local harness, `ui/dev`), and running `build-images.sh` itself (the test builds
 the same image layout with podman).
 
+## Install
+
+Instantiate the module with:
+
+    add-module ghcr.io/danb35/dnshelper:latest 1
+
+The output of the command will return the instance name.
+Output example:
+
+    {"module_id": "dnshelper1", "image_name": "dnshelper", "image_url": "ghcr.io/danb35/dnshelper:latest"}
+
+Then open the module's page in the NS8 admin UI to add credentials and zones.
+
 ## Actions
 
 Each action has `validate-input.json` and `validate-output.json` under `imageroot/actions/<action>/`.
