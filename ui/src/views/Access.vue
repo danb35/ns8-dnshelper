@@ -167,6 +167,9 @@
           caller: editing ? editing.caller : '',
         })
       "
+      :typeToConfirm="
+        $t('common.type_to_confirm', { name: editing ? editing.caller : '' })
+      "
       :isErrorShown="!!error.save"
       :errorTitle="$t('action.set-policy')"
       :errorDescription="error.save"

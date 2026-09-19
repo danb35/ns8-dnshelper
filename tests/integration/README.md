@@ -55,3 +55,20 @@ robot -v NODE_ADDR:<node> -v IMAGE_URL:localhost/dnshelper:test -v SSH_KEYFILE:~
 ```
 
 after `tests/integration/build-on-node.sh <node>`.
+
+## Working with an installed instance
+
+To try the module by hand on a node, build under a tag and install it:
+
+```bash
+tests/integration/build-on-node.sh <node> dev1
+ssh root@<node> add-module localhost/dnshelper:dev1 1
+```
+
+After changing the code, update **in place** (keeping zones, credentials and policy) with a new tag:
+
+```bash
+tests/integration/update-on-node.sh <node> dnshelper13 dev2
+```
+
+The integration test itself must run on a node without a dnshelper instance (see above).

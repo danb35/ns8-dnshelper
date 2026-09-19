@@ -283,7 +283,9 @@
           zone: current ? current.zone : '',
         })
       "
-      :typeToConfirm="current ? current.zone : ''"
+      :typeToConfirm="
+        $t('common.type_to_confirm', { name: current ? current.zone : '' })
+      "
       :isErrorShown="!!error.removeZone"
       :errorTitle="$t('action.remove-zone')"
       :errorDescription="error.removeZone"
@@ -306,7 +308,9 @@
           name: current ? current.name : '',
         })
       "
-      :typeToConfirm="current ? current.name : ''"
+      :typeToConfirm="
+        $t('common.type_to_confirm', { name: current ? current.name : '' })
+      "
       :isErrorShown="!!error.removeCredential"
       :errorTitle="$t('action.remove-credential')"
       :errorDescription="error.removeCredential"

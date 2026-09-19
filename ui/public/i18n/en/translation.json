@@ -7,7 +7,8 @@
     "yes": "Yes",
     "no": "No",
     "hide_password": "Hide",
-    "show_password": "Show"
+    "show_password": "Show",
+    "type_to_confirm": "Type {name} to confirm"
   },
   "status": {
     "title": "Status",

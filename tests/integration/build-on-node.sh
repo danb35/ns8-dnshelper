@@ -10,7 +10,7 @@
 # The images are localhost/dnshelper:<tag> and localhost/dnsconsumer:<tag> (default tag: test).
 # To update an installed instance in place, build a NEW tag and run update-module with it:
 # NS8 cannot update to an image URL the instance already has (its cleanup step needs the
-# previous URL).
+# previous URL). update-on-node.sh does the build and the update.
 set -euo pipefail
 node=${1:?usage: build-on-node.sh <node address> [tag]}
 tag=${2:-test}
