@@ -434,11 +434,14 @@ func (o *Ops) writeProbe(ctx context.Context) error {
 	}
 	var b [4]byte
 	_, _ = rand.Read(b[:])
-	probe := contract.Record{Name: "_dnshelper-test-" + hex.EncodeToString(b[:]), Type: "TXT", TTL: 60, Data: "dnshelper write test"}
+	probe := contract.Record{Name: "_dnshelper-test-" + hex.EncodeToString(b[:]), Type: "TXT", TTL: 300, Data: "dnshelper write test"}
 	if _, err := o.AppendRecords(ctx, []contract.Record{probe}, false); err != nil {
 		return err
 	}
-	// Clean up even if the caller's context was cancelled meanwhile.
+	// Clean up even if the caller's context was cancelled meanwhile. The TTL is
+	// left out of the delete: some providers raise a short TTL to their own
+	// minimum, and a stated TTL must match exactly.
+	probe.TTL = 0
 	if _, err := o.DeleteRecords(context.WithoutCancel(ctx), []contract.Record{probe}, false); err != nil {
 		return &contract.Error{Code: contract.CodeProviderError,
 			Message: "write test record " + probe.Name + " was created but could not be removed; delete it manually"}
@@ -448,6 +451,9 @@ func (o *Ops) writeProbe(ctx context.Context) error {
 
 // authRe is a heuristic: provider packages do not export typed errors.
 var authRe = regexp.MustCompile(`\b(401|403)\b|unauthori[sz]ed|forbidden|authentication|invalid (api )?token|bad credentials`)
+
+// zoneRe matches the answers providers give for a domain they do not host.
+var zoneRe = regexp.MustCompile(`unknown_domain`)
 
 // ProviderError converts an error from a provider package into a structured
 // error whose message cannot leak the credentials.
@@ -464,6 +470,9 @@ func ProviderError(err error, secrets []string) *contract.Error {
 	if authRe.MatchString(low) {
 		return &contract.Error{Code: contract.CodeAuthFailed,
 			Message: "the DNS provider rejected the credentials, or they lack permission for this zone"}
+	}
+	if zoneRe.MatchString(low) {
+		return &contract.Error{Code: contract.CodeZoneNotFound, Message: "the DNS provider does not host this zone"}
 	}
 	for _, s := range secrets {
 		if len(s) >= 4 {

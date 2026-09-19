@@ -7,6 +7,7 @@ import (
 	"github.com/libdns/cloudflare"
 	"github.com/libdns/hetzner/v2"
 	"github.com/libdns/libdns"
+	"github.com/libdns/namedotcom"
 	"github.com/libdns/rfc2136"
 
 	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
@@ -25,6 +26,33 @@ func init() {
 		TXTForbidden: "\"\\",
 		New: func(c map[string]string) any {
 			return cloudflareProvider{&cloudflare.Provider{APIToken: c["api_token"], ZoneToken: c["zone_token"]}}
+		},
+	})
+	Register(Def{
+		Name:  "godaddy",
+		Label: "GoDaddy",
+		Fields: []contract.Field{
+			{Name: "api_key", Label: "API key (classic GoDaddy key)", Secret: true, Required: true},
+			{Name: "api_secret", Label: "API secret (classic GoDaddy secret)", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Uses the production GoDaddy API with a classic API key and secret. GoDaddy only enables its DNS API for accounts that meet its own requirements, and does not accept a TTL under 600 seconds: records written with a shorter or no TTL get 600.",
+		New: func(c map[string]string) any {
+			return &goDaddyProvider{APIKey: c["api_key"], APISecret: c["api_secret"]}
+		},
+	})
+	Register(Def{
+		Name:  "namedotcom",
+		Label: "name.com",
+		Fields: []contract.Field{
+			{Name: "user", Label: "User name", Required: true},
+			{Name: "api_token", Label: "API token", Secret: true, Required: true},
+		},
+		Types:        []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes:        "Uses the production name.com API (api.name.com). name.com does not accept a TTL under 300 seconds: records written with a shorter or no TTL get 300. TXT values containing a double quote or backslash are refused: name.com reads the value as zone-file text, so they do not round-trip.",
+		TXTForbidden: "\"\\",
+		New: func(c map[string]string) any {
+			return nameComProvider{&namedotcom.Provider{User: c["user"], Token: c["api_token"], Server: "https://api.name.com"}}
 		},
 	})
 	Register(Def{

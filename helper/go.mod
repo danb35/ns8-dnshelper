@@ -6,6 +6,7 @@ require (
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/hetzner/v2 v2.0.1
 	github.com/libdns/libdns v1.1.1
+	github.com/libdns/namedotcom v0.9.0
 	github.com/libdns/rfc2136 v1.0.1
 	golang.org/x/net v0.59.0
 )
