@@ -1,21 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
 #
-# Copyright (C) 2022 Nethesis S.r.l.
+# Copyright (C) 2026 dnshelper contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e
+# Run by module-backup before Restic. The configuration already lives in plain
+# files that are written atomically, so there is nothing to dump: just make sure
+# every path in etc/state-include.conf exists (older Restic versions may treat a
+# missing one as an error, which would fail the whole backup).
 
-if ! systemctl --user -q is-active kickstart.service; then
-    exit 0
-fi
+import os
+import sys
 
-podman exec mariadb-app mysqldump \
-        --databases kickstart \
-        --default-character-set=utf8mb4 \
-        --skip-dump-date \
-        --ignore-table=mysql.event \
-        --single-transaction \
-        --quick \
-        --add-drop-table  > kickstart.sql
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'pypkg'))
+import dnshelper_lib
+
+dnshelper_lib.ensure_state()

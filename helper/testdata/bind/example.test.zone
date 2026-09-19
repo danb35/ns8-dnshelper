@@ -1,0 +1,6 @@
+$TTL 300
+@       IN SOA ns1.example.test. hostmaster.example.test. 1 3600 600 86400 300
+        IN NS  ns1.example.test.
+ns1     IN A   127.0.0.1
+; records the tests must never touch
+keep    IN TXT "pre-existing record"

@@ -19,57 +19,75 @@
         />
       </cv-column>
     </cv-row>
-    <cv-row v-if="error.listBackupRepositories">
+    <cv-row v-if="error.load">
       <cv-column>
         <NsInlineNotification
           kind="error"
-          :title="$t('action.list-backup-repositories')"
-          :description="error.listBackupRepositories"
+          :title="$t('status.cannot_load')"
+          :description="error.load"
           :showCloseButton="false"
         />
       </cv-column>
     </cv-row>
-    <cv-row v-if="error.listBackups">
+    <cv-row v-if="!loading.load && !error.load && !zones.length">
       <cv-column>
         <NsInlineNotification
-          kind="error"
-          :title="$t('action.list-backups')"
-          :description="error.listBackups"
+          kind="info"
+          :title="$t('status.no_zones_title')"
+          :description="$t('status.no_zones_description')"
           :showCloseButton="false"
-        />
+        >
+          <template #actions>
+            <NsButton
+              kind="ghost"
+              :icon="ArrowRight20"
+              @click="goToAppPage(instanceName, 'zones')"
+            >
+              {{ $t("status.add_first_zone") }}
+            </NsButton>
+          </template>
+        </NsInlineNotification>
       </cv-column>
     </cv-row>
     <cv-row>
       <cv-column :md="4" :max="4">
         <NsInfoCard
           light
-          :title="$t('status.kickstart_webapp')"
-          :description="this.host ? this.host : $t('status.not_configured')"
-          :icon="Wikis32"
-          :loading="loading.getConfiguration"
-          :isErrorShown="error.getConfiguration"
-          :errorTitle="$t('error.cannot_retrieve_configuration')"
-          :errorDescription="error.getConfiguration"
+          :title="String(zones.length)"
+          :description="$t('status.managed_zones')"
+          :icon="Earth32"
+          :loading="loading.load"
           class="min-height-card"
         >
           <template slot="content">
             <NsButton
-              v-if="this.host"
               kind="ghost"
-              :icon="Launch20"
-              :disabled="loading.getConfiguration"
-              @click="goToWebapp"
-            >
-              {{ $t("status.open_webapp") }}
-            </NsButton>
-            <NsButton
-              v-else
-              kind="ghost"
-              :disabled="loading.getConfiguration"
               :icon="ArrowRight20"
-              @click="goToAppPage(instanceName, 'settings')"
+              :disabled="loading.load"
+              @click="goToAppPage(instanceName, 'zones')"
             >
-              {{ $t("status.configure") }}
+              {{ $t("status.manage_zones") }}
+            </NsButton>
+          </template>
+        </NsInfoCard>
+      </cv-column>
+      <cv-column :md="4" :max="4">
+        <NsInfoCard
+          light
+          :title="String(rules.length)"
+          :description="$t('status.access_rules')"
+          :icon="Rule32"
+          :loading="loading.load"
+          class="min-height-card"
+        >
+          <template slot="content">
+            <NsButton
+              kind="ghost"
+              :icon="ArrowRight20"
+              :disabled="loading.load"
+              @click="goToAppPage(instanceName, 'access')"
+            >
+              {{ $t("status.manage_access") }}
             </NsButton>
           </template>
         </NsInfoCard>
@@ -80,7 +98,7 @@
           :title="status.instance || '-'"
           :description="$t('status.app_instance')"
           :icon="Application32"
-          :loading="loading.getStatus || loading.getConfiguration"
+          :loading="loading.getStatus"
           class="min-height-card"
         />
       </cv-column>
@@ -91,7 +109,7 @@
           :titleTooltip="installationNodeTitleTooltip"
           :description="$t('status.installation_node')"
           :icon="Chip32"
-          :loading="loading.getStatus || loading.getConfiguration"
+          :loading="loading.getStatus"
           class="min-height-card"
         />
       </cv-column>
@@ -122,6 +140,18 @@
       </cv-column>
       <cv-column :md="4" :max="4">
         <NsSystemLogsCard
+          :title="$t('status.audit_log')"
+          :description="$t('status.audit_log_description')"
+          :buttonLabel="core.$t('system_logs.card_button_label')"
+          :router="core.$router"
+          context="module"
+          :moduleId="instanceName"
+          searchQuery="dnshelper audit"
+          light
+        />
+      </cv-column>
+      <cv-column :md="4" :max="4">
+        <NsSystemLogsCard
           :title="core.$t('system_logs.card_title')"
           :description="
             core.$t('system_logs.card_description', {
@@ -136,170 +166,25 @@
         />
       </cv-column>
     </cv-row>
-    <!-- services -->
-    <cv-row>
-      <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.services", 2) }}</h4>
-      </cv-column>
-    </cv-row>
-    <cv-row v-if="!loading.getStatus">
-      <cv-column v-if="!status.services.length">
-        <cv-tile light>
-          <NsEmptyState :title="$t('status.no_services')"> </NsEmptyState>
-        </cv-tile>
-      </cv-column>
-      <cv-column
-        v-else
-        v-for="(service, index) in status.services"
-        :key="index"
-        :md="4"
-        :max="4"
-      >
-        <NsSystemdServiceCard
-          light
-          class="min-height-card"
-          :serviceName="service.name"
-          :active="service.active"
-          :failed="service.failed"
-          :enabled="service.enabled"
-          :icon="Cube32"
-        />
-      </cv-column>
-    </cv-row>
-    <cv-row v-else>
-      <cv-column :md="4" :max="4">
-        <cv-tile light>
-          <cv-skeleton-text
-            :paragraph="true"
-            :line-count="4"
-          ></cv-skeleton-text>
-        </cv-tile>
-      </cv-column>
-    </cv-row>
-    <!-- images -->
-    <cv-row>
-      <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.app_images", 2) }}</h4>
-      </cv-column>
-    </cv-row>
-    <cv-row>
-      <cv-column>
-        <cv-tile light>
-          <div v-if="!loading.getStatus">
-            <NsEmptyState
-              v-if="!status.images.length"
-              :title="$t('status.no_images')"
-            >
-            </NsEmptyState>
-            <cv-structured-list v-else>
-              <template slot="headings">
-                <cv-structured-list-heading>{{
-                  $t("status.name")
-                }}</cv-structured-list-heading>
-                <cv-structured-list-heading>{{
-                  $t("status.size")
-                }}</cv-structured-list-heading>
-                <cv-structured-list-heading>{{
-                  $t("status.created")
-                }}</cv-structured-list-heading>
-              </template>
-              <template slot="items">
-                <cv-structured-list-item
-                  v-for="(image, index) in status.images"
-                  :key="index"
-                >
-                  <cv-structured-list-data class="break-word">{{
-                    image.name
-                  }}</cv-structured-list-data>
-                  <cv-structured-list-data>{{
-                    image.size
-                  }}</cv-structured-list-data>
-                  <cv-structured-list-data class="break-word">{{
-                    image.created
-                  }}</cv-structured-list-data>
-                </cv-structured-list-item>
-              </template>
-            </cv-structured-list>
-          </div>
-          <cv-skeleton-text
-            v-else
-            :paragraph="true"
-            :line-count="5"
-          ></cv-skeleton-text>
-        </cv-tile>
-      </cv-column>
-    </cv-row>
-    <!-- volumes -->
-    <cv-row>
-      <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.app_volumes", 2) }}</h4>
-      </cv-column>
-    </cv-row>
-    <cv-row>
-      <cv-column>
-        <cv-tile light>
-          <div v-if="!loading.getStatus">
-            <NsEmptyState
-              v-if="!status.volumes.length"
-              :title="$t('status.no_volumes')"
-            >
-            </NsEmptyState>
-            <cv-structured-list v-else>
-              <template slot="headings">
-                <cv-structured-list-heading>{{
-                  $t("status.name")
-                }}</cv-structured-list-heading>
-                <cv-structured-list-heading>{{
-                  $t("status.mount")
-                }}</cv-structured-list-heading>
-                <cv-structured-list-heading>{{
-                  $t("status.created")
-                }}</cv-structured-list-heading>
-              </template>
-              <template slot="items">
-                <cv-structured-list-item
-                  v-for="(volume, index) in status.volumes"
-                  :key="index"
-                >
-                  <cv-structured-list-data>{{
-                    volume.name
-                  }}</cv-structured-list-data>
-                  <cv-structured-list-data class="break-word">{{
-                    volume.mount
-                  }}</cv-structured-list-data>
-                  <cv-structured-list-data>{{
-                    volume.created
-                  }}</cv-structured-list-data>
-                </cv-structured-list-item>
-              </template>
-            </cv-structured-list>
-          </div>
-          <cv-skeleton-text
-            v-else
-            :paragraph="true"
-            :line-count="5"
-          ></cv-skeleton-text>
-        </cv-tile>
-      </cv-column>
-    </cv-row>
   </cv-grid>
 </template>
 
 <script>
-import to from "await-to-js";
 import { mapState } from "vuex";
+import Earth32 from "@carbon/icons-vue/es/earth/32";
+import Rule32 from "@carbon/icons-vue/es/rule/32";
 import {
   QueryParamService,
-  TaskService,
   IconService,
   UtilService,
   PageTitleService,
 } from "@nethserver/ns8-ui-lib";
+import DnsHelperService from "../mixins/dnshelper";
 
 export default {
   name: "Status",
   mixins: [
-    TaskService,
+    DnsHelperService,
     QueryParamService,
     IconService,
     UtilService,
@@ -310,28 +195,25 @@ export default {
   },
   data() {
     return {
+      Earth32,
+      Rule32,
       q: {
         page: "status",
       },
       urlCheckInterval: null,
-      isRedirectChecked: false,
-      redirectTimeout: 0,
-      host: "",
-      status: {
-        instance: "",
-        services: [],
-        images: [],
-        volumes: [],
-      },
+      status: {},
+      zones: [],
+      rules: [],
       backupRepositories: [],
       backups: [],
       loading: {
+        load: false,
         getStatus: false,
         listBackupRepositories: false,
         listBackups: false,
-        getConfiguration: false,
       },
       error: {
+        load: "",
         getStatus: "",
         listBackupRepositories: "",
         listBackups: "",
@@ -369,224 +251,75 @@ export default {
     clearInterval(this.urlCheckInterval);
     next();
   },
-  mounted() {
-    this.redirectTimeout = setTimeout(
-      () => (this.isRedirectChecked = true),
-      200
-    );
-  },
-  beforeUnmount() {
-    clearTimeout(this.redirectTimeout);
-  },
   created() {
-    this.getConfiguration();
+    this.load();
     this.getStatus();
     this.listBackupRepositories();
   },
   methods: {
-    goToWebapp() {
-      window.open(`https://${this.host}`, "_blank");
-    },
-    async getConfiguration() {
-      this.loading.getConfiguration = true;
-      this.error.getConfiguration = "";
-      const taskAction = "get-configuration";
-      const eventId = this.getUuid();
-
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.getConfigurationAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.getConfigurationCompleted
-      );
-
-      const res = await to(
-        this.createModuleTaskForApp(this.instanceName, {
-          action: taskAction,
-          extra: {
-            title: this.$t("action." + taskAction),
-            isNotificationHidden: true,
-            eventId,
-          },
-        })
-      );
-      const err = res[0];
-
-      if (err) {
-        console.error(`error creating task ${taskAction}`, err);
-        this.error.getConfiguration = this.getErrorMessage(err);
-        this.loading.getConfiguration = false;
-        return;
+    async load() {
+      this.loading.load = true;
+      this.error.load = "";
+      try {
+        const [config, policy] = await Promise.all([
+          this.callAction("get-configuration"),
+          this.callAction("get-policy"),
+        ]);
+        this.zones = config.zones;
+        this.rules = policy.rules;
+      } catch (err) {
+        this.error.load = this.errorText(err);
       }
-    },
-    getConfigurationAborted(taskResult, taskContext) {
-      console.error(`${taskContext.action} aborted`, taskResult);
-      this.error.getConfiguration = this.$t("error.generic_error");
-      this.loading.getConfiguration = false;
-    },
-    getConfigurationCompleted(taskContext, taskResult) {
-      const config = taskResult.output;
-      this.host = config.host;
-      this.loading.getConfiguration = false;
+      this.loading.load = false;
     },
     async getStatus() {
       this.loading.getStatus = true;
       this.error.getStatus = "";
-      const taskAction = "get-status";
-      const eventId = this.getUuid();
-
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.getStatusAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.getStatusCompleted
-      );
-
-      const res = await to(
-        this.createModuleTaskForApp(this.instanceName, {
-          action: taskAction,
-          extra: {
-            title: this.$t("action." + taskAction),
-            isNotificationHidden: true,
-            eventId,
-          },
-        })
-      );
-      const err = res[0];
-
-      if (err) {
-        console.error(`error creating task ${taskAction}`, err);
-        this.error.getStatus = this.getErrorMessage(err);
-        this.loading.getStatus = false;
-        return;
+      try {
+        this.status = await this.callAction("get-status");
+      } catch (err) {
+        this.error.getStatus = this.errorText(err);
       }
-    },
-    getStatusAborted(taskResult, taskContext) {
-      console.error(`${taskContext.action} aborted`, taskResult);
-      this.error.getStatus = this.$t("error.generic_error");
-      this.loading.getStatus = false;
-    },
-    getStatusCompleted(taskContext, taskResult) {
-      this.status = taskResult.output;
       this.loading.getStatus = false;
     },
     async listBackupRepositories() {
       this.loading.listBackupRepositories = true;
       this.error.listBackupRepositories = "";
-      const taskAction = "list-backup-repositories";
-      const eventId = this.getUuid();
-
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.listBackupRepositoriesAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.listBackupRepositoriesCompleted
-      );
-
-      const res = await to(
-        this.createClusterTaskForApp({
-          action: taskAction,
-          extra: {
-            title: this.$t("action." + taskAction),
-            isNotificationHidden: true,
-            eventId,
-          },
-        })
-      );
-      const err = res[0];
-
-      if (err) {
-        console.error(`error creating task ${taskAction}`, err);
-        this.error.listBackupRepositories = this.getErrorMessage(err);
-        this.loading.listBackupRepositories = false;
-        return;
+      try {
+        const output = await this.callAction("list-backup-repositories", {
+          cluster: true,
+        });
+        this.backupRepositories = output.repositories.sort(
+          this.sortByProperty("name")
+        );
+        this.listBackups();
+      } catch (err) {
+        this.error.listBackupRepositories = this.errorText(err);
       }
-    },
-    listBackupRepositoriesAborted(taskResult, taskContext) {
-      console.error(`${taskContext.action} aborted`, taskResult);
-      this.error.listBackupRepositories = this.$t("error.generic_error");
       this.loading.listBackupRepositories = false;
-    },
-    listBackupRepositoriesCompleted(taskContext, taskResult) {
-      let backupRepositories = taskResult.output.repositories.sort(
-        this.sortByProperty("name")
-      );
-      this.backupRepositories = backupRepositories;
-      this.loading.listBackupRepositories = false;
-      this.listBackups();
     },
     async listBackups() {
       this.loading.listBackups = true;
       this.error.listBackups = "";
-      const taskAction = "list-backups";
-      const eventId = this.getUuid();
-
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.listBackupsAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.listBackupsCompleted
-      );
-
-      const res = await to(
-        this.createClusterTaskForApp({
-          action: taskAction,
-          extra: {
-            title: this.$t("action." + taskAction),
-            isNotificationHidden: true,
-            eventId,
-          },
-        })
-      );
-      const err = res[0];
-
-      if (err) {
-        console.error(`error creating task ${taskAction}`, err);
-        this.error.listBackups = this.getErrorMessage(err);
-        this.loading.listBackups = false;
-        return;
-      }
-    },
-    listBackupsAborted(taskResult, taskContext) {
-      console.error(`${taskContext.action} aborted`, taskResult);
-      this.error.listBackups = this.$t("error.generic_error");
-      this.loading.listBackups = false;
-    },
-    listBackupsCompleted(taskContext, taskResult) {
-      let backups = taskResult.output.backups;
-      backups.sort(this.sortByProperty("name"));
-
-      // get repository name
-      for (const backup of backups) {
-        const repo = this.backupRepositories.find(
-          (r) => r.id == backup.repository
-        );
-
-        if (repo) {
-          backup.repoName = repo.name;
+      try {
+        const output = await this.callAction("list-backups", {
+          cluster: true,
+        });
+        const backups = output.backups;
+        backups.sort(this.sortByProperty("name"));
+        // get repository name
+        for (const backup of backups) {
+          const repo = this.backupRepositories.find(
+            (r) => r.id == backup.repository
+          );
+          if (repo) {
+            backup.repoName = repo.name;
+          }
         }
+        this.backups = backups;
+      } catch (err) {
+        this.error.listBackups = this.errorText(err);
       }
-      this.backups = backups;
       this.loading.listBackups = false;
     },
   },
@@ -595,9 +328,4 @@ export default {
 
 <style scoped lang="scss">
 @import "../styles/carbon-utils";
-
-.break-word {
-  word-wrap: break-word;
-  max-width: 30vw;
-}
 </style>

@@ -1,0 +1,32 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "get-records input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/get-records",
+    "description": "get-records",
+    "examples": [
+        {
+            "zone": "example.com",
+            "type": "TXT"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "type": {
+            "type": "string"
+        }
+    }
+}

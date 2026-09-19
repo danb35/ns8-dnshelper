@@ -1,0 +1,23 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-provider-zones output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/list-provider-zones",
+    "type": "object",
+    "required": [
+        "supported",
+        "zones"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "supported": {
+            "type": "boolean",
+            "description": "False when the provider package cannot list zones"
+        },
+        "zones": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    }
+}

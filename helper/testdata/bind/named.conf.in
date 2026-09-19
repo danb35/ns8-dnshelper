@@ -1,0 +1,34 @@
+// Throwaway BIND for the RFC 2136 live tests. Listens on one address only
+// (127.0.0.1 unless BIND_ADDR is set). Every update and zone transfer needs the
+// TSIG key. Rendered by start.sh; @DIR@, @ADDR@ and @KEY@ are substituted.
+options {
+    directory "@DIR@";
+    listen-on port 5354 { @ADDR@; };
+    listen-on-v6 { none; };
+    pid-file "@DIR@/named.pid";
+    session-keyfile "@DIR@/session.key";
+    recursion no;
+    allow-query { any; };
+    dnssec-validation no;
+    // the tests use owner names starting with an underscore for every type
+    check-names primary ignore;
+};
+
+controls { };
+
+key "dnshelper-test" {
+    algorithm hmac-sha256;
+    secret "@KEY@";
+};
+
+zone "example.test" {
+    type primary;
+    file "@DIR@/example.test.zone";
+    allow-update { key "dnshelper-test"; };
+    allow-transfer { key "dnshelper-test"; };
+};
+
+logging {
+    channel log { file "@DIR@/named.log"; severity info; print-time yes; };
+    category default { log; };
+};

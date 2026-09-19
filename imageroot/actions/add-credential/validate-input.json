@@ -1,0 +1,40 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-credential input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/add-credential",
+    "description": "add-credential",
+    "examples": [
+        {
+            "name": "Cloudflare",
+            "provider": "cloudflare",
+            "fields": {
+                "api_token": "..."
+            }
+        }
+    ],
+    "type": "object",
+    "required": [
+        "name",
+        "provider",
+        "fields"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+        },
+        "provider": {
+            "type": "string"
+        },
+        "fields": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "maxLength": 4096
+            },
+            "description": "Provider credential fields, as described by list-providers"
+        }
+    }
+}

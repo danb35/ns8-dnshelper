@@ -1,0 +1,24 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "remove-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/remove-zone",
+    "description": "remove-zone",
+    "examples": [
+        {
+            "zone": "example.com"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        }
+    }
+}

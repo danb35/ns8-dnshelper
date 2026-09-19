@@ -1,0 +1,61 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "get-policy output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/get-policy",
+    "description": "The policy table",
+    "type": "object",
+    "required": [
+        "rules"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "rules": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "caller",
+                    "zone",
+                    "access",
+                    "names",
+                    "types"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "caller": {
+                        "type": "string",
+                        "pattern": "^module/[A-Za-z0-9_*?-]+$",
+                        "description": "Calling module, exactly ('module/mail1') or with * and ? wildcards ('module/mail*')"
+                    },
+                    "zone": {
+                        "type": "string",
+                        "description": "A managed zone, or '*' for all zones"
+                    },
+                    "access": {
+                        "enum": [
+                            "read",
+                            "write"
+                        ],
+                        "description": "write implies read"
+                    },
+                    "names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9@_.*?-]+$"
+                        },
+                        "description": "Record name patterns relative to the zone, e.g. '@', '_acme-challenge', '*._domainkey'. Default ['*']"
+                    },
+                    "types": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^([A-Za-z0-9]+|\\*)$"
+                        },
+                        "description": "Record types, or '*'. Default ['*']. A delete without a type needs '*'"
+                    }
+                }
+            }
+        }
+    }
+}

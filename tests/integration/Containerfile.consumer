@@ -1,0 +1,7 @@
+# A minimal consumer module that may use dnshelper.
+FROM scratch
+COPY imageroot /imageroot
+COPY ui /ui
+ENTRYPOINT ["/"]
+LABEL org.nethserver.rootfull="0" org.nethserver.min-core="3.20.1" \
+      org.nethserver.authorizations="dnshelper@cluster:dnswriter"

@@ -1,0 +1,58 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "validate-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/validate-zone",
+    "description": "Validate a configured zone, or a zone with a stored credential, or a zone with inline provider and fields (before saving anything)",
+    "examples": [
+        {
+            "zone": "example.com"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "credential": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Credential id"
+        },
+        "provider": {
+            "type": "string"
+        },
+        "fields": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "maxLength": 4096
+            },
+            "description": "Provider credential fields, as described by list-providers"
+        },
+        "write_test": {
+            "type": "boolean",
+            "description": "Also create and delete a throwaway TXT record"
+        }
+    },
+    "dependencies": {
+        "provider": [
+            "fields"
+        ],
+        "fields": [
+            "provider"
+        ]
+    },
+    "not": {
+        "required": [
+            "credential",
+            "provider"
+        ]
+    }
+}

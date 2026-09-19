@@ -13,34 +13,44 @@ images=()
 # The image will be pushed to GitHub container registry
 repobase="${REPOBASE:-ghcr.io/nethserver}"
 # Configure the image name
-reponame="kickstart"
+reponame="dnshelper"
 
 # Create a new empty container image
 container=$(buildah from scratch)
 
-# Reuse existing nodebuilder-kickstart container, to speed up builds
-if ! buildah containers --format "{{.ContainerName}}" | grep -q nodebuilder-kickstart; then
+# Reuse existing nodebuilder-dnshelper container, to speed up builds
+if ! buildah containers --format "{{.ContainerName}}" | grep -q nodebuilder-dnshelper; then
     echo "Pulling NodeJS runtime..."
-    buildah from --name nodebuilder-kickstart -v "${PWD}:/usr/src:Z" docker.io/library/node:lts
+    buildah from --name nodebuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/node:lts
 fi
 
 echo "Build static UI files with node..."
 buildah run \
     --workingdir=/usr/src/ui \
     --env="NODE_OPTIONS=--openssl-legacy-provider" \
-    nodebuilder-kickstart \
+    nodebuilder-dnshelper \
     sh -c "corepack enable && yarn install && yarn build"
+
+# Reuse existing gobuilder-dnshelper container, to speed up builds
+if ! buildah containers --format "{{.ContainerName}}" | grep -q gobuilder-dnshelper; then
+    echo "Pulling Go toolchain..."
+    buildah from --name gobuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/golang:1.27.1-alpine
+fi
+
+echo "Test and build the static dnshelper binary..."
+buildah run \
+    --workingdir=/usr/src/helper \
+    --env="CGO_ENABLED=0" \
+    gobuilder-dnshelper \
+    sh -c 'go test ./... && go build -trimpath -ldflags="-s -w" -o /usr/src/imageroot/bin/dnshelper ./cmd/dnshelper'
 
 # Add imageroot directory to the container image
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 
 buildah config --entrypoint=/ \
-    --label="org.nethserver.authorizations=traefik@node:routeadm" \
-    --label="org.nethserver.tcp-ports-demand=1" \
     --label="org.nethserver.rootfull=0" \
     --label="org.nethserver.min-core=3.20.1" \
-    --label="org.nethserver.images=docker.io/mariadb:10.11.19 docker.io/nginx:1.30.0-alpine" \
     "${container}"
 # Commit the image
 buildah commit "${container}" "${repobase}/${reponame}"

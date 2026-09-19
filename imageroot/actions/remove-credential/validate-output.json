@@ -1,0 +1,9 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "remove-credential output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/remove-credential",
+    "description": "remove-credential",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+}

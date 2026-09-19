@@ -1,0 +1,23 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "has-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/has-zone",
+    "description": "has-zone",
+    "examples": [
+        {
+            "name": "mail.example.com"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "name"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A zone or a host name inside one, like 'mail.example.com'"
+        }
+    }
+}

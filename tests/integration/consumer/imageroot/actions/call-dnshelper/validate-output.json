@@ -1,0 +1,12 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "call-dnshelper output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnsconsumer/call-dnshelper",
+    "type": "object",
+    "required": ["present"],
+    "properties": {
+        "present": {"type": "boolean"},
+        "provider": {"type": "string"},
+        "exit_code": {"type": "integer"}
+    }
+}
