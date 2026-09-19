@@ -6,6 +6,13 @@ on:
       - '**/validate-input.json'
       - '**/validate-output.json'
       - '**/validator-definitions.json'
+  workflow_dispatch:
+
+# The called workflow pushes the generated docs to an apidoc-<branch> branch, so it needs
+# write access. A reusable workflow cannot get more than its caller grants, and the default
+# token of a repository is read-only: without this the run fails at startup.
+permissions:
+  contents: write
 
 jobs:
   build-apidoc:
