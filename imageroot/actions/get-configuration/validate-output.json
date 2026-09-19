@@ -1,36 +1,74 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get kickstart settings",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/get-configuration",
-    "description": "Get kickstart settings",
-    "examples": [
-        {
-            "host": "kickstart.domain.org",
-            "http2https": true,
-            "lets_encrypt": true
-        }
-    ],
+    "title": "Get dnshelper settings",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/get-configuration",
+    "description": "Credentials (never their secrets) and zones",
     "type": "object",
     "required": [
-        "host",
-        "http2https",
-        "lets_encrypt"
+        "credentials",
+        "zones"
     ],
+    "additionalProperties": false,
     "properties": {
-        "host": {
-            "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
-            "format": "idn-hostname"
+        "credentials": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "provider",
+                    "values",
+                    "secrets_set"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{1,40}$",
+                        "description": "Credential id"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": "string"
+                    },
+                    "values": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Non-secret field values"
+                    },
+                    "secrets_set": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Names of secret fields that have a value"
+                    }
+                }
+            }
         },
-        "lets_encrypt": {
-            "type": "boolean",
-            "title": "Let's Encrypt certificate",
-            "description": "Request a valid Let's Encrypt certificate."
-        },
-        "http2https": {
-            "type": "boolean",
-            "title": "HTTP to HTTPS redirection",
-            "description": "Redirect all the HTTP requests to HTTPS"
+        "zones": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "zone",
+                    "credential"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "zone": {
+                        "type": "string"
+                    },
+                    "credential": {
+                        "type": "string"
+                    }
+                }
+            }
         }
     }
 }

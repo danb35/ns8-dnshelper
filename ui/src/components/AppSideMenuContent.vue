@@ -22,11 +22,18 @@
         <span>{{ $t("status.title") }}</span>
       </cv-side-nav-link>
       <cv-side-nav-link
-        @click="goToAppPage(instanceName, 'settings')"
-        :class="{ 'current-page': isLinkActive('settings') }"
+        @click="goToAppPage(instanceName, 'zones')"
+        :class="{ 'current-page': isLinkActive('zones') }"
       >
-        <template v-slot:nav-icon><Settings20 /></template>
-        <span>{{ $t("settings.title") }}</span>
+        <template v-slot:nav-icon><Earth20 /></template>
+        <span>{{ $t("zones.title") }}</span>
+      </cv-side-nav-link>
+      <cv-side-nav-link
+        @click="goToAppPage(instanceName, 'access')"
+        :class="{ 'current-page': isLinkActive('access') }"
+      >
+        <template v-slot:nav-icon><Rule20 /></template>
+        <span>{{ $t("access.title") }}</span>
       </cv-side-nav-link>
       <cv-side-nav-link
         @click="goToAppPage(instanceName, 'about')"
@@ -40,18 +47,20 @@
 </template>
 
 <script>
-import Settings20 from "@carbon/icons-vue/es/settings/20";
 import Information20 from "@carbon/icons-vue/es/information/20";
 import Activity20 from "@carbon/icons-vue/es/activity/20";
+import Earth20 from "@carbon/icons-vue/es/earth/20";
+import Rule20 from "@carbon/icons-vue/es/rule/20";
 import { mapState } from "vuex";
 import { QueryParamService, UtilService } from "@nethserver/ns8-ui-lib";
 
 export default {
   name: "AppSideMenuContent",
   components: {
-    Settings20,
     Information20,
     Activity20,
+    Earth20,
+    Rule20,
   },
   mixins: [QueryParamService, UtilService],
   data() {

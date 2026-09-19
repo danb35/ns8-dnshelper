@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-zones output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/list-zones",
+    "description": "list-zones",
+    "type": "object",
+    "required": [
+        "zones"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zones": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "zone",
+                    "credential",
+                    "provider"
+                ],
+                "properties": {
+                    "zone": {
+                        "type": "string"
+                    },
+                    "credential": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

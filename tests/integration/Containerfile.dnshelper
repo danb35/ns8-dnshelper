@@ -1,0 +1,7 @@
+# Assembles the dnshelper module image the way build-images.sh does, from
+# pre-built parts (see build-on-node.sh). Labels mirror build-images.sh.
+FROM scratch
+COPY imageroot /imageroot
+COPY ui /ui
+ENTRYPOINT ["/"]
+LABEL org.nethserver.rootfull="0" org.nethserver.min-core="3.20.1"

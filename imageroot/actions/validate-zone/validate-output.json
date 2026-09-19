@@ -1,0 +1,59 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "validate-zone output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/validate-zone",
+    "description": "validate-zone",
+    "type": "object",
+    "required": [
+        "valid",
+        "validation",
+        "capabilities"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "valid": {
+            "type": "boolean"
+        },
+        "capabilities": {
+            "type": "object",
+            "properties": {
+                "get_records": {
+                    "type": "boolean"
+                },
+                "append_records": {
+                    "type": "boolean"
+                },
+                "set_records": {
+                    "type": "boolean"
+                },
+                "delete_records": {
+                    "type": "boolean"
+                },
+                "list_zones": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "validation": {
+            "type": "object",
+            "properties": {
+                "method": {
+                    "enum": [
+                        "list-zones",
+                        "get-records"
+                    ]
+                },
+                "zone_found": {
+                    "type": "boolean"
+                },
+                "write_test": {
+                    "enum": [
+                        "skipped",
+                        "passed",
+                        "failed"
+                    ]
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,18 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-credential output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/add-credential",
+    "description": "add-credential",
+    "type": "object",
+    "required": [
+        "id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Credential id"
+        }
+    }
+}

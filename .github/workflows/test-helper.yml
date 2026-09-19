@@ -1,0 +1,40 @@
+name: "Test Go helper"
+
+on:
+  push:
+    paths:
+      - 'helper/**'
+      - 'imageroot/pypkg/**'
+      - 'tests/unit/**'
+  pull_request:
+    paths:
+      - 'helper/**'
+      - 'imageroot/pypkg/**'
+      - 'tests/unit/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: helper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: helper/go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/dnshelper
+      - run: go build -o "$RUNNER_TEMP/dnshelper" ./cmd/dnshelper
+      - name: Install restic (backup and restore round-trip tests)
+        working-directory: .
+        run: sudo apt-get update && sudo apt-get install -y restic
+      - name: Python unit tests against the built helper
+        working-directory: .
+        env:
+          DNSHELPER_REAL_BIN: ${{ runner.temp }}/dnshelper
+        run: python3 -m unittest discover -s tests/unit -v

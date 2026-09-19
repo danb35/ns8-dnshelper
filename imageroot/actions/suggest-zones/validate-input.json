@@ -1,0 +1,30 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "suggest-zones input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/suggest-zones",
+    "description": "Host names collected from other modules; returns the registrable domains that contain them",
+    "examples": [
+        {
+            "names": [
+                "mail.example.com",
+                "www.example.com",
+                "nas.lan"
+            ]
+        }
+    ],
+    "type": "object",
+    "required": [
+        "names"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "names": {
+            "type": "array",
+            "maxItems": 5000,
+            "items": {
+                "type": "string",
+                "maxLength": 253
+            }
+        }
+    }
+}

@@ -5,7 +5,8 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import Status from "../views/Status.vue";
-import Settings from "../views/Settings.vue";
+import Zones from "../views/Zones.vue";
+import Access from "../views/Access.vue";
 
 Vue.use(VueRouter);
 
@@ -17,9 +18,14 @@ const routes = [
     alias: "/status", // important
   },
   {
-    path: "/settings",
-    name: "Settings",
-    component: Settings,
+    path: "/zones",
+    name: "Zones",
+    component: Zones,
+  },
+  {
+    path: "/access",
+    name: "Access",
+    component: Access,
   },
   {
     path: "/about",

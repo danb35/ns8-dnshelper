@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e    # exit immediately if an error occurs
+exec 1>&2 # ensure any output is sent to stderr
+
+#
+# Roles other modules acquire through the image label
+#   org.nethserver.authorizations=dnshelper@cluster:dnswriter
+# (dnshelper@node, dnshelper@any and comma-separated roles work too).
+#
+# Roles are module-wide: what a caller may actually touch is decided by the
+# policy table, see imageroot/pypkg/dnshelper_lib.py.
+#
+reader_actions=(
+    get-records
+    list-zones
+    has-zone
+)
+writer_actions=(
+    append-records
+    set-records
+    delete-records
+)
+redis-exec SADD "${AGENT_ID}/roles/dnsreader" "${reader_actions[@]}"
+redis-exec SADD "${AGENT_ID}/roles/dnswriter" "${reader_actions[@]}" "${writer_actions[@]}"

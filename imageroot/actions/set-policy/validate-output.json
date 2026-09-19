@@ -1,0 +1,8 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "set-policy output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/set-policy",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+}

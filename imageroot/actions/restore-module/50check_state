@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Runs after the core 10restore step has put the backed up files back into
+# the state directory: validate them, repair permissions, warn about
+# references that no longer resolve, and tell listeners that the managed
+# zones may have changed.
+
+import os
+import sys
+
+import agent
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pypkg'))
+import dnshelper_lib as lib
+
+
+def module_exists(module_id):
+    try:
+        return bool(agent.redis_connect(use_replica=True).exists(f'module/{module_id}/environment'))
+    except Exception:
+        return None  # cannot tell: say nothing
+
+
+try:
+    summary, warnings = lib.check_restored_state(module_exists)
+except lib.StateError as e:
+    print(agent.SD_ERR + 'dnshelper: the restored state is unusable: %s' % e, file=sys.stderr)
+    sys.exit(1)
+
+for w in warnings:
+    print(agent.SD_WARNING + 'dnshelper: ' + w, file=sys.stderr)
+print(agent.SD_INFO + 'dnshelper: restored %(zones)d zone(s), %(credentials)d credential(s), %(rules)d policy rule(s)' % summary,
+      file=sys.stderr)
+lib._publish_change(agent)

@@ -1,0 +1,55 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-provider-zones input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/list-provider-zones",
+    "description": "List the zones a credential can see at the DNS host: a saved credential, or inline provider and fields (before saving anything)",
+    "examples": [
+        {
+            "credential": "c1a2b3c4"
+        },
+        {
+            "provider": "cloudflare",
+            "fields": {
+                "api_token": "..."
+            }
+        }
+    ],
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "credential": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$"
+        },
+        "provider": {
+            "type": "string"
+        },
+        "fields": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "maxLength": 4096
+            }
+        }
+    },
+    "dependencies": {
+        "provider": [
+            "fields"
+        ],
+        "fields": [
+            "provider"
+        ]
+    },
+    "oneOf": [
+        {
+            "required": [
+                "credential"
+            ]
+        },
+        {
+            "required": [
+                "provider"
+            ]
+        }
+    ]
+}

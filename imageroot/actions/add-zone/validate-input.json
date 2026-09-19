@@ -1,0 +1,31 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "add-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/add-zone",
+    "description": "add-zone",
+    "examples": [
+        {
+            "zone": "example.com",
+            "credential": "c1a2b3c4"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone",
+        "credential"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "credential": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Credential id"
+        }
+    }
+}

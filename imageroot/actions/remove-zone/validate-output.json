@@ -1,0 +1,9 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "remove-zone output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/remove-zone",
+    "description": "remove-zone",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+}

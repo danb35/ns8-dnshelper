@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: design only, nothing implemented. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); see README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -23,7 +23,7 @@ Status: design only, nothing implemented. Items marked **VERIFY** were not confi
 - The API is the module agent's actions. Consumers call
   `agent.tasks.run(agent_id='module/dnshelper1', action=..., data=...)` from their own action
   steps (module agents cannot LPUSH tasks directly; this goes through the api-server with the
-  module's Redis credentials). **VERIFY** the `data=` kwarg name.
+  module's Redis credentials). Verified 2026-09-19 in ns8-core `agent/tasks/run.py`: `run(agent_id, action, data={}, **kwargs)`.
 - DNS work is done by a static Go binary `dnshelper` (CGO_ENABLED=0) shipped under `imageroot/`,
   invoked by action steps. Input JSON on stdin (zone, provider, credentials, records), output JSON
   on stdout. Credentials never appear in argv or environment. Python steps do validation and NS8
@@ -65,6 +65,10 @@ change event when zones change (follow the documented event naming convention).
   (flock).
 - Providers are community-maintained; each may lack record types. Show a capability matrix.
 - Many provider packages are separate Go modules; some may still target the old (v0.x) API.
+  Checked 2026-09-19: cloudflare v0.2.2, hetzner v1.0.0, rfc2136 v1.0.1, route53 v1.6.2 and gandi v1.1.0
+  all require libdns v1.x (a provider's own 0.x version number does not mean the old API).
+  Cloudflare does not handle HTTPS/SVCB records. Later live testing found that libdns/hetzner v1
+  targets a retired API; use `github.com/libdns/hetzner/v2` (Hetzner Cloud DNS API).
 
 ## Credentials
 
@@ -78,7 +82,9 @@ change event when zones change (follow the documented event naming convention).
   least-privilege tokens. The UI should recommend zone-scoped tokens.
 - Backup: state files are included only if listed in `imageroot/etc/state-include.conf`.
   Credentials must be included for restore to work; NS8 backups are restic with a destination
-  data-encryption key. Document the decision.
+  data-encryption key. Decision (2026-09-19): included, documented in the README. Verified in
+  ns8-core: `module-backup` runs restic with `--files-from=etc/state-include.conf` from a workdir
+  holding `state/`; `10restore` runs `restic restore --target .` excluding only `state/environment`.
 - Logging (journald): audit lines with caller, zone, record changes. Never log credentials or
   raw provider errors that might echo them. Map provider errors to structured NS8 errors.
 
@@ -88,13 +94,15 @@ change event when zones change (follow the documented event naming convention).
   `redis-exec SADD "${AGENT_ID}/roles/dnswriter" "set-records"`. Suggested roles: read, write.
 - Consumers get roles via the image label
   `org.nethserver.authorizations = dnshelper@cluster:dnswriter` (resolved at consumer
-  instantiation). **VERIFY / open**: if dnshelper is installed AFTER a consumer, the grant does
-  not exist. Fallback: cluster `grant-actions` (owner role); UI could offer "grant access to
-  module X".
+  instantiation). Verified 2026-09-19 in ns8-core: `<module>@cluster` resolves to
+  `cluster/default_instance/<module>`, and `add-module` persists each module's authorizations and
+  runs `refresh_permissions` after every install, so a consumer installed BEFORE dnshelper is
+  granted the role when dnshelper arrives (dnshelper's roles exist by then: `create-module` has
+  run). The built-in `reader` role additionally gets `get-*` and `list-*`.
 - Roles are module-wide. Add an in-module policy table: which caller may touch which zone,
   record types and name patterns (e.g. mail: `_domainkey` TXT, SPF, MX; ACME: `_acme-challenge`
-  only). **VERIFY** how to identify a module caller (`AGENT_TASK_USER` for module-originated
-  tasks).
+  only). Verified 2026-09-19 in ns8-core (`agent/htask.go`, `bind-user-domains`): `AGENT_TASK_USER` is
+  `module/<id>` for module-originated tasks, the user name for humans, empty for automatic runs.
 
 ## Validation (validate-zone)
 
@@ -107,12 +115,17 @@ Vue 2 + Carbon + ns8-ui-lib (as in the NS8 template). Pages: Status, Zones (wiza
 dynamic credential form from `list-providers` -> validate -> save), Access (which modules may
 change what), Audit log.
 
-Bonus, zone import: the admin session can call any action, so the UI can run cluster
-`list-installed-modules`, then read domains from mail / web server instances and hostnames from
-Traefik routes. **VERIFY** the real action names (`api-cli run --agent module/mail1
-list-actions`). Reduce hostnames to registrable domains with `golang.org/x/net/publicsuffix`;
-treat results as candidates only (a mail domain is not necessarily a DNS zone) and confirm
-against the provider's zone list.
+Bonus, zone import: the admin session can call any action, so the UI collects host names and
+dnshelper reduces them. Action names verified 2026-09-19 against the modules' sources: cluster
+`list-installed-modules` (a map of image -> modules, each with `module` = app type), mail
+`list-domains` (array of `{domain}`), Traefik `list-routes` (only with `{"expand_list": true}`
+does it return route objects with `host`; otherwise just route names) and webserver
+`get-configuration` (`hostname`, `virtualhost[].ServerNames`). The helper's `registrable-domains`
+operation reduces the names with the public suffix list (`golang.org/x/net/publicsuffix`),
+dropping IPs, single labels, public suffixes and unknown top-level domains such as `.lan`; the
+`suggest-zones` action marks candidates that are already managed; `list-provider-zones` lets the
+wizard confirm them against the provider's own zone list. Results are candidates only: a mail
+domain is not necessarily a DNS zone the administrator controls.
 
 ## Additional goals
 

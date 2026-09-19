@@ -1,0 +1,91 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "set-policy input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/set-policy",
+    "description": "Replace the policy table. Modules are denied everything their rules do not allow; administrators are not restricted.",
+    "examples": [
+        {
+            "rules": [
+                {
+                    "caller": "module/mail1",
+                    "zone": "example.com",
+                    "access": "write",
+                    "names": [
+                        "@",
+                        "*._domainkey"
+                    ],
+                    "types": [
+                        "TXT",
+                        "MX"
+                    ]
+                },
+                {
+                    "caller": "module/traefik*",
+                    "zone": "*",
+                    "access": "write",
+                    "names": [
+                        "_acme-challenge",
+                        "_acme-challenge.*"
+                    ],
+                    "types": [
+                        "TXT"
+                    ]
+                }
+            ]
+        }
+    ],
+    "type": "object",
+    "required": [
+        "rules"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "rules": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+                "type": "object",
+                "required": [
+                    "caller",
+                    "zone",
+                    "access"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "caller": {
+                        "type": "string",
+                        "pattern": "^module/[A-Za-z0-9_*?-]+$",
+                        "description": "Calling module, exactly ('module/mail1') or with * and ? wildcards ('module/mail*')"
+                    },
+                    "zone": {
+                        "type": "string",
+                        "description": "A managed zone, or '*' for all zones"
+                    },
+                    "access": {
+                        "enum": [
+                            "read",
+                            "write"
+                        ],
+                        "description": "write implies read"
+                    },
+                    "names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9@_.*?-]+$"
+                        },
+                        "description": "Record name patterns relative to the zone, e.g. '@', '_acme-challenge', '*._domainkey'. Default ['*']"
+                    },
+                    "types": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^([A-Za-z0-9]+|\\*)$"
+                        },
+                        "description": "Record types, or '*'. Default ['*']. A delete without a type needs '*'"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,19 +1,18 @@
 {
-  "name": "kickstart",
+  "name": "dnshelper",
   "description": {
-    "en": "My kickstart module"
+    "en": "Manage DNS records through DNS provider APIs, for other modules"
   },
-  "categories": [],
+  "categories": ["system"],
   "authors": [
     {
-      "name": "Name Surname",
-      "email": "author@yourmail.org"
+      "name": "dnshelper contributors"
     }
   ],
   "docs": {
-    "documentation_url": "https://docs.kickstart.com/",
+    "documentation_url": "https://github.com/danb35/ns8-dnshelper",
     "bug_url": "https://github.com/NethServer/dev",
-    "code_url": "https://github.com/author/ns8-kickstart"
+    "code_url": "https://github.com/danb35/ns8-dnshelper"
   },
-  "source": "ghcr.io/nethserver/kickstart"
+  "source": "ghcr.io/nethserver/dnshelper"
 }
