@@ -510,6 +510,27 @@ class AuditAndEventTests(ActionRunner):
         self.assertEqual(len(lib.list_zones({})['zones']), 1)
 
 
+class InputSchemaTests(unittest.TestCase):
+    def test_actions_without_arguments_accept_the_empty_payload_the_ui_sends(self):
+        """The admin UI calls an argument-less action with no payload at all, which
+        NS8 validates as null. A schema that only allows an object then fails on a
+        real node ("Expected: object, given: null") while api-cli with {} passes."""
+        actions = os.path.join(HERE, '..', '..', 'imageroot', 'actions')
+        seen = []
+        for name in sorted(os.listdir(actions)):
+            path = os.path.join(actions, name, 'validate-input.json')
+            if not os.path.exists(path):
+                continue
+            schema = load(path)
+            if not schema.get('required') and not schema.get('properties'):
+                seen.append(name)
+                types = schema['type'] if isinstance(schema['type'], list) else [schema['type']]
+                self.assertIn('null', types, name)
+                self.assertIn('object', types, name)
+        self.assertIn('list-providers', seen)
+        self.assertIn('list-zones', seen)
+
+
 class ModuleScriptTests(unittest.TestCase):
     root = os.path.join(HERE, '..', '..', 'imageroot', 'actions', 'create-module')
 

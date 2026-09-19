@@ -55,6 +55,23 @@ def other_module(module_id, action, data):
     raise KeyError(action)
 
 
+def validate_input(action, data):
+    """Check the payload against the action's validate-input.json, as NS8 does before
+    running a task (the UI sends no payload at all for argument-less actions: null).
+    Needs the jsonschema package; without it the check is skipped."""
+    try:
+        from jsonschema import Draft7Validator
+    except ImportError:
+        return []
+    path = os.path.join(ROOT, 'imageroot', 'actions', action, 'validate-input.json')
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        schema = json.load(f)
+    return [{'parameter': '(root)', 'field': '(root)', 'value': data, 'error': '(root)_invalid_type: ' + e.message}
+            for e in Draft7Validator(schema).iter_errors(data)]
+
+
 def run(kind, module_id, body):
     action, data, event = body['action'], body.get('data'), body['extra']['eventId']
     time.sleep(0.15)  # a task takes a moment
@@ -64,8 +81,12 @@ def run(kind, module_id, body):
             ev['output'] = {'list-installed-modules': lambda: INSTALLED,
                             'list-backup-repositories': lambda: {'repositories': []},
                             'list-backups': lambda: {'backups': []}}[action]()
-        elif module_id == 'dnshelper1' and action in lib.HANDLERS:
-            ev['output'] = lib.HANDLERS[action](data or {})
+        elif module_id.startswith('dnshelper') and action in lib.HANDLERS:
+            problems = validate_input(action, data)
+            if problems:
+                ev.update(type='validation-failed', errors=problems, output=None)
+            else:
+                ev['output'] = lib.HANDLERS[action](data or {})
         else:
             ev['output'] = other_module(module_id, action, data)
     except lib.ActionError as e:

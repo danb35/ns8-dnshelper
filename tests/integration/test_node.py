@@ -54,9 +54,19 @@ def redis(*args):
     return ssh('redis-cli ' + ' '.join(args)).stdout.strip()
 
 
+INSTALLED = []   # modules this test installed: the only ones it may remove
+
+
 def add_module(image):
     out = ssh('add-module %s 1' % image).stdout.strip().splitlines()[-1]
-    return ast.literal_eval(out)['module_id']
+    module_id = ast.literal_eval(out)['module_id']
+    INSTALLED.append(module_id)
+    return module_id
+
+
+def existing_modules():
+    _, mods = api('cluster', 'list-installed-modules', check=False)
+    return [m['id'] for group in (mods.values() if isinstance(mods, dict) else []) for m in group]
 
 
 def build_images():
@@ -101,16 +111,17 @@ class NodeIntegration(unittest.TestCase):
             for r in repos.get('repositories', []) if isinstance(repos, dict) else []:
                 if r['name'] == 'dnshelper-it-repo':
                     api('cluster', 'remove-backup-repository', {'id': r['id']}, check=False)
-            _, mods = api('cluster', 'list-installed-modules', check=False)
-            for group in (mods.values() if isinstance(mods, dict) else []):
-                for m in group:
-                    if m['id'].startswith(('dnshelper', 'dnsconsumer')):
-                        ssh('remove-module --no-preserve %s' % m['id'])
+            for module_id in reversed(INSTALLED):
+                if module_id in existing_modules():
+                    ssh('remove-module --no-preserve %s' % module_id)
         except Exception as ex:   # never mask the real test failure
-            print('CLEANUP INCOMPLETE, check the node for dnshelper*/dnsconsumer* modules:', ex)
+            print('CLEANUP INCOMPLETE, check the node for modules this test installed:', ex)
 
     # ------------------------------------------------------------------ tests
     def test_01_consumer_installed_first_is_granted_the_role_when_dnshelper_arrives(self):
+        stray = [m for m in existing_modules() if m.startswith(('dnshelper', 'dnsconsumer'))]
+        self.assertEqual(stray, [], 'run this test on a node without dnshelper or dnsconsumer instances: it checks '
+                                    'the cluster default instance and would otherwise talk to yours')
         build_images()
         cls = type(self)
         cls.consumer = add_module('localhost/dnsconsumer:test')

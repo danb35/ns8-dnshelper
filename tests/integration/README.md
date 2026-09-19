@@ -15,7 +15,9 @@ consumer sees. It covers:
    opens the DNS server, modes, roles, warning about a policy rule for a missing module)
 8. removing dnshelper (the consumer's presence check turns false) and reinstalling it
 
-Each run leaves the node as it found it: NS8 deletes a module's image when its last instance is
+The test refuses to start if a `dnshelper*` or `dnsconsumer*` instance already exists (it checks the
+cluster's default instance), and it removes only the modules it installed itself. Each run leaves the
+node as it found it: NS8 deletes a module's image when its last instance is
 removed, so the test rebuilds the images when it needs to install again.
 
 ## Prerequisites

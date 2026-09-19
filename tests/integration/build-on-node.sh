@@ -5,11 +5,15 @@
 # no registry is needed. Needs Go and a built UI (ui/dist) on this machine and
 # podman on the node.
 #
-#   tests/integration/build-on-node.sh <node address>
+#   tests/integration/build-on-node.sh <node address> [tag]
 #
-# The images are localhost/dnshelper:test and localhost/dnsconsumer:test.
+# The images are localhost/dnshelper:<tag> and localhost/dnsconsumer:<tag> (default tag: test).
+# To update an installed instance in place, build a NEW tag and run update-module with it:
+# NS8 cannot update to an image URL the instance already has (its cleanup step needs the
+# previous URL).
 set -euo pipefail
-node=${1:?usage: build-on-node.sh <node address>}
+node=${1:?usage: build-on-node.sh <node address> [tag]}
+tag=${2:-test}
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 [ -f "$root/ui/dist/index.html" ] || { echo "build the UI first: cd ui && yarn build" >&2; exit 1; }
@@ -34,7 +38,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -C "$stage" -cf - . | ssh "root@$node" '
     rm -rf /root/dnshelper-it && mkdir /root/dnshelper-it
     tar -C /root/dnshelper-it -xf -
     cd /root/dnshelper-it
-    podman build -q -t localhost/dnshelper:test dnshelper
-    podman build -q -t localhost/dnsconsumer:test consumer
+    podman build -q -t localhost/dnshelper:'"$tag"' dnshelper
+    podman build -q -t localhost/dnsconsumer:'"$tag"' consumer
     cd / && rm -rf /root/dnshelper-it
     podman images --format "{{.Repository}}:{{.Tag}} {{.Size}}" | grep "^localhost/"'
