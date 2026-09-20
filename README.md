@@ -162,6 +162,41 @@ creates its roles and service key. Policy callers such as `module/mail1` are mat
 after restoring into a cluster where the consumer has another id, fix the policy with
 `set-policy`; the restore warns about exactly this.
 
+## Providers
+
+Supported providers today: Cloudflare, GoDaddy, Hetzner (Cloud DNS API), name.com and RFC 2136. All
+have been tested live: Cloudflare, GoDaddy, Hetzner and name.com against real zones, RFC 2136
+against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
+
+| Provider | Credentials | Record types | Zones listed in the wizard |
+|---|---|---|---|
+| Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | With a PAT; otherwise type the zone |
+| Hetzner | Hetzner Cloud API token with read and write | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| name.com | User name and API token, made under Account Settings > API Tokens | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
+
+The record types are those the provider package is tested or documented to handle; the wizard
+shows what dnshelper can do for a zone once its credentials are checked. Prefer tokens limited to
+the zones you need.
+
+What to know about each provider:
+
+- **Cloudflare**: HTTPS and SVCB records are not supported. TXT values containing `"` or `\` are
+  refused.
+- **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
+  and dnshelper waits and retries when it is exceeded. A token that may not list domains, and the
+  legacy key, need the zone name typed in.
+- **Hetzner**: uses the Cloud DNS API (zones in the Hetzner Console), not the retired DNS Console
+  API. Each API action takes 8 to 15 seconds. A TXT value beginning or ending with `"` is refused.
+- **name.com**: TTLs under 300 seconds are raised to 300. TXT values containing `"` or `\` are
+  refused.
+- **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
+  containing `"` or `\` are refused.
+
+A provider that raises a TTL stores a different one from the one asked for, so an exact delete that
+states the old TTL will not match: leave the TTL out, or use the value as read back.
+
 ## The `dnshelper` binary
 
 One JSON request on stdin, one JSON response on stdout, exit status 0 only when `"ok": true`.
@@ -208,22 +243,11 @@ DNSHELPER_REAL_BIN=$PWD/helper/dnshelper python3 -m unittest discover -s tests/u
 which the test node lacks. The integration test assembles the same image layout with podman
 (`tests/integration/build-on-node.sh`).
 
-Supported providers today: Cloudflare, GoDaddy, Hetzner (Cloud DNS API), name.com, RFC 2136. All
-have been tested live: Cloudflare, GoDaddy, Hetzner and name.com against real zones, RFC 2136
-against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
-
-Credentials each provider needs:
-
-| Provider | Credential fields |
-|---|---|
-| Cloudflare | API token with Zone:DNS:Edit (and a Zone:Read token if the first is scoped to one zone) |
-| GoDaddy | A personal access token (PAT) from developer.godaddy.com, with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other |
-| Hetzner | Hetzner Cloud API token with read & write |
-| name.com | User name and API token, made under Account Settings > API Tokens |
-| RFC 2136 | Server address, TSIG key name, algorithm and key | The live tests are in
-`helper/internal/app/live_test.go`, skipped unless a provider's variables are set (never put
-tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/namedotcom.go`, `dnsops` and the registry's `TXTForbidden`:
+The providers, their credentials and their limits are described under [Providers](#providers). The
+live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
+(never put tokens or keys in a file). They found these provider-package quirks, handled in
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/namedotcom.go`,
+`dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
   outer quotes are present (a small adapter fixes the delete).
@@ -248,8 +272,6 @@ tokens or keys in a file). They found these provider-package quirks, handled in
   not an address; it is passed through as is.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
-- An exact delete states the TTL; a provider that raised the TTL on write stores a different one,
-  so delete with the TTL left out, or as read back. (The write test does this itself.)
 - An RFC 2136 zone transfer lists the SOA twice; repeats are dropped.
 - RFC 2136 reading needs AXFR allowed for the TSIG key; a zone the server does not serve is
   reported as `auth_failed`.
