@@ -91,14 +91,14 @@ module with the role can call the actions but is refused everything.
 
 ```json
 {"rules": [
-  {"caller": "module/mail1", "zone": "example.com", "access": "write",
+  {"caller": "module/mail1", "zones": ["example.com", "example.org"], "access": "write",
    "names": ["@", "*._domainkey"], "types": ["TXT", "MX"]},
-  {"caller": "module/traefik*", "zone": "*", "access": "write",
+  {"caller": "module/traefik*", "zones": ["*"], "access": "write",
    "names": ["_acme-challenge", "_acme-challenge.*"], "types": ["TXT"]}
 ]}
 ```
 
-- `caller` is `module/<id>`, with `*` and `?` wildcards. `zone` is a managed zone or `*`.
+- `caller` is `module/<id>`, with `*` and `?` wildcards. `zones` is a list of managed zones, or `["*"]` for all of them. Rules saved with a single `zone` (the earlier format, still accepted by `set-policy`) are read as a list of one, and `get-policy` always returns `zones`.
 - `access` is `read` or `write` (write implies read). Names are relative to the zone and matched
   with glob patterns; `names` and `types` default to `*`.
 - A request with any record the rules do not cover is refused as a whole, before the provider is

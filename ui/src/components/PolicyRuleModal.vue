@@ -45,19 +45,29 @@
             ref="caller"
           />
         </div>
-        <div class="mg-bottom-md">
-          <NsComboBox
-            :key="comboKey"
-            :marginBottomOnOpen="true"
-            v-model="zone"
-            :options="zoneOptions"
-            :title="$t('access.col_zone')"
-            :label="$t('access.zone_placeholder')"
-            :invalid-message="$t(error.zone)"
+        <fieldset class="mg-bottom-md zones">
+          <legend class="bx--label">{{ $t("access.col_zones") }}</legend>
+          <cv-checkbox
+            v-model="allZones"
+            value="*"
+            :label="$t('access.all_zones')"
             :disabled="loading"
-            ref="zone"
           />
-        </div>
+          <cv-checkbox
+            v-for="z in zoneChoices"
+            :key="z"
+            v-model="selectedZones"
+            :value="z"
+            :label="z"
+            :disabled="loading || allZones"
+          />
+          <div v-if="!error.zone" class="bx--form__helper-text">
+            {{ $t("access.zones_help") }}
+          </div>
+          <div v-else class="bx--form-requirement zones-error">
+            {{ $t(error.zone) }}
+          </div>
+        </fieldset>
         <div class="mg-bottom-md">
           <NsComboBox
             :key="comboKey"
@@ -151,7 +161,8 @@ export default {
       comboKey: 0,
       extraCaller: "",
       caller: "",
-      zone: "",
+      allZones: false,
+      selectedZones: [],
       access: "write",
       names: "*",
       types: "*",
@@ -187,10 +198,13 @@ export default {
       }
       return options;
     },
-    zoneOptions() {
-      return [
-        { name: "*", label: this.$t("access.all_zones"), value: "*" },
-      ].concat(this.zones.map((z) => ({ name: z, label: z, value: z })));
+    // the managed zones, plus any zone the rule names that is no longer managed:
+    // it stays visible, and so can be unticked, instead of being dropped silently
+    zoneChoices() {
+      const extra = (this.rule ? this.rule.zones : []).filter(
+        (z) => z !== "*" && !this.zones.includes(z)
+      );
+      return this.zones.concat(extra);
     },
     accessOptions() {
       return ["write", "read"].map((a) => ({
@@ -213,13 +227,13 @@ export default {
       // filtered list, and keeps its filter text between uses: remount the
       // combo boxes empty, then set their values
       this.caller = "";
-      this.zone = "";
       this.access = "";
+      this.allZones = rule ? rule.zones.includes("*") : false;
+      this.selectedZones = rule ? rule.zones.filter((z) => z !== "*") : [];
       this.extraCaller = rule ? rule.caller : "";
       this.comboKey++;
       this.$nextTick(() => {
         this.caller = rule ? rule.caller : "";
-        this.zone = rule ? rule.zone : "";
         this.access = rule ? rule.access : "write";
       });
     },
@@ -247,8 +261,8 @@ export default {
         this.focusElement("caller");
         return;
       }
-      if (!this.zone) {
-        this.error.zone = "access.required";
+      if (!this.allZones && !this.selectedZones.length) {
+        this.error.zone = "access.zones_required";
         return;
       }
       if (!this.access) {
@@ -269,7 +283,7 @@ export default {
       }
       this.$emit("save", {
         caller,
-        zone: this.zone,
+        zones: this.allZones ? ["*"] : this.selectedZones.slice(),
         access: this.access,
         names,
         types,
@@ -278,3 +292,18 @@ export default {
   },
 };
 </script>
+
+<style scoped lang="scss">
+.zones {
+  border: 0;
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.zones-error {
+  display: block;
+  max-height: none;
+  margin-top: 0.25rem;
+}
+</style>
