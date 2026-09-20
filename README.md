@@ -7,13 +7,22 @@ and the build order.
 
 ## Status
 
-Build order steps 1-7 are done. The module, its Go helper, actions, credential store, roles,
-policy, audit log, backup and restore, and the admin UI exist, and a real consumer module has
-been tested against them on a real NS8 3.22.0 node with a real DNS server (see
-[tests/integration](tests/integration/README.md)). What has **not** been done: rendering the UI in
-the real NS8 admin shell (the UI files are verified to be delivered and served, and every screen
-was exercised in a local harness, `ui/dev`), and running `build-images.sh` itself (the test builds
-the same image layout with podman).
+Released as [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0). Every step of the
+build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
+credential store, roles, policy, audit log, backup and restore, and the admin UI.
+
+What has been checked, and where:
+
+- A real consumer module was tested against dnshelper on a real NS8 3.22.0 node with a real DNS
+  server (see [tests/integration](tests/integration/README.md); it needs a node and is not part of
+  CI).
+- The admin UI has been used in the real NS8 admin shell.
+- The providers were tested live against real zones (see [Providers](#providers)).
+- CI builds and publishes the image with `build-images.sh`, runs the Go tests, and runs the
+  module's Robot Framework tests on Rocky Linux 9 and Debian 13.
+
+Known gaps: the French, German, Italian, Spanish and Portuguese translations were written without
+a native-speaker review, and the Basque (`eu`) locale still carries the template's placeholder text.
 
 ## Install
 
@@ -238,10 +247,10 @@ cd helper && go test ./... && go build -o dnshelper ./cmd/dnshelper && cd ..
 DNSHELPER_REAL_BIN=$PWD/helper/dnshelper python3 -m unittest discover -s tests/unit
 ```
 
-`build-images.sh` is written to build a static (`CGO_ENABLED=0`) binary into
-`imageroot/bin/dnshelper` and run the Go tests first. It has not been run yet: it needs buildah,
-which the test node lacks. The integration test assembles the same image layout with podman
-(`tests/integration/build-on-node.sh`).
+`build-images.sh` builds a static (`CGO_ENABLED=0`) binary into `imageroot/bin/dnshelper`, running
+the Go tests first, and the CI publish workflow uses it. The integration test assembles the same
+image layout with podman (`tests/integration/build-on-node.sh`), which lets it run on a node that
+has no buildah.
 
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
@@ -301,9 +310,9 @@ cd ui && yarn install && NODE_OPTIONS=--openssl-legacy-provider yarn build
 
 The UI only runs inside the NS8 admin shell. To look at it without a node, `ui/dev` is a harness:
 a fake shell around the built UI, backed by the real Python actions and a fake DNS host (see
-[ui/dev/README.md](ui/dev/README.md)). Everything has been exercised there, and the node serves
-the extracted files, but it has not been rendered in a real shell. Only `en/translation.json` is
-edited by hand; the other languages are managed by Weblate.
+[ui/dev/README.md](ui/dev/README.md)). English is the source language in
+`ui/public/i18n/en/translation.json`; the other languages were translated from it and have not
+been reviewed by native speakers.
 
 ## Development
 
