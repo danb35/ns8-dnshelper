@@ -19,12 +19,13 @@ import (
 // fakeGoDaddy is an in-memory GoDaddy Domains API: PUT replaces a record set,
 // DELETE removes it, GET lists everything (one page).
 type fakeGoDaddy struct {
-	mu          sync.Mutex
-	sets        map[string][]map[string]any // "TYPE/name" -> records
-	tooMany     int                         // answer 429 this many times first
-	auth        string
-	domains     []string
-	domainCalls []string
+	mu            sync.Mutex
+	sets          map[string][]map[string]any // "TYPE/name" -> records
+	tooMany       int                         // answer 429 this many times first
+	auth          string
+	domains       []string
+	domainCalls   []string
+	forbidDomains bool // answer 403 to the domain list
 }
 
 func (f *fakeGoDaddy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,10 @@ func (f *fakeGoDaddy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/v1/domains" {
+		if f.forbidDomains {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		f.domainCalls = append(f.domainCalls, r.URL.RawQuery)
 		names := f.domains
 		if m := r.URL.Query().Get("marker"); m != "" {
@@ -220,8 +225,21 @@ func TestGoDaddyListZonesFollowsTheMarker(t *testing.T) {
 	}
 }
 
-func TestGoDaddyLegacyKeyIsReportedAsUnableToListZones(t *testing.T) {
-	g, _ := newFake(t) // the fake is built with a legacy key
+func TestGoDaddyLegacyKeyListsZonesToo(t *testing.T) {
+	g, f := newFake(t) // the fake is built with a legacy key
+	f.domains = []string{"a.example"}
+	zones, err := g.ListZones(context.Background())
+	if err != nil || len(zones) != 1 || zones[0].Name != "a.example." {
+		t.Fatalf("%v %v", zones, err)
+	}
+	if f.auth != "sso-key k:s" {
+		t.Fatalf("the legacy key is sent as sso-key: %q", f.auth)
+	}
+}
+
+func TestGoDaddyForbiddenDomainListMeansTypeTheZone(t *testing.T) {
+	g, f := newFake(t)
+	f.forbidDomains = true
 	_, err := g.ListZones(context.Background())
 	var ce *contract.Error
 	if !errors.As(err, &ce) || ce.Code != contract.CodeUnsupported {
