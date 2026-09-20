@@ -405,6 +405,18 @@ class PolicyTests(Base):
             self.assertRejects(lib.append_records, {'zone': 'other.org', 'records': [self.txt('@')]}, 'not_permitted', 'zone')
         self.assertEqual(len(self.calls()), 1)  # only the permitted request got through
 
+    def test_web_preset_allows_cname_with_any_name_and_nothing_else(self):
+        # the "Web server or service" preset of the Access page
+        lib.set_policy({'rules': [self.rule(caller='module/sogo1', names=['*'], types=['CNAME'])]})
+        cname = {'name': 'mail', 'type': 'CNAME', 'data': 'host.example.com.'}
+        with as_module('sogo1'):
+            lib.append_records({'zone': 'example.com', 'records': [cname, dict(cname, name='a.b')]})
+            lib.delete_records({'zone': 'example.com', 'records': [cname]})
+            for rec in (self.txt('mail'), self.txt('@', typ='A'), self.txt('mail', typ='MX')):
+                self.assertRejects(lib.append_records, {'zone': 'example.com', 'records': [rec]}, 'not_permitted', 'records')
+            self.assertRejects(lib.delete_records, {'zone': 'example.com', 'records': [{'name': 'mail'}]}, 'not_permitted')
+            self.assertRejects(lib.append_records, {'zone': 'other.org', 'records': [cname]}, 'not_permitted', 'zone')
+
     def test_one_forbidden_record_refuses_the_whole_request(self):
         lib.set_policy({'rules': [self.rule()]})
         with as_module('mail1'):

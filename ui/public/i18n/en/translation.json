@@ -178,6 +178,7 @@
     "presets": "Start from",
     "preset_mail": "Mail server",
     "preset_acme": "Certificates (ACME DNS-01)",
+    "preset_web": "Web server or service",
     "caller_placeholder": "Choose a module or type a pattern",
     "caller_help": "module/mail1, or a pattern such as module/mail*",
     "zone_placeholder": "Choose a zone",

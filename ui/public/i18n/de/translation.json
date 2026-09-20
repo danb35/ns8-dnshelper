@@ -178,6 +178,7 @@
     "presets": "Ausgehen von",
     "preset_mail": "Mailserver",
     "preset_acme": "Zertifikate (ACME DNS-01)",
+    "preset_web": "Webserver oder Webdienst",
     "caller_placeholder": "Modul wählen oder Muster eingeben",
     "caller_help": "module/mail1 oder ein Muster wie module/mail*",
     "zone_placeholder": "Zone wählen",
