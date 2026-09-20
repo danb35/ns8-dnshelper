@@ -217,7 +217,7 @@ Credentials each provider needs:
 | Provider | Credential fields |
 |---|---|
 | Cloudflare | API token with Zone:DNS:Edit (and a Zone:Read token if the first is scoped to one zone) |
-| GoDaddy | A **classic** API key and secret, made at developer.godaddy.com (production key, not OTE) |
+| GoDaddy | A personal access token (PAT) from developer.godaddy.com, with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other |
 | Hetzner | Hetzner Cloud API token with read & write |
 | name.com | User name and API token, made under Account Settings > API Tokens |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | The live tests are in
@@ -239,10 +239,13 @@ tokens or keys in a file). They found these provider-package quirks, handled in
 - The libdns GoDaddy package cannot be used for writing: its append PUTs a single record and so
   replaces the whole `(type, name)` set, its delete removes the whole set whatever the value, and
   it drops MX priorities and cannot write SRV records. `registry/godaddy.go` talks to the GoDaddy
-  API itself, reading the zone and rewriting the affected sets. GoDaddy accepts no TTL under 600
-  seconds (shorter or unset TTLs are raised) and allows about 60 requests a minute (a 429 answer is
-  retried). GoDaddy has no zone list, so the zone name is typed in the wizard. GoDaddy also serves
-  an apex A record whose value is a placeholder text, not an address; it is passed through as is.
+  API itself, reading the zone and rewriting the affected sets. It sends a personal access token
+  as a Bearer token (or, for the legacy credential, `sso-key key:secret`) to the v1 endpoints,
+  which accept both, and lists the account's active domains (`GET /v1/domains`), so the wizard can
+  offer them; a credential refused the list falls back to typing the zone name. GoDaddy accepts no
+  TTL under 600 seconds (shorter or unset TTLs are raised) and allows about 60 requests a minute (a
+  429 answer is retried). GoDaddy also serves an apex A record whose value is a placeholder text,
+  not an address; it is passed through as is.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - An exact delete states the TTL; a provider that raised the TTL on write stores a different one,
