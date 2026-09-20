@@ -2,13 +2,16 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "set-policy input",
     "$id": "http://nethserver.org/json-schema/task/input/dnshelper/set-policy",
-    "description": "Replace the policy table. Modules are denied everything their rules do not allow; administrators are not restricted.",
+    "description": "Replace the policy table. Modules are denied everything their rules do not allow; administrators are not restricted. A rule names its zones in 'zones' (the older single 'zone' is still accepted).",
     "examples": [
         {
             "rules": [
                 {
                     "caller": "module/mail1",
-                    "zone": "example.com",
+                    "zones": [
+                        "example.com",
+                        "example.org"
+                    ],
                     "access": "write",
                     "names": [
                         "@",
@@ -21,7 +24,9 @@
                 },
                 {
                     "caller": "module/traefik*",
-                    "zone": "*",
+                    "zones": [
+                        "*"
+                    ],
                     "access": "write",
                     "names": [
                         "_acme-challenge",
@@ -47,7 +52,6 @@
                 "type": "object",
                 "required": [
                     "caller",
-                    "zone",
                     "access"
                 ],
                 "additionalProperties": false,
@@ -57,9 +61,19 @@
                         "pattern": "^module/[A-Za-z0-9_*?-]+$",
                         "description": "Calling module, exactly ('module/mail1') or with * and ? wildcards ('module/mail*')"
                     },
+                    "zones": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "uniqueItems": true,
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The managed zones the rule covers, or ['*'] for all zones"
+                    },
                     "zone": {
                         "type": "string",
-                        "description": "A managed zone, or '*' for all zones"
+                        "description": "Deprecated: use zones. A managed zone, or '*' for all zones; the same as a list of one"
                     },
                     "access": {
                         "enum": [
@@ -84,7 +98,19 @@
                         },
                         "description": "Record types, or '*'. Default ['*']. A delete without a type needs '*'"
                     }
-                }
+                },
+                "anyOf": [
+                    {
+                        "required": [
+                            "zones"
+                        ]
+                    },
+                    {
+                        "required": [
+                            "zone"
+                        ]
+                    }
+                ]
             }
         }
     }

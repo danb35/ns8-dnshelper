@@ -49,7 +49,7 @@
           <NsDataTable
             :allRows="rows"
             :columns="columns"
-            :rawColumns="['caller', 'zone', 'access', 'names', 'types']"
+            :rawColumns="['caller', 'zones', 'access', 'names', 'types']"
             :sortable="true"
             :pageSizes="[10, 25, 50]"
             :overflow-menu="true"
@@ -79,9 +79,12 @@
                 <cv-data-table-cell>
                   <strong>{{ row.caller }}</strong>
                 </cv-data-table-cell>
-                <cv-data-table-cell>{{
-                  row.zone === "*" ? $t("access.all_zones") : row.zone
-                }}</cv-data-table-cell>
+                <cv-data-table-cell>
+                  <template v-if="row.zones.includes('*')">{{
+                    $t("access.all_zones")
+                  }}</template>
+                  <div v-else v-for="z in row.zones" :key="z">{{ z }}</div>
+                </cv-data-table-cell>
                 <cv-data-table-cell>{{
                   $t("access.access_" + row.access)
                 }}</cv-data-table-cell>
@@ -222,7 +225,7 @@ export default {
   computed: {
     ...mapState(["core", "instanceName", "appName"]),
     columns() {
-      return ["caller", "zone", "access", "names", "types"].map((c) =>
+      return ["caller", "zones", "access", "names", "types"].map((c) =>
         this.$t("access.col_" + c)
       );
     },

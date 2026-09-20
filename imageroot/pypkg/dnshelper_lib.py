@@ -206,6 +206,7 @@ CALLER_RE = re.compile(r'^module/[a-z0-9_*?-]+$')
 NAME_PATTERN_RE = re.compile(r'^[a-z0-9@_.*?-]+$')
 TYPE_RE = re.compile(r'^([A-Z0-9]+|\*)$')
 MAX_RULES = 200
+MAX_RULE_ZONES = 200
 
 
 def caller():
@@ -218,7 +219,26 @@ def _restricted():
 
 
 def _load_rules():
-    return _read_json(_policy_path(), {'rules': []})['rules']
+    """The stored rules. Rules saved before a rule could name several zones hold
+    a single 'zone'; they are read as a list of one."""
+    rules = _read_json(_policy_path(), {'rules': []})['rules']
+    return [r if 'zones' in r else dict({k: v for k, v in r.items() if k != 'zone'}, zones=[r['zone']])
+            for r in rules]
+
+
+def _normalize_zones(r, i):
+    """The zones of rule number i as a list of zone names, or ['*'] for all."""
+    if 'zones' in r and 'zone' in r:
+        raise ActionError('rules.%d.zones' % i, 'invalid_request', message='give zones, not zone and zones')
+    zones = r['zones'] if 'zones' in r else [r.get('zone', '')]
+    if not isinstance(zones, list) or not zones or len(zones) > MAX_RULE_ZONES:
+        raise ActionError('rules.%d.zones' % i, 'required' if not zones else 'invalid_request')
+    out = []
+    for z in zones:
+        z = '*' if z == '*' else normalize_zone(z)
+        if z not in out:
+            out.append(z)
+    return ['*'] if '*' in out else out
 
 
 def _normalize_rules(rules):
@@ -229,7 +249,7 @@ def _normalize_rules(rules):
         who = str(r.get('caller', '')).strip().lower()
         if not CALLER_RE.match(who):
             raise ActionError('rules.%d.caller' % i, 'invalid_caller', who)
-        zone = '*' if r.get('zone') == '*' else normalize_zone(r.get('zone', ''))
+        zones = _normalize_zones(r, i)
         if r.get('access') not in ('read', 'write'):
             raise ActionError('rules.%d.access' % i, 'invalid_access')
         names = [str(n).strip().lower() for n in r.get('names', ['*'])] or ['*']
@@ -240,7 +260,7 @@ def _normalize_rules(rules):
         for t in types:
             if not TYPE_RE.match(t):
                 raise ActionError('rules.%d.types' % i, 'invalid_type', t)
-        out.append({'caller': who, 'zone': zone, 'access': r['access'],
+        out.append({'caller': who, 'zones': zones, 'access': r['access'],
                     'names': names, 'types': types})
     return out
 
@@ -249,7 +269,7 @@ def _rules_for(zone):
     """The rules that apply to the current caller in zone."""
     who = caller().lower()
     return [r for r in _load_rules()
-            if fnmatch.fnmatchcase(who, r['caller']) and r['zone'] in ('*', zone)]
+            if fnmatch.fnmatchcase(who, r['caller']) and ('*' in r['zones'] or zone in r['zones'])]
 
 
 def _covers(rule, name, rtype):

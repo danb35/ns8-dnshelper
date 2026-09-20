@@ -355,7 +355,7 @@ class PolicyTests(Base):
             os.unlink(self.log)
 
     def rule(self, **kw):
-        r = {'caller': 'module/mail1', 'zone': 'example.com', 'access': 'write',
+        r = {'caller': 'module/mail1', 'zones': ['example.com'], 'access': 'write',
              'names': ['@', '*._domainkey'], 'types': ['TXT', 'MX']}
         r.update(kw)
         return r
@@ -367,15 +367,51 @@ class PolicyTests(Base):
         lib.set_policy({'rules': [{'caller': 'Module/Mail1', 'zone': 'Example.COM.', 'access': 'read',
                                    'names': ['WWW'], 'types': ['txt']}, {'caller': 'module/x*', 'zone': '*', 'access': 'write'}]})
         self.assertEqual(lib.get_policy({})['rules'], [
-            {'caller': 'module/mail1', 'zone': 'example.com', 'access': 'read', 'names': ['www'], 'types': ['TXT']},
-            {'caller': 'module/x*', 'zone': '*', 'access': 'write', 'names': ['*'], 'types': ['*']}])
+            {'caller': 'module/mail1', 'zones': ['example.com'], 'access': 'read', 'names': ['www'], 'types': ['TXT']},
+            {'caller': 'module/x*', 'zones': ['*'], 'access': 'write', 'names': ['*'], 'types': ['*']}])
         mode = stat.S_IMODE(os.stat(os.path.join(self.state, 'policy.json')).st_mode)
         self.assertEqual(mode, 0o600)
+
+    def test_a_rule_can_name_several_zones(self):
+        lib.set_policy({'rules': [
+            {'caller': 'module/web1', 'zones': ['Example.com.', 'other.org', 'example.com'], 'access': 'write',
+             'names': ['*'], 'types': ['CNAME']}]})
+        self.assertEqual(lib.get_policy({})['rules'][0]['zones'], ['example.com', 'other.org'])  # normalized, deduplicated
+        cname = {'name': 'www', 'type': 'CNAME', 'data': 'h.example.com.'}
+        with as_module('web1'):
+            for zone in ('example.com', 'other.org'):
+                lib.append_records({'zone': zone, 'records': [cname]})
+            self.assertEqual(sorted(z['zone'] for z in lib.list_zones({})['zones']), ['example.com', 'other.org'])
+        lib.add_zone({'zone': 'third.net', 'credential': self.cid})
+        with as_module('web1'):
+            self.assertRejects(lib.append_records, {'zone': 'third.net', 'records': [cname]}, 'not_permitted', 'zone')
+
+    def test_all_zones_absorbs_the_rest_of_the_list(self):
+        lib.set_policy({'rules': [{'caller': 'module/x1', 'zones': ['example.com', '*'], 'access': 'read'}]})
+        self.assertEqual(lib.get_policy({})['rules'][0]['zones'], ['*'])
+
+    def test_a_rule_stored_with_one_zone_still_applies(self):
+        # the format before a rule could name several zones
+        lib._write_private(lib._policy_path(), {'rules': [
+            {'caller': 'module/web1', 'zone': 'example.com', 'access': 'write', 'names': ['*'], 'types': ['*']}]})
+        self.assertEqual(lib.get_policy({})['rules'][0]['zones'], ['example.com'])
+        self.assertNotIn('zone', lib.get_policy({})['rules'][0])
+        with as_module('web1'):
+            lib.append_records({'zone': 'example.com', 'records': [self.txt('a')]})
+            self.assertRejects(lib.append_records, {'zone': 'other.org', 'records': [self.txt('a')]}, 'not_permitted', 'zone')
+        # saving the table again writes the new format
+        lib.set_policy({'rules': lib.get_policy({})['rules']})
+        self.assertEqual(lib._load_rules()[0]['zones'], ['example.com'])
+
+    def test_zone_and_zones_are_exclusive_and_one_is_needed(self):
+        for bad in ({'zone': 'example.com', 'zones': ['example.com']}, {}, {'zones': []}, {'zones': ['not a zone']}):
+            with self.assertRaises(lib.ActionError):
+                lib.set_policy({'rules': [dict({'caller': 'module/x1', 'access': 'read'}, **bad)]})
 
     def test_policy_validation(self):
         bad = [({'caller': 'admin'}, 'invalid_caller'), ({'caller': 'module/../x'}, 'invalid_caller'),
                ({'access': 'root'}, 'invalid_access'), ({'names': ['a b']}, 'invalid_name_pattern'),
-               ({'types': ['T X']}, 'invalid_type'), ({'zone': 'nodots'}, 'invalid_zone')]
+               ({'types': ['T X']}, 'invalid_type'), ({'zones': ['nodots']}, 'invalid_zone')]
         for change, error in bad:
             with self.assertRaises(lib.ActionError) as cm:
                 lib.set_policy({'rules': [self.rule(**change)]})
@@ -441,7 +477,7 @@ class PolicyTests(Base):
             self.assertRejects(lib.get_records, {'zone': 'other.org'}, 'not_permitted')
 
     def test_rules_apply_per_caller_with_wildcards(self):
-        lib.set_policy({'rules': [self.rule(caller='module/traefik*', zone='*', names=['_acme-challenge', '_acme-challenge.*'], types=['TXT'])]})
+        lib.set_policy({'rules': [self.rule(caller='module/traefik*', zones=['*'], names=['_acme-challenge', '_acme-challenge.*'], types=['TXT'])]})
         with as_module('traefik2'):
             lib.append_records({'zone': 'other.org', 'records': [self.txt('_acme-challenge.www')]})
             self.assertRejects(lib.append_records, {'zone': 'other.org', 'records': [self.txt('www')]}, 'not_permitted')
