@@ -180,7 +180,7 @@ against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
-| GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | With a PAT; otherwise type the zone |
+| GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | name.com | User name and API token, made under Account Settings > API Tokens | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
@@ -194,8 +194,8 @@ What to know about each provider:
 - **Cloudflare**: HTTPS and SVCB records are not supported. TXT values containing `"` or `\` are
   refused.
 - **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
-  and dnshelper waits and retries when it is exceeded. A token that may not list domains, and the
-  legacy key, need the zone name typed in.
+  and dnshelper waits and retries when it is exceeded. A credential that is not allowed to list
+  domains needs the zone name typed in.
 - **Hetzner**: uses the Cloud DNS API (zones in the Hetzner Console), not the retired DNS Console
   API. Each API action takes 8 to 15 seconds. A TXT value beginning or ending with `"` is refused.
 - **name.com**: TTLs under 300 seconds are raised to 300. TXT values containing `"` or `\` are
