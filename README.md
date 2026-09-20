@@ -91,6 +91,46 @@ User-fixable problems (conflict, forbidden, `not_permitted`, bad credentials, un
 reported as NS8 `validation-failed` with an `error` code and a `message`; provider outages and
 timeouts fail the step with a journal message.
 
+### The consumer actions in detail
+
+A record is `{"name", "type", "ttl", "data"}`. `name` is relative to the zone (`@` for the apex);
+`ttl` is optional (0 or omitted means "unspecified": kept when merging, and the provider's default
+otherwise; providers with a minimum raise a shorter TTL). `data` is the value in libdns text form:
+TXT is one plain, unquoted string of any length, MX is `"priority target"` and SRV is
+`"priority weight port target"`. The exact schemas are `imageroot/actions/<action>/validate-*.json`.
+
+| Action | Input | Output |
+|---|---|---|
+| `has-zone` | `name`: a zone or a host name | `{"managed", "zone", "allowed"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it |
+| `list-zones` | none | `{"zones": [{"zone", "credential", "provider"}]}`, only the zones the caller has a rule for |
+| `get-records` | `zone`; optional `name`, `type` filters | `{"records": [...]}`, only records the caller's rules cover |
+| `append-records` | `zone`, `records`, optional `dry_run` | `{"dry_run", "changes": {"add", "remove"}, "records"}`; adds records, never removes; adding one that already exists is not an error |
+| `set-records` | `zone`, `records`, optional `dry_run`, `mode`, `replace_prefixes` | as above; see below |
+| `delete-records` | `zone`, `records` (only `name` required), optional `dry_run` | as above; removes the records that match |
+
+- `set-records` defaults to `"mode": "merge"`: it keeps the other members of an RRset, so setting an
+  SPF record does not delete site-verification TXT records. `replace_prefixes` (for example
+  `["v=spf1"]`) names existing values to replace. `"mode": "rrset"` makes the input the only
+  members of each `(name, type)` set. Use merge to rotate a DKIM key: the old value is replaced,
+  the rest kept.
+- `delete-records` matches exactly on name, type, value and TTL, where a `type`, `ttl` or `data` you
+  leave out matches anything. Leaving the type out therefore needs an access rule with type `*`.
+  A provider that raised a TTL on write stores a different one, so leave the TTL out.
+- `dry_run` returns `changes` and writes nothing, for a preview or a permission check.
+- A change is refused as a whole, before any provider call, if the access rules do not cover every
+  record. dnshelper also refuses results that would be invalid (a CNAME at the apex or beside other
+  records, an SRV or MX target that is a CNAME) and never changes apex NS or SOA records.
+- Errors a caller can act on come back as NS8 validation failures whose `error` is one of
+  `not_permitted`, `zone_not_found`, `conflict`, `forbidden`, `auth_failed`, `unsupported`,
+  `invalid_request` or `unknown_provider`. Timeouts and provider outages fail the step instead.
+- Speed: every call reads the zone first. Most providers answer in a second or two, Hetzner takes 8
+  to 15 seconds per API call, and the helper gives up after 120 seconds. Do not call in a tight loop.
+- Which record types work, and which values a provider refuses (for example `"` and `\` in TXT on
+  some), depends on the DNS host: see [Providers](#providers).
+- A working consumer is `tests/integration/consumer/`: its `call-dnshelper` action finds dnshelper
+  the way step 2 does and reports what came back. `tests/integration/test_node.py` shows the calls
+  and their results on a real node.
+
 ### What a module may touch: the policy table
 
 Roles are module-wide, so they only decide which actions a module can call. Which zones, record
