@@ -14,7 +14,8 @@ package app
 //
 // GoDaddy and name.com:
 //
-//	DNSHELPER_LIVE_GODADDY_KEY=... DNSHELPER_LIVE_GODADDY_SECRET=... DNSHELPER_LIVE_GODADDY_ZONE=example.com go test ...
+//	DNSHELPER_LIVE_GODADDY_TOKEN=... DNSHELPER_LIVE_GODADDY_ZONE=example.com go test ...
+//	(or the legacy DNSHELPER_LIVE_GODADDY_KEY=... DNSHELPER_LIVE_GODADDY_SECRET=... instead of the token)
 //	DNSHELPER_LIVE_NAMECOM_USER=... DNSHELPER_LIVE_NAMECOM_TOKEN=... DNSHELPER_LIVE_NAMECOM_ZONE=example.com go test ...
 //
 // RFC 2136 (see testdata/bind/README.md for a local BIND):
@@ -70,6 +71,9 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 		return zone, map[string]string{"api_token": tok}
 	case "godaddy":
 		key, secret, zone := os.Getenv("DNSHELPER_LIVE_GODADDY_KEY"), os.Getenv("DNSHELPER_LIVE_GODADDY_SECRET"), os.Getenv("DNSHELPER_LIVE_GODADDY_ZONE")
+		if tok := os.Getenv("DNSHELPER_LIVE_GODADDY_TOKEN"); tok != "" && zone != "" {
+			return zone, map[string]string{"api_token": tok}
+		}
 		if key == "" || secret == "" || zone == "" {
 			return "", nil
 		}

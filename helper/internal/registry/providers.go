@@ -32,13 +32,23 @@ func init() {
 		Name:  "godaddy",
 		Label: "GoDaddy",
 		Fields: []contract.Field{
-			{Name: "api_key", Label: "API key (classic GoDaddy key)", Secret: true, Required: true},
-			{Name: "api_secret", Label: "API secret (classic GoDaddy secret)", Secret: true, Required: true},
+			{Name: "api_token", Label: "Personal access token (create one at developer.godaddy.com, with domain and DNS scopes)", Secret: true},
+			{Name: "api_key", Label: "Legacy API key (classic key, deprecated by GoDaddy; use instead of a token)", Secret: true},
+			{Name: "api_secret", Label: "Legacy API secret (classic key, deprecated by GoDaddy)", Secret: true},
+		},
+		Verify: func(c map[string]string) string {
+			switch {
+			case c["api_token"] != "" && (c["api_key"] != "" || c["api_secret"] != ""):
+				return "give either api_token or api_key and api_secret, not both"
+			case c["api_token"] == "" && (c["api_key"] == "" || c["api_secret"] == ""):
+				return "missing credential fields: api_token (or api_key and api_secret)"
+			}
+			return ""
 		},
 		Types: []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
-		Notes: "Uses the production GoDaddy API with a classic API key and secret. GoDaddy only enables its DNS API for accounts that meet its own requirements, and does not accept a TTL under 600 seconds: records written with a shorter or no TTL get 600.",
+		Notes: "Uses the production GoDaddy API with a personal access token (the legacy classic API key and secret still work but GoDaddy is deprecating them). GoDaddy does not accept a TTL under 600 seconds: records written with a shorter or no TTL get 600.",
 		New: func(c map[string]string) any {
-			return &goDaddyProvider{APIKey: c["api_key"], APISecret: c["api_secret"]}
+			return &goDaddyProvider{APIToken: c["api_token"], APIKey: c["api_key"], APISecret: c["api_secret"]}
 		},
 	})
 	Register(Def{

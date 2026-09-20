@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/libdns/libdns"
+
+	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
 )
 
 // goDaddyProvider talks to the GoDaddy Domains API (v1) itself. The libdns
@@ -29,15 +31,25 @@ import (
 // GoDaddy only offers whole-record-set writes (PUT replaces, DELETE removes), so
 // every write reads the zone and rewrites the affected sets, as libdns requires.
 type goDaddyProvider struct {
-	APIKey, APISecret string
+	APIToken          string // personal access token, sent as a Bearer token
+	APIKey, APISecret string // legacy classic key, sent as "sso-key key:secret"
 	baseURL           string // overridden in tests
+	domainPage        int    // domains per request; 0 means the default, set in tests
 	client            *http.Client
 }
 
+func (g *goDaddyProvider) authorization() string {
+	if g.APIToken != "" {
+		return "Bearer " + g.APIToken
+	}
+	return "sso-key " + g.APIKey + ":" + g.APISecret
+}
+
 const (
-	goDaddyBase   = "https://api.godaddy.com"
-	goDaddyMinTTL = 600
-	goDaddyPage   = 500
+	goDaddyBase       = "https://api.godaddy.com"
+	goDaddyMinTTL     = 600
+	goDaddyPage       = 500
+	goDaddyDomainPage = 1000
 )
 
 // gdRecord is a record as the GoDaddy API represents it.
@@ -89,7 +101,7 @@ func (g *goDaddyProvider) once(ctx context.Context, method, path string, payload
 	if err != nil {
 		return 0, nil, 0, err
 	}
-	req.Header.Set("Authorization", "sso-key "+g.APIKey+":"+g.APISecret)
+	req.Header.Set("Authorization", g.authorization())
 	req.Header.Set("Accept", "application/json")
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -145,6 +157,55 @@ func (g *goDaddyProvider) list(ctx context.Context, zone string) ([]gdRecord, er
 		}
 	}
 	return all, nil
+}
+
+// ListZones lists the account's active domains. Some credentials are refused
+// the list while they can still edit records; the caller then falls back to
+// reading the zone.
+//
+// The legacy key is refused the list (verified: 401 while the same key edits
+// records), and a token without the domain scope is refused too. Both are
+// reported as "unsupported", which makes the wizard ask for the zone name; only
+// a 401 for a token means bad credentials.
+func (g *goDaddyProvider) ListZones(ctx context.Context) ([]libdns.Zone, error) {
+	if g.APIToken == "" {
+		return nil, &contract.Error{Code: contract.CodeUnsupported, Message: "GoDaddy does not list domains for a legacy API key"}
+	}
+	var zones []libdns.Zone
+	marker := ""
+	size := g.domainPage
+	if size == 0 {
+		size = goDaddyDomainPage
+	}
+	for {
+		path := "/v1/domains?statuses=ACTIVE&limit=" + strconv.Itoa(size)
+		if marker != "" {
+			path += "&marker=" + url.QueryEscape(marker)
+		}
+		status, body, err := g.do(ctx, http.MethodGet, path, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status == http.StatusForbidden {
+			return nil, &contract.Error{Code: contract.CodeUnsupported, Message: "this GoDaddy token is not allowed to list domains"}
+		}
+		if status != http.StatusOK {
+			return nil, g.fail("could not list domains", status, body)
+		}
+		var page []struct {
+			Domain string `json:"domain"`
+		}
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("could not decode GoDaddy's answer: %w", err)
+		}
+		for _, d := range page {
+			zones = append(zones, libdns.Zone{Name: d.Domain + "."})
+		}
+		if len(page) < size {
+			return zones, nil
+		}
+		marker = page[len(page)-1].Domain
+	}
 }
 
 func (g *goDaddyProvider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {

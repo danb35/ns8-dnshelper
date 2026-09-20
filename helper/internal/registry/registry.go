@@ -26,6 +26,10 @@ type Def struct {
 	// value without corrupting it; append and set requests containing one are
 	// refused.
 	TXTForbidden string
+	// Verify, when set, checks combinations of fields that Required cannot
+	// express (one of several alternatives). It returns a message naming fields,
+	// never values, or "" when the credential is usable.
+	Verify func(cred map[string]string) string
 	// New builds the libdns provider from credential values keyed by field
 	// name. It does not validate them; use Check for that.
 	New func(cred map[string]string) any
@@ -87,6 +91,11 @@ func (d Def) Check(cred map[string]string) (map[string]string, error) {
 	}
 	if len(missing) > 0 {
 		return nil, &contract.Error{Code: contract.CodeInvalidRequest, Message: "missing credential fields: " + strings.Join(missing, ", ")}
+	}
+	if d.Verify != nil {
+		if msg := d.Verify(out); msg != "" {
+			return nil, &contract.Error{Code: contract.CodeInvalidRequest, Message: msg}
+		}
 	}
 	return out, nil
 }

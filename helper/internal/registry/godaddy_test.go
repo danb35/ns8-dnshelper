@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,15 +12,19 @@ import (
 	"testing"
 
 	"github.com/libdns/libdns"
+
+	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
 )
 
 // fakeGoDaddy is an in-memory GoDaddy Domains API: PUT replaces a record set,
 // DELETE removes it, GET lists everything (one page).
 type fakeGoDaddy struct {
-	mu      sync.Mutex
-	sets    map[string][]map[string]any // "TYPE/name" -> records
-	tooMany int                         // answer 429 this many times first
-	auth    string
+	mu          sync.Mutex
+	sets        map[string][]map[string]any // "TYPE/name" -> records
+	tooMany     int                         // answer 429 this many times first
+	auth        string
+	domains     []string
+	domainCalls []string
 }
 
 func (f *fakeGoDaddy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +35,27 @@ func (f *fakeGoDaddy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.tooMany--
 		w.Header().Set("Retry-After", "1")
 		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	if r.URL.Path == "/v1/domains" {
+		f.domainCalls = append(f.domainCalls, r.URL.RawQuery)
+		names := f.domains
+		if m := r.URL.Query().Get("marker"); m != "" {
+			for i, n := range names {
+				if n == m {
+					names = names[i+1:]
+					break
+				}
+			}
+		}
+		if len(names) > 2 { // a page of two in these tests
+			names = names[:2]
+		}
+		out := []map[string]string{}
+		for _, n := range names {
+			out = append(out, map[string]string{"domain": n})
+		}
+		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
 	p := strings.TrimPrefix(r.URL.Path, "/v1/domains/example.com/records")
@@ -160,5 +186,61 @@ func TestGoDaddyRetriesWhenRateLimited(t *testing.T) {
 	f.tooMany = 1
 	if _, err := g.GetRecords(context.Background(), "example.com"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGoDaddyPersonalAccessTokenIsSentAsBearer(t *testing.T) {
+	g, f := newFake(t)
+	g.APIToken, g.APIKey, g.APISecret = "gd_pat_x", "", ""
+	if _, err := g.GetRecords(context.Background(), "example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if f.auth != "Bearer gd_pat_x" {
+		t.Fatalf("auth header %q", f.auth)
+	}
+}
+
+func TestGoDaddyListZonesFollowsTheMarker(t *testing.T) {
+	g, f := newFake(t)
+	g.APIToken = "t"
+	f.domains = []string{"a.example", "b.example", "c.example"}
+	g.domainPage = 2 // the fake serves two per page
+	zones, err := g.ListZones(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zones) != 3 || zones[0].Name != "a.example." || zones[2].Name != "c.example." {
+		t.Fatalf("all pages must be read: %v", zones)
+	}
+	if len(f.domainCalls) != 2 || !strings.Contains(f.domainCalls[1], "marker=b.example") {
+		t.Fatalf("the second page must continue after the last domain: %v", f.domainCalls)
+	}
+	if !strings.Contains(f.domainCalls[0], "statuses=ACTIVE") {
+		t.Fatalf("only active domains must be listed: %v", f.domainCalls)
+	}
+}
+
+func TestGoDaddyLegacyKeyIsReportedAsUnableToListZones(t *testing.T) {
+	g, _ := newFake(t) // the fake is built with a legacy key
+	_, err := g.ListZones(context.Background())
+	var ce *contract.Error
+	if !errors.As(err, &ce) || ce.Code != contract.CodeUnsupported {
+		t.Fatalf("want an unsupported error, got %v", err)
+	}
+}
+
+func TestGoDaddyCredentialCheck(t *testing.T) {
+	def, _ := Get("godaddy")
+	ok := []map[string]string{{"api_token": "t"}, {"api_key": "k", "api_secret": "s"}}
+	bad := []map[string]string{{}, {"api_key": "k"}, {"api_secret": "s"}, {"api_token": "t", "api_key": "k", "api_secret": "s"}}
+	for _, c := range ok {
+		if _, err := def.Check(c); err != nil {
+			t.Errorf("%v: %v", c, err)
+		}
+	}
+	for _, c := range bad {
+		if _, err := def.Check(c); err == nil {
+			t.Errorf("%v must be refused", c)
+		}
 	}
 }
