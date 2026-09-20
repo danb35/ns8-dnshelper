@@ -178,6 +178,7 @@
     "presets": "Começar de",
     "preset_mail": "Servidor de e-mail",
     "preset_acme": "Certificados (ACME DNS-01)",
+    "preset_web": "Servidor ou serviço web",
     "caller_placeholder": "Escolha um módulo ou digite um padrão",
     "caller_help": "module/mail1, ou um padrão como module/mail*",
     "zone_placeholder": "Escolha uma zona",

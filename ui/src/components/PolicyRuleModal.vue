@@ -123,6 +123,14 @@ const PRESETS = [
     types: "TXT",
     access: "write",
   },
+  {
+    // a web server or a service on its own host name (SOGo, Grafana, ...) that
+    // points a name of its choice at the host's FQDN
+    key: "web",
+    names: "*",
+    types: "CNAME",
+    access: "write",
+  },
 ];
 
 export default {

@@ -178,6 +178,7 @@
     "presets": "Parti da",
     "preset_mail": "Server di posta",
     "preset_acme": "Certificati (ACME DNS-01)",
+    "preset_web": "Server o servizio web",
     "caller_placeholder": "Scegli un modulo o digita un modello",
     "caller_help": "module/mail1, oppure un modello come module/mail*",
     "zone_placeholder": "Scegli una zona",

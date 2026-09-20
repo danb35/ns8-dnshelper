@@ -290,7 +290,9 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Three pages besides About:
   suggests zones from the mail, web server and Traefik modules' host names; these are candidates
   only. Secrets are never shown again after saving: an empty secret field means "keep".
 - **Access**: the policy table (which module may change which record names and types), with
-  presets for a mail server and for ACME DNS-01, and the authorization label a consumer module
+  presets for a mail server, for ACME DNS-01 and for a web server or service (CNAME records with
+  any name, for modules such as the web server, SOGo or Grafana that publish a name for their own
+  FQDN), and the authorization label a consumer module
   needs.
 
 ```bash
