@@ -53,14 +53,16 @@
             :label="$t('access.all_zones')"
             :disabled="loading"
           />
-          <cv-checkbox
-            v-for="z in zoneChoices"
-            :key="z"
-            v-model="selectedZones"
-            :value="z"
-            :label="z"
-            :disabled="loading || allZones"
-          />
+          <div class="zones-list">
+            <cv-checkbox
+              v-for="z in zoneChoices"
+              :key="z"
+              v-model="selectedZones"
+              :value="z"
+              :label="z"
+              :disabled="loading || allZones"
+            />
+          </div>
           <div v-if="!error.zone" class="bx--form__helper-text">
             {{ $t("access.zones_help") }}
           </div>
@@ -299,6 +301,12 @@ export default {
   padding: 0;
   margin-left: 0;
   margin-right: 0;
+}
+
+// a long list of zones scrolls inside the dialog instead of stretching it
+.zones-list {
+  max-height: 11rem;
+  overflow-y: auto;
 }
 
 .zones-error {
