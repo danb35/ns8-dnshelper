@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/libdns/libdns"
+
+	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
 )
 
 // fakeGoDaddy is an in-memory GoDaddy Domains API: PUT replaces a record set,
@@ -199,6 +202,7 @@ func TestGoDaddyPersonalAccessTokenIsSentAsBearer(t *testing.T) {
 
 func TestGoDaddyListZonesFollowsTheMarker(t *testing.T) {
 	g, f := newFake(t)
+	g.APIToken = "t"
 	f.domains = []string{"a.example", "b.example", "c.example"}
 	g.domainPage = 2 // the fake serves two per page
 	zones, err := g.ListZones(context.Background())
@@ -213,6 +217,15 @@ func TestGoDaddyListZonesFollowsTheMarker(t *testing.T) {
 	}
 	if !strings.Contains(f.domainCalls[0], "statuses=ACTIVE") {
 		t.Fatalf("only active domains must be listed: %v", f.domainCalls)
+	}
+}
+
+func TestGoDaddyLegacyKeyIsReportedAsUnableToListZones(t *testing.T) {
+	g, _ := newFake(t) // the fake is built with a legacy key
+	_, err := g.ListZones(context.Background())
+	var ce *contract.Error
+	if !errors.As(err, &ce) || ce.Code != contract.CodeUnsupported {
+		t.Fatalf("want an unsupported error, got %v", err)
 	}
 }
 

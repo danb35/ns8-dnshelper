@@ -537,7 +537,9 @@ export default {
         const message = this.errorText(err);
         // a rejected credential belongs on the credentials step
         if (this.step === "credentials") {
-          const first = this.provider.fields.find((f) => f.required);
+          const first =
+            this.provider.fields.find((f) => f.required) ||
+            this.provider.fields[0];
           this.$set(this.error, "field_" + (first ? first.name : ""), message);
         } else {
           this.error.credential = message;
