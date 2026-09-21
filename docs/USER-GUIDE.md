@@ -54,6 +54,7 @@ revoke it at your DNS host without touching anything else.
 | DNS host | What dnshelper asks for | Where to create it |
 |---|---|---|
 | Cloudflare | An API token that can edit DNS for your zones (the "Edit zone DNS" permission). If the token is limited to one zone, a second token that can read zones is also asked for, so that the zone list works | [Create an API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) |
+| Core-Networks ([core-networks.de](https://www.core-networks.de/)) | The login and password of an **API account**. This is not the login you use in the web interface: make a separate API account in the web interface, under API user accounts | [Core-Networks API documentation](https://beta.api.core-networks.de/doc/) |
 | GoDaddy | A personal access token that can read your domains and manage their DNS records. The older "classic" API key and secret still work, but GoDaddy is retiring them | [GoDaddy developer site](https://developer.godaddy.com/en/docs/api-users/auth) |
 | Hetzner | A Hetzner Cloud API token with **Read & Write** permission, made in the project that holds your DNS zones | [Generating an API token](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/) |
 | name.com | Your user name and an API token. Use a **production** token: a development token does not work | [Get your API token](https://docs.name.com/getting-started) |
@@ -254,9 +255,11 @@ These are the messages you may see, with what to check.
 A few more things that look like problems and are not:
 
 - **A record has a different TTL from the one requested.** GoDaddy raises a TTL below 600 seconds
-  to 600, and name.com below 300 to 300.
+  to 600, name.com below 300 to 300, and Core-Networks below 60 to 60.
 - **Hetzner is slow.** Each action takes 8 to 15 seconds there; that is the DNS host, not a fault.
 - **GoDaddy limits the number of requests** to about 60 a minute. dnshelper waits and tries again.
+- **Core-Networks limits how often you can log in.** dnshelper logs in once and reuses the session for
+  up to an hour. If you see that logins are limited, wait a few minutes and try again.
 - **The zone list is empty or the wizard asks you to type the zone.** Some credentials are not
   allowed to list zones, and some DNS hosts cannot. Type the zone name.
 
