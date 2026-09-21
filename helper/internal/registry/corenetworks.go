@@ -3,15 +3,20 @@ package registry
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/libdns/libdns"
 
@@ -30,18 +35,31 @@ import (
 //     a body without any field removes every record of the zone. The adapter
 //     therefore only ever sends a delete for a concrete record it has just read
 //     (name, type and data all set);
-//   - there is no update or replace, so a set is a delete followed by adds.
+//   - there is no update or replace, so a set is a delete followed by adds;
+//   - a TXT value is stored exactly as sent and read as zone-file text: plain text
+//     (even a 600 character DKIM key) is served as one string, split at 255 bytes by
+//     the service, but any value containing a quote or backslash is tokenized at
+//     spaces and loses its backslashes, so those are sent as quoted, escaped
+//     strings; values that were entered that way (an SPF record in quotes) are
+//     decoded when read;
+//   - a TTL below 60 seconds is refused, and none at all means 1800;
+//   - a bad password answers 401 at login, a bad or expired token 403.
 type coreNetworksProvider struct {
 	Login, Password string
 	baseURL         string // overridden in tests
 	client          *http.Client
+	cacheDir        string // where the session token is kept between runs; empty: nowhere
 
 	mu      sync.Mutex // guards token and expires
 	token   string
 	expires time.Time
 }
 
-const coreNetworksBase = "https://beta.api.core-networks.de"
+const (
+	coreNetworksBase = "https://beta.api.core-networks.de"
+	// the lowest TTL the service accepts (verified: 60 is, 59 and below are not)
+	coreNetworksMinTTL = 60
+)
 
 // cnRecord is a record as the API represents it. The API documents ttl as a
 // number but returns it as a string, so both are accepted.
@@ -75,11 +93,76 @@ func (g *coreNetworksProvider) base() string {
 	return coreNetworksBase
 }
 
-// authorize returns a valid token, logging in when there is none or it is about
-// to expire.
+// tokenFile is where the session token for this account is kept. The name is a
+// hash of everything the token depends on, so a changed password or another
+// account never finds a token that is not theirs.
+func (g *coreNetworksProvider) tokenFile() string {
+	if g.cacheDir == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(g.Login + "\x00" + g.Password + "\x00" + g.base()))
+	return filepath.Join(g.cacheDir, "corenetworks-"+hex.EncodeToString(sum[:12])+".json")
+}
+
+func (g *coreNetworksProvider) loadToken() {
+	f := g.tokenFile()
+	if f == "" {
+		return
+	}
+	b, err := os.ReadFile(f)
+	if err != nil {
+		return
+	}
+	var c struct {
+		Token   string `json:"token"`
+		Expires int64  `json:"expires"`
+	}
+	if json.Unmarshal(b, &c) != nil || c.Token == "" {
+		return
+	}
+	g.token, g.expires = c.Token, time.Unix(c.Expires, 0)
+}
+
+// saveToken keeps the token for the next run, readable only by the current user.
+// A failure to save is not an error: the next run logs in again.
+func (g *coreNetworksProvider) saveToken() {
+	f := g.tokenFile()
+	if f == "" {
+		return
+	}
+	if os.MkdirAll(g.cacheDir, 0o700) != nil {
+		return
+	}
+	b, _ := json.Marshal(map[string]any{"token": g.token, "expires": g.expires.Unix()})
+	tmp, err := os.CreateTemp(g.cacheDir, ".token-*") // created 0600
+	if err != nil {
+		return
+	}
+	_, werr := tmp.Write(b)
+	if cerr := tmp.Close(); werr != nil || cerr != nil || os.Rename(tmp.Name(), f) != nil {
+		os.Remove(tmp.Name())
+	}
+}
+
+// forgetToken drops a token the service no longer accepts.
+func (g *coreNetworksProvider) forgetToken() {
+	g.mu.Lock()
+	g.token = ""
+	g.mu.Unlock()
+	if f := g.tokenFile(); f != "" {
+		os.Remove(f)
+	}
+}
+
+// authorize returns a valid token: the one in memory or kept from an earlier run,
+// or a new one. Logins are rate limited (a few in a short time are answered with
+// 429), and a token lasts an hour, so a token is reused wherever it is kept.
 func (g *coreNetworksProvider) authorize(ctx context.Context) (string, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.token == "" {
+		g.loadToken()
+	}
 	if g.token != "" && time.Now().Before(g.expires.Add(-30*time.Second)) {
 		return g.token, nil
 	}
@@ -96,6 +179,9 @@ func (g *coreNetworksProvider) authorize(ctx context.Context) (string, error) {
 	}
 	defer resp.Body.Close()
 	out, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("could not log in: Core-Networks limits the number of logins and answered 429; wait a few minutes and try again")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", g.fail("could not log in", resp.StatusCode, out)
 	}
@@ -111,6 +197,7 @@ func (g *coreNetworksProvider) authorize(ctx context.Context) (string, error) {
 		secs = 300
 	}
 	g.token, g.expires = t.Token, time.Now().Add(time.Duration(secs)*time.Second)
+	g.saveToken()
 	return g.token, nil
 }
 
@@ -122,8 +209,10 @@ func (g *coreNetworksProvider) fail(what string, status int, body []byte) error 
 	return fmt.Errorf("%s: Core-Networks answered %d: %s", what, status, b)
 }
 
-// do sends an authenticated request and returns the status and body. A 401 is
-// retried once with a fresh token, in case the old one expired early.
+// do sends an authenticated request and returns the status and body. A 401 or a
+// 403 (the service answers 403 to a token it does not know) is retried once with
+// a fresh token, in case the old one expired early; the new login fails if the
+// credentials themselves are wrong.
 func (g *coreNetworksProvider) do(ctx context.Context, method, path string, body any) (int, []byte, error) {
 	var payload []byte
 	if body != nil {
@@ -156,10 +245,8 @@ func (g *coreNetworksProvider) do(ctx context.Context, method, path string, body
 		}
 		out, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
-		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
-			g.mu.Lock()
-			g.token = ""
-			g.mu.Unlock()
+		if (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) && attempt == 0 {
+			g.forgetToken()
 			continue
 		}
 		return resp.StatusCode, out, nil
@@ -236,7 +323,88 @@ func (r cnRecord) toLibdns() libdns.Record {
 	if name == "" {
 		name = "@"
 	}
-	return libdns.RR{Name: name, Type: strings.ToUpper(r.Type), TTL: r.ttl(), Data: r.Data}
+	typ := strings.ToUpper(r.Type)
+	data := r.Data
+	if typ == "TXT" {
+		data = cnDecodeTXT(data)
+	}
+	return libdns.RR{Name: name, Type: typ, TTL: r.ttl(), Data: data}
+}
+
+// cnEncodeTXT prepares a TXT value for the API. Text without a quote or a
+// backslash is sent as it is: the service keeps it as one string and splits it at
+// 255 bytes itself. Anything else is sent as zone-file strings, quoted, escaped
+// and split at 255 bytes, which the service serves as written.
+func cnEncodeTXT(s string) string {
+	if !strings.ContainsAny(s, `"\`) {
+		return s
+	}
+	var parts []string
+	for len(s) > 0 || len(parts) == 0 {
+		n := len(s)
+		if n > 255 {
+			n = 255
+			for n > 0 && !utf8.RuneStart(s[n]) { // never cut a character in two
+				n--
+			}
+		}
+		esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s[:n])
+		parts = append(parts, `"`+esc+`"`)
+		s = s[n:]
+	}
+	return strings.Join(parts, " ")
+}
+
+// cnDecodeTXT reverses cnEncodeTXT, and reads what someone else entered in zone
+// file form (an SPF record in quotes). A value that does not start with a quote is
+// returned as it is; so is one that is not a well formed list of quoted strings.
+func cnDecodeTXT(s string) string {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, `"`) {
+		return s
+	}
+	var out strings.Builder
+	i := 0
+	for i < len(t) {
+		if t[i] == ' ' || t[i] == '\t' {
+			i++
+			continue
+		}
+		if t[i] != '"' {
+			return s
+		}
+		i++
+		closed := false
+		for i < len(t) {
+			c := t[i]
+			switch {
+			case c == '"':
+				closed = true
+			case c == '\\' && i+1 < len(t):
+				i++
+				if d := t[i]; d >= '0' && d <= '9' && i+2 < len(t) && t[i+1] >= '0' && t[i+1] <= '9' && t[i+2] >= '0' && t[i+2] <= '9' {
+					n := int(d-'0')*100 + int(t[i+1]-'0')*10 + int(t[i+2]-'0')
+					if n > 255 {
+						return s
+					}
+					out.WriteByte(byte(n))
+					i += 2
+				} else {
+					out.WriteByte(d)
+				}
+			default:
+				out.WriteByte(c)
+			}
+			i++
+			if closed {
+				break
+			}
+		}
+		if !closed {
+			return s
+		}
+	}
+	return out.String()
 }
 
 // commit publishes the pending changes of a zone to the name servers.
@@ -253,11 +421,18 @@ func (g *coreNetworksProvider) commit(ctx context.Context, zone string) error {
 
 // add posts one record.
 func (g *coreNetworksProvider) add(ctx context.Context, zone string, rr libdns.RR) error {
-	rec := map[string]any{"name": rr.Name, "type": strings.ToUpper(rr.Type), "data": rr.Data}
+	data := rr.Data
+	if strings.EqualFold(rr.Type, "TXT") {
+		data = cnEncodeTXT(data)
+	}
+	rec := map[string]any{"name": rr.Name, "type": strings.ToUpper(rr.Type), "data": data}
 	if rr.Name == "" {
 		rec["name"] = "@"
 	}
 	if s := int(rr.TTL / time.Second); s > 0 {
+		if s < coreNetworksMinTTL {
+			s = coreNetworksMinTTL
+		}
 		rec["ttl"] = s
 	}
 	status, body, err := g.do(ctx, http.MethodPost, cnZonePath(zone), rec)
@@ -312,6 +487,8 @@ func cnSameData(typ, a, b string) bool {
 		return true
 	case "A", "AAAA":
 		return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+	case "TXT":
+		return cnDecodeTXT(a) == cnDecodeTXT(b)
 	}
 	return a == b
 }

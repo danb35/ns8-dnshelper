@@ -194,6 +194,14 @@ class HelperCallTests(Base):
         argv = self.last()['argv']
         self.assertEqual(argv[argv.index('-lock-dir') + 1], os.path.join(self.state, 'locks'))
 
+    def test_the_session_token_cache_is_under_the_state_dir_but_not_backed_up(self):
+        self.respond({'get-records': {'ok': True, 'records': []}})
+        lib.get_records({'zone': 'example.com'})
+        argv = self.last()['argv']
+        self.assertEqual(argv[argv.index('-cache-dir') + 1], os.path.join(self.state, 'cache'))
+        with open(os.path.join(os.path.dirname(lib.__file__), '..', 'etc', 'state-include.conf')) as f:
+            self.assertNotIn('cache', f.read())
+
     def test_unconfigured_zone(self):
         self.assertRejects(lib.get_records, {'zone': 'other.org'}, 'zone_not_found', 'zone')
         self.assertEqual(self.calls(), [])

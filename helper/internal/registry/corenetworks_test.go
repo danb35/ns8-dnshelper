@@ -7,9 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/libdns/libdns"
 
@@ -26,6 +28,7 @@ type fakeCoreNetworks struct {
 	commits   int
 	deletes   []map[string]string
 	badLogin  bool
+	tooMany   bool // answer 429 to every login
 	expireAll bool // answer 401 to the next authorized request
 	zones     []map[string]string
 }
@@ -35,6 +38,11 @@ func (f *fakeCoreNetworks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 	body, _ := io.ReadAll(r.Body)
 	if r.URL.Path == "/auth/token" {
+		if f.tooMany {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("Zu viele Login-Versuche, versuchen Sie es später erneut."))
+			return
+		}
 		var in map[string]string
 		_ = json.Unmarshal(body, &in)
 		if f.badLogin || in["login"] != "api-user" || in["password"] != "secret" {
@@ -48,11 +56,11 @@ func (f *fakeCoreNetworks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if f.expireAll {
 		f.expireAll = false
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(http.StatusForbidden) // what the service says to a token it does not know
 		return
 	}
 	if r.Header.Get("Authorization") == "" {
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 	switch {
@@ -89,7 +97,11 @@ func (f *fakeCoreNetworks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost:
 		var m map[string]any
 		_ = json.Unmarshal(body, &m)
-		if _, ok := m["ttl"]; ok {
+		if t, ok := m["ttl"]; ok {
+			if n, _ := t.(float64); n < 60 {
+				w.WriteHeader(http.StatusUnsupportedMediaType) // the service's answer to a bad value
+				return
+			}
 			m["ttl"] = "300" // the API returns the TTL as a string
 		} else {
 			m["ttl"] = "3600"
@@ -125,7 +137,7 @@ func TestCoreNetworksLogsInOnceAndReusesTheToken(t *testing.T) {
 	}
 }
 
-func TestCoreNetworksExpiredTokenIsRenewedOnce(t *testing.T) {
+func TestCoreNetworksUnknownTokenIsRenewedOnce(t *testing.T) {
 	g, f := newFakeCN(t)
 	if _, err := g.GetRecords(context.Background(), "example.com"); err != nil {
 		t.Fatal(err)
@@ -135,7 +147,7 @@ func TestCoreNetworksExpiredTokenIsRenewedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.logins != 2 {
-		t.Fatalf("a 401 must trigger one new login, got %d logins", f.logins)
+		t.Fatalf("a 403 must trigger one new login, got %d logins", f.logins)
 	}
 }
 
@@ -273,5 +285,163 @@ func TestCoreNetworksCredentialCheck(t *testing.T) {
 	}
 	if got := def.Secrets(map[string]string{"login": "u", "password": "p"}); len(got) != 1 || got[0] != "p" {
 		t.Errorf("only the password is a secret: %v", got)
+	}
+}
+
+func TestCoreNetworksTXTEncoding(t *testing.T) {
+	long := "v=DKIM1; k=rsa; p=" + strings.Repeat("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A", 19) // 630 bytes
+	for _, tc := range []struct{ plain, sent string }{
+		{"hello world", "hello world"}, // no quote or backslash: sent as it is
+		{long, long},                   // and the service splits it itself
+		{`a "quoted" word and a back\slash`, `"a \"quoted\" word and a back\\slash"`},
+		{`"hello"`, `"\"hello\""`},
+		{"", ""},
+	} {
+		if got := cnEncodeTXT(tc.plain); got != tc.sent {
+			t.Errorf("encode %q: got %q, want %q", tc.plain, got, tc.sent)
+		}
+		if got := cnDecodeTXT(cnEncodeTXT(tc.plain)); got != tc.plain {
+			t.Errorf("round trip of %q gave %q", tc.plain, got)
+		}
+	}
+	// a long value with a quote is split into strings of at most 255 bytes, and is whole again after decoding
+	q := strings.Repeat(`ab"cd\`, 100) // 700 bytes
+	enc := cnEncodeTXT(q)
+	for _, part := range strings.Split(enc, `" "`) {
+		if len(strings.TrimSuffix(strings.TrimPrefix(part, `"`), `"`)) > 2*255 { // escapes add bytes
+			t.Fatalf("a string is far too long: %d", len(part))
+		}
+	}
+	if cnDecodeTXT(enc) != q {
+		t.Fatal("a split value must decode to the original")
+	}
+	// values as other people entered them
+	for in, want := range map[string]string{
+		`"v=spf1 a mx ~all"`:    "v=spf1 a mx ~all",
+		`"one" "two"`:           "onetwo",
+		`"a \"b\" c"`:           `a "b" c`,
+		`"tab\009end"`:          "tab\tend",
+		`v=DKIM1; k=rsa; p=abc`: `v=DKIM1; k=rsa; p=abc`, // plain: unchanged
+		`"unterminated`:         `"unterminated`,         // malformed: unchanged
+		`"ok" trailing`:         `"ok" trailing`,
+	} {
+		if got := cnDecodeTXT(in); got != want {
+			t.Errorf("decode %q: got %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCoreNetworksTXTIsStoredEncodedAndReadBackPlain(t *testing.T) {
+	g, f := newFakeCN(t)
+	ctx := context.Background()
+	plain := `a "quoted" word and a back\slash`
+	if _, err := g.AppendRecords(ctx, "example.com", []libdns.Record{cnTXT("q", plain), cnTXT("p", "plain text")}); err != nil {
+		t.Fatal(err)
+	}
+	stored := map[string]string{}
+	for _, r := range f.records {
+		stored[r["name"].(string)] = r["data"].(string)
+	}
+	if stored["q"] != `"a \"quoted\" word and a back\\slash"` || stored["p"] != "plain text" {
+		t.Fatalf("stored: %v", stored)
+	}
+	recs, err := g.GetRecords(ctx, "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range recs {
+		got[r.RR().Name] = r.RR().Data
+	}
+	if got["q"] != plain || got["p"] != "plain text" {
+		t.Fatalf("read back: %v", got)
+	}
+	// a record entered by someone else with quotes around an SPF value is found by its plain text
+	f.records = append(f.records, map[string]any{"name": "@", "type": "TXT", "ttl": "1800", "data": `"v=spf1 a mx ~all"`})
+	del, err := g.DeleteRecords(ctx, "example.com", []libdns.Record{cnTXT("@", "v=spf1 a mx ~all")})
+	if err != nil || len(del) != 1 {
+		t.Fatalf("%v %v", del, err)
+	}
+	if f.deletes[len(f.deletes)-1]["data"] != `"v=spf1 a mx ~all"` {
+		t.Fatalf("the delete must carry the stored form: %v", f.deletes[len(f.deletes)-1])
+	}
+	if len(f.records) != 2 {
+		t.Fatalf("%v", f.records)
+	}
+}
+
+func TestCoreNetworksShortTTLIsRaisedToTheMinimum(t *testing.T) {
+	g, _ := newFakeCN(t)
+	ctx := context.Background()
+	for _, ttl := range []int{1, 30, 59, 60} {
+		if _, err := g.AppendRecords(ctx, "example.com", []libdns.Record{libdns.RR{Name: "t", Type: "TXT", Data: "v" + string(rune('a'+ttl%26)), TTL: time.Duration(ttl) * time.Second}}); err != nil {
+			t.Fatalf("ttl %d: %v", ttl, err)
+		}
+	}
+}
+
+func TestCoreNetworksTokenIsKeptBetweenRuns(t *testing.T) {
+	g, f := newFakeCN(t)
+	dir := t.TempDir() + "/cache"
+	run := func(pw string) error { // a fresh provider each time, like a fresh run of the helper
+		p := &coreNetworksProvider{Login: "api-user", Password: pw, baseURL: g.baseURL, cacheDir: dir}
+		_, err := p.GetRecords(context.Background(), "example.com")
+		return err
+	}
+	for i := 0; i < 3; i++ {
+		if err := run("secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if f.logins != 1 {
+		t.Fatalf("three runs must share one login, got %d", f.logins)
+	}
+	// the token is private
+	if st, err := os.Stat(dir); err != nil || st.Mode().Perm() != 0o700 {
+		t.Fatalf("the cache directory must be 0700: %v %v", st, err)
+	}
+	files, _ := os.ReadDir(dir)
+	if len(files) != 1 {
+		t.Fatalf("one token file, got %d", len(files))
+	}
+	if st, _ := os.Stat(dir + "/" + files[0].Name()); st.Mode().Perm() != 0o600 {
+		t.Fatalf("the token file must be 0600, got %v", st.Mode().Perm())
+	}
+	// another password never finds this token: it logs in, and is refused
+	if err := run("other"); err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("a different password must not reuse the token: %v", err)
+	}
+	// a token the service stopped accepting is dropped and replaced
+	f.expireAll = true
+	if err := run("secret"); err != nil {
+		t.Fatal(err)
+	}
+	if f.logins != 2 {
+		t.Fatalf("the refused token must be replaced by one new login, got %d", f.logins)
+	}
+	if err := run("secret"); err != nil || f.logins != 2 {
+		t.Fatalf("and the new one is reused: %v, %d logins", err, f.logins)
+	}
+}
+
+func TestCoreNetworksWithoutACacheDirNothingIsWritten(t *testing.T) {
+	g, f := newFakeCN(t)
+	for i := 0; i < 2; i++ {
+		p := &coreNetworksProvider{Login: "api-user", Password: "secret", baseURL: g.baseURL}
+		if _, err := p.GetRecords(context.Background(), "example.com"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if f.logins != 2 {
+		t.Fatalf("without a cache every run logs in, got %d", f.logins)
+	}
+}
+
+func TestCoreNetworksRateLimitedLoginSaysSo(t *testing.T) {
+	g, f := newFakeCN(t)
+	f.tooMany = true
+	_, err := g.GetRecords(context.Background(), "example.com")
+	if err == nil || !strings.Contains(err.Error(), "limits the number of logins") {
+		t.Fatalf("%v", err)
 	}
 }

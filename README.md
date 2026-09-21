@@ -181,6 +181,10 @@ Credentials are separate objects; a zone references one. They are never stored i
 which secret fields are set; on update an empty secret field means "keep". Use zone-scoped,
 least-privilege tokens.
 
+A provider that limits logins (Core-Networks) makes the helper keep the short-lived session token it
+receives in `state/cache` (directory 0700, files 0600), so that each call does not log in again. The
+token is derived from the credential, is not part of the backup, and expires within the hour.
+
 ## Backup and restore
 
 **What is backed up** (`imageroot/etc/state-include.conf`): `state/zones.json`,
@@ -218,13 +222,14 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, GoDaddy, Hetzner (Cloud DNS API), name.com and RFC 2136. All
-have been tested live: Cloudflare, GoDaddy, Hetzner and name.com against real zones, RFC 2136
-against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
+Supported providers today: Cloudflare, Core-Networks, GoDaddy, Hetzner (Cloud DNS API), name.com and
+RFC 2136. All have been tested live: Cloudflare, Core-Networks, GoDaddy, Hetzner and name.com against
+real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Core-Networks | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | name.com | User name and API token, made under Account Settings > API Tokens | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -238,6 +243,10 @@ What to know about each provider:
 
 - **Cloudflare**: HTTPS and SVCB records are not supported. TXT values containing `"` or `\` are
   refused.
+- **Core-Networks**: TTLs under 60 seconds are raised to 60, and a record without a TTL gets 1800.
+  The service limits how often one can log in, so dnshelper keeps the session token (valid for an
+  hour) between calls; see [Credentials](#credentials). Every change is committed to the name
+  servers at once. TXT values, including ones with `"` or `\`, are stored as written.
 - **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
   and dnshelper waits and retries when it is exceeded. A credential that is not allowed to list
   domains needs the zone name typed in.
@@ -326,6 +335,16 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   not an address; it is passed through as is.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
+- Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from
+  the others in these ways, all verified against a live zone: a login gives a one hour token and
+  logins are rate limited (429), so the token is cached in `-cache-dir`; changes are held in a
+  database until an explicit `commit`, which follows every change; a delete removes everything the
+  posted partial record matches and an empty one wipes the zone, so only complete records read from
+  the zone are ever sent; there is no update (a set is delete and add); TTLs below 60 are refused
+  and none means 1800; a TXT value is read as zone-file text, so plain text (even 600 characters, the
+  service splits it) is sent as it is but a value with `"` or `\` is sent as quoted, escaped strings
+  (sent raw it is split at every space and loses backslashes), and values entered with quotes are
+  decoded when read; the same record with another TTL becomes a second record.
 - An RFC 2136 zone transfer lists the SOA twice; repeats are dropped.
 - RFC 2136 reading needs AXFR allowed for the TSIG key; a zone the server does not serve is
   reported as `auth_failed`.

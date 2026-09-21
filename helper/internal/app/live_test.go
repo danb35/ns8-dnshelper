@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -131,6 +132,26 @@ func eachLive(t *testing.T, providers []string, fn func(t *testing.T, l *live)) 
 	}
 }
 
+var (
+	cacheOnce sync.Once
+	cacheDir  string
+)
+
+// liveCacheDir is shared by all the runs of one test binary, as the module's
+// state/cache is shared by its runs of the helper, so a provider that limits
+// logins is not asked to log in for every call. DNSHELPER_LIVE_CACHE_DIR names it
+// (to reuse a token); otherwise it is a temporary directory.
+func liveCacheDir() string {
+	cacheOnce.Do(func() {
+		if d := os.Getenv("DNSHELPER_LIVE_CACHE_DIR"); d != "" {
+			cacheDir = d
+			return
+		}
+		cacheDir, _ = os.MkdirTemp("", "dnshelper-live-cache-")
+	})
+	return cacheDir
+}
+
 var allProviders = []string{"cloudflare", "corenetworks", "godaddy", "hetzner", "namedotcom", "rfc2136"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
@@ -141,7 +162,7 @@ func (l *live) run(op string, mut func(*contract.Request), recs ...contract.Reco
 	if mut != nil {
 		mut(&rq)
 	}
-	return Run(context.Background(), rq, Options{LockDir: l.t.TempDir(), Timeout: 120 * time.Second})
+	return Run(context.Background(), rq, Options{LockDir: l.t.TempDir(), CacheDir: liveCacheDir(), Timeout: 120 * time.Second})
 }
 
 func (l *live) must(op string, recs ...contract.Record) contract.Response {
@@ -222,6 +243,20 @@ func TestLiveBadCredentialsHetzner(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-a-real") {
 			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsCoreNetworks(t *testing.T) {
+	eachLive(t, []string{"corenetworks"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"login": l.cred["login"], "password": "not-the-password-0123456789"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-password") {
+			t.Fatal("password echoed")
 		}
 	})
 }
