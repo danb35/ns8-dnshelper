@@ -19,6 +19,7 @@ import threading
 import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -98,6 +99,8 @@ def run(kind, module_id, body):
         traceback.print_exc()
         ev.update(type='aborted', output={'error': repr(e)})
     with LOCK:
+        # kept, not handed out once: a dropped response or a second viewer must not lose results
+        ev['seq'] = len(EVENTS) + 1
         EVENTS.append(ev)
 
 
@@ -115,9 +118,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path == '/api/events':
+        if self.path.split('?')[0] == '/api/events':
+            after = int((parse_qs(urlparse(self.path).query).get('after') or ['0'])[0])
             with LOCK:
-                out, EVENTS[:] = list(EVENTS), []
+                out = [e for e in EVENTS if e['seq'] > after]
             return self.send(200, out)
         path = self.path.split('?')[0]
         if path == '/':

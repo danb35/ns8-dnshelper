@@ -21,3 +21,25 @@ DNSHELPER_REAL_BIN=/tmp/dnshelper CORE_CSS=/path/to/core/ui/dist/css/core.css py
 
 `CORE_CSS` is the NS8 core UI's `css/core.css` (the concatenation of its `app~*.css` files);
 without it the app renders without the shell's Carbon styles.
+
+## Screenshots
+
+`screenshots.js` drives the harness in a headless browser and takes the pictures used in
+[docs/USER-GUIDE.md](../../docs/USER-GUIDE.md), so that they can be redone when the UI changes. It
+seeds its own data through the real actions, and needs the shell's stylesheet (`CORE_CSS`, see
+above) or the pictures would show an unstyled page.
+
+```bash
+# in one terminal: the harness, with the shell's stylesheet
+CORE_CSS=/path/to/core.css DNSHELPER_REAL_BIN=/tmp/dnshelper python3 ui/dev/server.py
+
+# in another: the browser, in Docker (Docker Desktop reaches the host as host.docker.internal)
+mkdir -p /tmp/shots
+docker run --rm -v "$PWD/ui/dev:/work" -v /tmp/shots:/out -w /work \
+    mcr.microsoft.com/playwright:v1.49.1-jammy \
+    bash -c "npm init -y >/dev/null && npm i playwright-core@1.49.1 >/dev/null && OUT=/out node screenshots.js"
+```
+
+Start from a fresh harness (it keeps its data until it is stopped), and close any browser tab that
+has the harness open: the guide's pictures are taken at 1360 pixels wide. Copy the ones the guide
+uses into `docs/images/`.

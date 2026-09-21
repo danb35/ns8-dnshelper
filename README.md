@@ -5,6 +5,10 @@ modules create, edit and remove DNS records through DNS hosts' APIs, using
 [libdns](https://github.com/libdns/libdns). See [DESIGN.md](DESIGN.md) for the full design
 and the build order.
 
+**Administering it?** The [user guide](docs/USER-GUIDE.md) explains adding zones, deciding which
+modules may change which records, and trying it out, with screenshots. This README is for people
+who build, test or call dnshelper.
+
 ## Status
 
 The latest release is [0.1.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.1) (the first
@@ -226,8 +230,8 @@ against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
-| Hetzner | Hetzner Cloud API token with read and write | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
-| name.com | User name and API token, made under Account Settings > API Tokens | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard

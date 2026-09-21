@@ -64,10 +64,12 @@ window.core = {
 };
 
 // Task completion normally arrives from the shell over a websocket.
+let lastSeq = 0;
 async function poll() {
   try {
-    const events = await (await fetch("/api/events")).json();
+    const events = await (await fetch("/api/events?after=" + lastSeq)).json();
     for (const ev of events) {
+      lastSeq = Math.max(lastSeq, ev.seq);
       const ctx = { action: ev.action, extra: { eventId: ev.eventId } };
       const name = `${ev.action}-${ev.type}-${ev.eventId}`;
       document.getElementById("log").textContent = "last: " + ev.action + " " + ev.type;
