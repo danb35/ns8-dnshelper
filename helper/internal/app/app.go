@@ -18,6 +18,9 @@ import (
 type Options struct {
 	// LockDir holds the per-zone lock files. Empty disables locking.
 	LockDir string
+	// CacheDir is where a provider may keep a session token between runs. Empty
+	// means no caching: every run logs in again.
+	CacheDir string
 	// Timeout bounds the whole run, lock wait included.
 	Timeout time.Duration
 }
@@ -108,7 +111,11 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		defer release()
 	}
 
-	o := &dnsops.Ops{Provider: def.New(cred), Zone: zone, Secrets: def.Secrets(cred)}
+	provider := def.New(cred)
+	if opt.CacheDir != "" && def.NewCached != nil {
+		provider = def.NewCached(cred, opt.CacheDir)
+	}
+	o := &dnsops.Ops{Provider: provider, Zone: zone, Secrets: def.Secrets(cred)}
 	var resp contract.Response
 	switch req.Op {
 	case contract.OpValidate:

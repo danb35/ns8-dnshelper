@@ -24,6 +24,7 @@ const maxRequest = 1 << 20
 
 func main() {
 	lockDir := flag.String("lock-dir", "", "directory for per-zone lock files (locking is off when empty)")
+	cacheDir := flag.String("cache-dir", "", "directory where a provider may keep a session token between runs (no caching when empty)")
 	timeout := flag.Duration("timeout", 120*time.Second, "overall time limit (Hetzner alone takes 8-15 s per API action)")
 	flag.Parse()
 
@@ -40,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	resp := app.Run(context.Background(), req, app.Options{LockDir: *lockDir, Timeout: *timeout})
+	resp := app.Run(context.Background(), req, app.Options{LockDir: *lockDir, CacheDir: *cacheDir, Timeout: *timeout})
 	emit(resp)
 	if !resp.OK {
 		os.Exit(1)

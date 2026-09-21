@@ -33,6 +33,11 @@ type Def struct {
 	// New builds the libdns provider from credential values keyed by field
 	// name. It does not validate them; use Check for that.
 	New func(cred map[string]string) any
+	// NewCached, when set, is used instead of New when the caller gives a cache
+	// directory, for providers whose login is rate limited: the session token is
+	// kept there between runs of the helper. The directory is created 0700 and holds
+	// nothing that is not also derived from the credential.
+	NewCached func(cred map[string]string, cacheDir string) any
 }
 
 var defs = map[string]Def{}

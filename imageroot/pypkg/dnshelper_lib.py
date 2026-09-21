@@ -158,9 +158,11 @@ def _helper_path():
 def call_helper(request):
     """Run the Go helper. Credentials go on stdin only, never argv or env."""
     lock_dir = os.path.join(_state_dir(), 'locks')
+    # session tokens of providers that limit logins; not in state-include.conf, so not backed up
+    cache_dir = os.path.join(_state_dir(), 'cache')
     try:
         p = subprocess.run(
-            [_helper_path(), '-lock-dir', lock_dir, '-timeout', '120s'],
+            [_helper_path(), '-lock-dir', lock_dir, '-cache-dir', cache_dir, '-timeout', '120s'],
             input=json.dumps(request), capture_output=True, text=True, timeout=150)
         resp = json.loads(p.stdout)
     except (OSError, subprocess.TimeoutExpired, ValueError):
