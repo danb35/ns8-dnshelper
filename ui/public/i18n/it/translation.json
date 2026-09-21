@@ -55,7 +55,9 @@
     "set-policy": "Salva le regole di accesso",
     "list-domains": "Elenca i domini di posta",
     "list-routes": "Elenca le route web",
-    "get-records": "Ottieni i record"
+    "get-records": "Ottieni i record",
+    "append-records": "Aggiungi record",
+    "delete-records": "Elimina record"
   },
   "error": {
     "error": "Errore",
@@ -95,6 +97,36 @@
     "cannot_load": "Impossibile caricare le zone",
     "added_title": "Zona aggiunta",
     "added": "{zone} è ora gestita."
+  },
+  "records": {
+    "title": "Record",
+    "intro": "Visualizza i record di una zona gestita e aggiungi o rimuovi un record, tramite dnshelper e la credenziale usata dalla zona. Le modifiche vengono eseguite subito presso il tuo host DNS. Questa pagina serve a provare dnshelper su una zona e per modifiche occasionali; non è un editor DNS completo.",
+    "zone": "Zona",
+    "add_record": "Aggiungi record",
+    "refresh": "Aggiorna",
+    "search": "Cerca record",
+    "cannot_load": "Impossibile caricare i record",
+    "no_zones_description": "Aggiungi prima una zona DNS, poi i suoi record potranno essere elencati qui.",
+    "no_records": "Nessun record",
+    "no_records_description": "Questa zona non ha record presso l'host DNS.",
+    "col_name": "Nome",
+    "col_type": "Tipo",
+    "col_ttl": "TTL",
+    "col_data": "Valore",
+    "add_title": "Aggiungi un record a {zone}",
+    "add_help": "Il record viene aggiunto alla zona presso il tuo host DNS. I record esistenti non vengono modificati.",
+    "name_help": "Relativo alla zona: www per www.example.com, @ per la zona stessa",
+    "data_help": "Ad esempio {example}",
+    "ttl_help": "In secondi. Lascia vuoto per il valore predefinito dell'host DNS; alcuni host aumentano un TTL molto breve",
+    "invalid_name": "Usa lettere, cifre, @, _, ., - e *",
+    "invalid_ttl": "Usa un numero intero di secondi",
+    "added_title": "Record aggiunto",
+    "added": "{name} {type} è stato aggiunto.",
+    "remove_title": "Elimina record",
+    "remove_description": "Elimina questo record da {zone} presso il tuo host DNS:",
+    "remove_explanation": "Gli altri record con lo stesso nome vengono conservati. I moduli che dipendono dal record potrebbero smettere di funzionare.",
+    "removed_title": "Record eliminato",
+    "removed": "{name} {type} è stato eliminato."
   },
   "credentials": {
     "title": "Credenziali",

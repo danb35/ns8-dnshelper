@@ -55,7 +55,9 @@
     "set-policy": "Enregistrer les règles d'accès",
     "list-domains": "Lister les domaines de messagerie",
     "list-routes": "Lister les routes web",
-    "get-records": "Obtenir les enregistrements"
+    "get-records": "Obtenir les enregistrements",
+    "append-records": "Ajouter un enregistrement",
+    "delete-records": "Supprimer un enregistrement"
   },
   "error": {
     "error": "Erreur",
@@ -95,6 +97,36 @@
     "cannot_load": "Impossible de charger les zones",
     "added_title": "Zone ajoutée",
     "added": "{zone} est maintenant gérée."
+  },
+  "records": {
+    "title": "Enregistrements",
+    "intro": "Consultez les enregistrements d'une zone gérée, et ajoutez ou supprimez un enregistrement, via dnshelper et l'identifiant que la zone utilise. Les modifications sont faites immédiatement chez votre hébergeur DNS. Cette page sert à essayer dnshelper sur une zone et à faire une modification ponctuelle ; ce n'est pas un éditeur DNS complet.",
+    "zone": "Zone",
+    "add_record": "Ajouter un enregistrement",
+    "refresh": "Actualiser",
+    "search": "Rechercher des enregistrements",
+    "cannot_load": "Impossible de charger les enregistrements",
+    "no_zones_description": "Ajoutez d'abord une zone DNS, ses enregistrements pourront ensuite être listés ici.",
+    "no_records": "Aucun enregistrement",
+    "no_records_description": "Cette zone n'a aucun enregistrement chez l'hébergeur DNS.",
+    "col_name": "Nom",
+    "col_type": "Type",
+    "col_ttl": "TTL",
+    "col_data": "Valeur",
+    "add_title": "Ajouter un enregistrement à {zone}",
+    "add_help": "L'enregistrement est ajouté à la zone chez votre hébergeur DNS. Les enregistrements existants ne sont pas modifiés.",
+    "name_help": "Relatif à la zone : www pour www.example.com, @ pour la zone elle-même",
+    "data_help": "Par exemple {example}",
+    "ttl_help": "En secondes. Laissez vide pour la valeur par défaut de l'hébergeur DNS ; certains hébergeurs relèvent un TTL très court",
+    "invalid_name": "Utilisez des lettres, des chiffres, @, _, ., - et *",
+    "invalid_ttl": "Utilisez un nombre entier de secondes",
+    "added_title": "Enregistrement ajouté",
+    "added": "{name} {type} a été ajouté.",
+    "remove_title": "Supprimer l'enregistrement",
+    "remove_description": "Supprimer cet enregistrement de {zone} chez votre hébergeur DNS :",
+    "remove_explanation": "Les autres enregistrements portant le même nom sont conservés. Les modules qui dépendent de cet enregistrement peuvent cesser de fonctionner.",
+    "removed_title": "Enregistrement supprimé",
+    "removed": "{name} {type} a été supprimé."
   },
   "credentials": {
     "title": "Identifiants",

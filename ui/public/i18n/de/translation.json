@@ -55,7 +55,9 @@
     "set-policy": "Zugriffsregeln speichern",
     "list-domains": "Maildomänen auflisten",
     "list-routes": "Web-Routen auflisten",
-    "get-records": "Einträge abrufen"
+    "get-records": "Einträge abrufen",
+    "append-records": "Eintrag hinzufügen",
+    "delete-records": "Eintrag löschen"
   },
   "error": {
     "error": "Fehler",
@@ -95,6 +97,36 @@
     "cannot_load": "Die Zonen können nicht geladen werden",
     "added_title": "Zone hinzugefügt",
     "added": "{zone} wird jetzt verwaltet."
+  },
+  "records": {
+    "title": "Einträge",
+    "intro": "Zeigen Sie die Einträge einer verwalteten Zone an und fügen Sie über dnshelper und die von der Zone verwendeten Zugangsdaten einen Eintrag hinzu oder entfernen Sie ihn. Änderungen werden sofort bei Ihrem DNS-Anbieter vorgenommen. Diese Seite dient dazu, dnshelper an einer Zone auszuprobieren und gelegentlich etwas zu ändern; sie ist kein vollständiger DNS-Editor.",
+    "zone": "Zone",
+    "add_record": "Eintrag hinzufügen",
+    "refresh": "Aktualisieren",
+    "search": "Einträge suchen",
+    "cannot_load": "Die Einträge können nicht geladen werden",
+    "no_zones_description": "Fügen Sie zuerst eine DNS-Zone hinzu, dann können ihre Einträge hier aufgelistet werden.",
+    "no_records": "Keine Einträge",
+    "no_records_description": "Diese Zone hat keine Einträge beim DNS-Anbieter.",
+    "col_name": "Name",
+    "col_type": "Typ",
+    "col_ttl": "TTL",
+    "col_data": "Wert",
+    "add_title": "Eintrag zu {zone} hinzufügen",
+    "add_help": "Der Eintrag wird der Zone bei Ihrem DNS-Anbieter hinzugefügt. Vorhandene Einträge werden nicht geändert.",
+    "name_help": "Relativ zur Zone: www für www.example.com, @ für die Zone selbst",
+    "data_help": "Zum Beispiel {example}",
+    "ttl_help": "In Sekunden. Leer lassen für den Standardwert des DNS-Anbieters; manche Anbieter erhöhen eine sehr kurze TTL",
+    "invalid_name": "Verwenden Sie Buchstaben, Ziffern, @, _, ., - und *",
+    "invalid_ttl": "Verwenden Sie eine ganze Zahl in Sekunden",
+    "added_title": "Eintrag hinzugefügt",
+    "added": "{name} {type} wurde hinzugefügt.",
+    "remove_title": "Eintrag löschen",
+    "remove_description": "Diesen Eintrag aus {zone} bei Ihrem DNS-Anbieter löschen:",
+    "remove_explanation": "Andere Einträge mit demselben Namen bleiben erhalten. Module, die auf den Eintrag angewiesen sind, funktionieren möglicherweise nicht mehr.",
+    "removed_title": "Eintrag gelöscht",
+    "removed": "{name} {type} wurde gelöscht."
   },
   "credentials": {
     "title": "Zugangsdaten",
