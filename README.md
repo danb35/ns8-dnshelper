@@ -332,7 +332,7 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
 
 ## Admin UI
 
-Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Three pages besides About:
+Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
 
 - **Status**: number of managed zones and access rules with shortcuts, instance and node, backup,
   and a card that opens the system logs filtered on `dnshelper audit`.
@@ -343,6 +343,11 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Three pages besides About:
   there, with an optional write test, before anything is saved. *Find zones used by my modules*
   suggests zones from the mail, web server and Traefik modules' host names; these are candidates
   only. Secrets are never shown again after saving: an empty secret field means "keep".
+- **Records**: pick a managed zone to list its records, add a record (name, type, value and an
+  optional TTL) or delete one. It calls the same `get-records`, `append-records` and
+  `delete-records` actions a consumer module uses, as an administrator, so it is also a way to
+  check that a credential really works. Apex NS and SOA records cannot be deleted. It is not a
+  full DNS editor: there is no editing in place and no bulk change.
 - **Access**: the policy table (which module may change which record names and types), with
   presets for a mail server, for ACME DNS-01 and for a web server or service (CNAME records with
   any name, for modules such as the web server, SOGo or Grafana that publish a name for their own

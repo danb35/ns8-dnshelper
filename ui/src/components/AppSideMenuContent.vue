@@ -29,6 +29,13 @@
         <span>{{ $t("zones.title") }}</span>
       </cv-side-nav-link>
       <cv-side-nav-link
+        @click="goToAppPage(instanceName, 'records')"
+        :class="{ 'current-page': isLinkActive('records') }"
+      >
+        <template v-slot:nav-icon><ListBoxes20 /></template>
+        <span>{{ $t("records.title") }}</span>
+      </cv-side-nav-link>
+      <cv-side-nav-link
         @click="goToAppPage(instanceName, 'access')"
         :class="{ 'current-page': isLinkActive('access') }"
       >
@@ -50,6 +57,7 @@
 import Information20 from "@carbon/icons-vue/es/information/20";
 import Activity20 from "@carbon/icons-vue/es/activity/20";
 import Earth20 from "@carbon/icons-vue/es/earth/20";
+import ListBoxes20 from "@carbon/icons-vue/es/list--boxes/20";
 import Rule20 from "@carbon/icons-vue/es/rule/20";
 import { mapState } from "vuex";
 import { QueryParamService, UtilService } from "@nethserver/ns8-ui-lib";
@@ -60,6 +68,7 @@ export default {
     Information20,
     Activity20,
     Earth20,
+    ListBoxes20,
     Rule20,
   },
   mixins: [QueryParamService, UtilService],

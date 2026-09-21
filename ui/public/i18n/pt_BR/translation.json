@@ -55,7 +55,9 @@
     "set-policy": "Salvar regras de acesso",
     "list-domains": "Listar domínios de e-mail",
     "list-routes": "Listar rotas web",
-    "get-records": "Obter registros"
+    "get-records": "Obter registros",
+    "append-records": "Adicionar registro",
+    "delete-records": "Excluir registro"
   },
   "error": {
     "error": "Erro",
@@ -95,6 +97,36 @@
     "cannot_load": "Não foi possível carregar as zonas",
     "added_title": "Zona adicionada",
     "added": "{zone} agora é gerenciada."
+  },
+  "records": {
+    "title": "Registros",
+    "intro": "Veja os registros de uma zona gerenciada e adicione ou exclua um registro, por meio do dnshelper e da credencial que a zona usa. As alterações são feitas imediatamente no seu provedor de DNS. Esta página serve para testar o dnshelper em uma zona e para alguma alteração pontual; não é um editor de DNS completo.",
+    "zone": "Zona",
+    "add_record": "Adicionar registro",
+    "refresh": "Atualizar",
+    "search": "Pesquisar registros",
+    "cannot_load": "Não foi possível carregar os registros",
+    "no_zones_description": "Adicione primeiro uma zona DNS; depois, os registros dela poderão ser listados aqui.",
+    "no_records": "Nenhum registro",
+    "no_records_description": "Esta zona não tem registros no provedor de DNS.",
+    "col_name": "Nome",
+    "col_type": "Tipo",
+    "col_ttl": "TTL",
+    "col_data": "Valor",
+    "add_title": "Adicionar um registro a {zone}",
+    "add_help": "O registro é adicionado à zona no seu provedor de DNS. Os registros existentes não são alterados.",
+    "name_help": "Relativo à zona: www para www.example.com, @ para a própria zona",
+    "data_help": "Por exemplo {example}",
+    "ttl_help": "Em segundos. Deixe vazio para o valor padrão do provedor de DNS; alguns provedores aumentam um TTL muito curto",
+    "invalid_name": "Use letras, dígitos, @, _, ., - e *",
+    "invalid_ttl": "Use um número inteiro de segundos",
+    "added_title": "Registro adicionado",
+    "added": "{name} {type} foi adicionado.",
+    "remove_title": "Excluir registro",
+    "remove_description": "Excluir este registro de {zone} no seu provedor de DNS:",
+    "remove_explanation": "Os outros registros com o mesmo nome são mantidos. Os módulos que dependem do registro podem parar de funcionar.",
+    "removed_title": "Registro excluído",
+    "removed": "{name} {type} foi excluído."
   },
   "credentials": {
     "title": "Credenciais",

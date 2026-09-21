@@ -6,6 +6,7 @@ import Vue from "vue";
 import VueRouter from "vue-router";
 import Status from "../views/Status.vue";
 import Zones from "../views/Zones.vue";
+import Records from "../views/Records.vue";
 import Access from "../views/Access.vue";
 
 Vue.use(VueRouter);
@@ -21,6 +22,11 @@ const routes = [
     path: "/zones",
     name: "Zones",
     component: Zones,
+  },
+  {
+    path: "/records",
+    name: "Records",
+    component: Records,
   },
   {
     path: "/access",

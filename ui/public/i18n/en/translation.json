@@ -55,7 +55,9 @@
     "set-policy": "Save access rules",
     "list-domains": "List mail domains",
     "list-routes": "List web routes",
-    "get-records": "Get records"
+    "get-records": "Get records",
+    "append-records": "Add record",
+    "delete-records": "Delete record"
   },
   "error": {
     "error": "Error",
@@ -95,6 +97,36 @@
     "cannot_load": "Cannot load the zones",
     "added_title": "Zone added",
     "added": "{zone} is now managed."
+  },
+  "records": {
+    "title": "Records",
+    "intro": "View the records of a managed zone, and add or remove a record, through dnshelper and the credential the zone uses. Changes are made at your DNS host at once. This page is for trying dnshelper on a zone and for the occasional change; it is not a full DNS editor.",
+    "zone": "Zone",
+    "add_record": "Add record",
+    "refresh": "Refresh",
+    "search": "Search records",
+    "cannot_load": "Cannot load the records",
+    "no_zones_description": "Add a DNS zone first, then its records can be listed here.",
+    "no_records": "No records",
+    "no_records_description": "This zone has no records at the DNS host.",
+    "col_name": "Name",
+    "col_type": "Type",
+    "col_ttl": "TTL",
+    "col_data": "Value",
+    "add_title": "Add a record to {zone}",
+    "add_help": "The record is added to the zone at your DNS host. Existing records are not changed.",
+    "name_help": "Relative to the zone: www for www.example.com, @ for the zone itself",
+    "data_help": "For example {example}",
+    "ttl_help": "Seconds. Leave empty for the DNS host's default; some hosts raise a very short TTL",
+    "invalid_name": "Use letters, digits, @, _, ., - and *",
+    "invalid_ttl": "Use a whole number of seconds",
+    "added_title": "Record added",
+    "added": "{name} {type} was added.",
+    "remove_title": "Delete record",
+    "remove_description": "Delete this record from {zone} at your DNS host:",
+    "remove_explanation": "Other records with the same name are kept. Modules that rely on the record may stop working.",
+    "removed_title": "Record deleted",
+    "removed": "{name} {type} was deleted."
   },
   "credentials": {
     "title": "Credentials",

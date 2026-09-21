@@ -55,7 +55,9 @@
     "set-policy": "Guardar regras de acesso",
     "list-domains": "Listar domínios de correio eletrónico",
     "list-routes": "Listar rotas web",
-    "get-records": "Obter registos"
+    "get-records": "Obter registos",
+    "append-records": "Adicionar registo",
+    "delete-records": "Eliminar registo"
   },
   "error": {
     "error": "Erro",
@@ -95,6 +97,36 @@
     "cannot_load": "Não é possível carregar as zonas",
     "added_title": "Zona adicionada",
     "added": "{zone} passa a ser gerida."
+  },
+  "records": {
+    "title": "Registos",
+    "intro": "Consulte os registos de uma zona gerida e adicione ou elimine um registo, através do dnshelper e das credenciais que a zona utiliza. As alterações são feitas de imediato no seu fornecedor de DNS. Esta página serve para experimentar o dnshelper numa zona e para alguma alteração pontual; não é um editor de DNS completo.",
+    "zone": "Zona",
+    "add_record": "Adicionar registo",
+    "refresh": "Atualizar",
+    "search": "Pesquisar registos",
+    "cannot_load": "Não é possível carregar os registos",
+    "no_zones_description": "Adicione primeiro uma zona DNS; depois, os respetivos registos poderão ser listados aqui.",
+    "no_records": "Sem registos",
+    "no_records_description": "Esta zona não tem registos no fornecedor de DNS.",
+    "col_name": "Nome",
+    "col_type": "Tipo",
+    "col_ttl": "TTL",
+    "col_data": "Valor",
+    "add_title": "Adicionar um registo a {zone}",
+    "add_help": "O registo é adicionado à zona no seu fornecedor de DNS. Os registos existentes não são alterados.",
+    "name_help": "Relativo à zona: www para www.example.com, @ para a própria zona",
+    "data_help": "Por exemplo {example}",
+    "ttl_help": "Em segundos. Deixe vazio para o valor predefinido do fornecedor de DNS; alguns fornecedores aumentam um TTL muito curto",
+    "invalid_name": "Utilize letras, dígitos, @, _, ., - e *",
+    "invalid_ttl": "Utilize um número inteiro de segundos",
+    "added_title": "Registo adicionado",
+    "added": "{name} {type} foi adicionado.",
+    "remove_title": "Eliminar registo",
+    "remove_description": "Eliminar este registo de {zone} no seu fornecedor de DNS:",
+    "remove_explanation": "Os outros registos com o mesmo nome são mantidos. Os módulos que dependam do registo podem deixar de funcionar.",
+    "removed_title": "Registo eliminado",
+    "removed": "{name} {type} foi eliminado."
   },
   "credentials": {
     "title": "Credenciais",
