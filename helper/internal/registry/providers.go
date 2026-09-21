@@ -29,6 +29,22 @@ func init() {
 		},
 	})
 	Register(Def{
+		Name:  "corenetworks",
+		Label: "Core-Networks",
+		Fields: []contract.Field{
+			{Name: "login", Label: "API account login (made under API user accounts in the Core-Networks web interface)", Required: true},
+			{Name: "password", Label: "API account password", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Uses the Core-Networks DNS API at beta.api.core-networks.de with an API account, not the account used for the web interface. Changes are committed to the name servers after every change. The service refuses a TTL below 60 seconds (a shorter one is raised to 60) and uses 1800 when none is given. Slave zones are not listed.",
+		New: func(c map[string]string) any {
+			return &coreNetworksProvider{Login: c["login"], Password: c["password"]}
+		},
+		NewCached: func(c map[string]string, cacheDir string) any {
+			return &coreNetworksProvider{Login: c["login"], Password: c["password"], cacheDir: cacheDir}
+		},
+	})
+	Register(Def{
 		Name:  "godaddy",
 		Label: "GoDaddy",
 		Fields: []contract.Field{
