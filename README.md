@@ -7,7 +7,7 @@ and the build order.
 
 ## Status
 
-The latest release is [0.1.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.1) (the first
+The latest release is [0.2.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.2.0) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -222,14 +222,14 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks, GoDaddy, Hetzner (Cloud DNS API), name.com and
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), GoDaddy, Hetzner (Cloud DNS API), name.com and
 RFC 2136. All have been tested live: Cloudflare, Core-Networks, GoDaddy, Hetzner and name.com against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
-| Core-Networks | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
+| Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | name.com | User name and API token, made under Account Settings > API Tokens | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -377,6 +377,11 @@ a fake shell around the built UI, backed by the real Python actions and a fake D
 [ui/dev/README.md](ui/dev/README.md)). English is the source language in
 `ui/public/i18n/en/translation.json`; the other languages were translated from it and have not
 been reviewed by native speakers.
+
+## Acknowledgements
+
+Thanks to Marko for providing a test domain and credentials, which made it possible to build and
+test the Core-Networks provider against the live service.
 
 ## Development
 
