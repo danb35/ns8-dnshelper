@@ -81,6 +81,34 @@ change event when zones change (follow the documented event naming convention).
   reasons: GoDaddy already uses pointer ints; Core-Networks, Hetzner and RFC 2136 send the whole
   record value as one opaque string, so there's no separate field for `omitempty` to drop.
 
+## Adding a provider
+
+Checklist, in addition to the usual live test against a real zone (README's Providers section):
+
+- **Zero-value check (issue [#19](https://github.com/danb35/ns8-dnshelper/issues/19)).** Before
+  trusting a new provider package with SRV (or anything else with a numeric sub-field that's
+  routinely 0 -- SRV priority/weight, HTTPS/SVCB priority, a null MX's preference), read how it
+  marshals that record type to the wire. If it's JSON and the field is a plain, non-pointer numeric
+  type tagged `omitempty`, a legitimately-zero value (SRV priority 0, weight 0 -- the common case,
+  and what this project's own `_autodiscover._tcp` record uses) gets silently dropped instead of
+  sent as an explicit 0, and the provider's API then answers "field required" for a field that
+  *was* given, just given as zero. This bit both `libdns/cloudflare` and `libdns/namedotcom`
+  identically. It does not affect a provider that either uses pointer fields (GoDaddy) or sends the
+  whole record value as one opaque string with no structured sub-fields (Core-Networks, Hetzner,
+  RFC 2136) -- check which shape the new provider uses before assuming either way.
+  - Write a test asserting the actual bytes the provider would send include the zero value
+    explicitly, not just that construction doesn't error. `internal/vendored/cloudflare/models_test.go`
+    and `internal/vendored/namedotcom/namedotcom_test.go` are the template: build a zero-priority/
+    zero-weight SRV record, marshal (or otherwise render) it the way the provider package would,
+    and assert the zero survives. Confirm the test actually catches the bug by temporarily
+    reverting the relevant field to its naive form and checking the test fails, the way both of
+    those were verified.
+  - If the provider package does have the bug, patch it the same way: a local vendored copy under
+    `helper/internal/vendored/<provider>/`, copied from the pinned module version, patched only at
+    the specific field(s), with a file-level comment naming the upstream version and linking back
+    to whichever issue is tracking it -- not a silent in-place edit of `go.sum`'s checked-out
+    source, and not skipped because "it's just the zero case."
+
 ## Credentials
 
 - NS8 mirrors `state/environment` into Redis in plain text. Never store secrets there and never
