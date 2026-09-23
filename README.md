@@ -272,6 +272,10 @@ What to know about each provider:
 A provider that raises a TTL stores a different one from the one asked for, so an exact delete that
 states the old TTL will not match: leave the TTL out, or use the value as read back.
 
+**Adding another provider?** Check it for the zero-priority/zero-weight bug described above for
+Cloudflare and name.com first -- DESIGN.md's [Adding a provider](DESIGN.md#adding-a-provider)
+section has the checklist and a template test.
+
 ## The `dnshelper` binary
 
 One JSON request on stdin, one JSON response on stdout, exit status 0 only when `"ok": true`.
