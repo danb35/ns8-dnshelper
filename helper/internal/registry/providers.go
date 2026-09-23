@@ -1,16 +1,56 @@
 package registry
 
+// Zero-value SRV/MX field audit (2026-09-23), triggered by a live failure
+// creating ns8-automx's _autodiscover._tcp SRV 0 0 443 <target> record
+// through Cloudflare (see internal/vendored/cloudflare's file-level
+// comment): every provider that can write SRV was checked for the same
+// mistake -- a numeric field serialized with `omitempty` that is legitimately
+// 0 for a real record (SRV priority/weight is commonly 0), so encoding/json
+// silently drops it and the provider's API then rejects the request as
+// missing that field.
+//
+//   - cloudflare: BUGGY, confirmed live. Patched locally, see
+//     internal/vendored/cloudflare.
+//   - namedotcom: BUGGY by the same code pattern (a plain int32 Priority
+//     field with omitempty), found by this audit but not confirmed against
+//     the live API. Patched locally the same way, see
+//     internal/vendored/namedotcom, out of caution.
+//   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
+//     already *int, so an explicit 0 round-trips through omitempty
+//     correctly (a nil pointer, not a zero int, is what omitempty drops).
+//   - corenetworks.go (this package): safe, but for a different reason --
+//     Core-Networks' add-record API (POST /dnszones/%ZONE%/records/,
+//     confirmed against its docs at beta.api.core-networks.de/doc/) has no
+//     structured priority/weight/port fields at all, just one opaque "data"
+//     string holding the whole zone-file-style RDATA ("0 0 443 target."),
+//     so there's nothing for omitempty to drop.
+//   - hetzner (github.com/libdns/hetzner/v2 v2.0.1): safe, same reasoning as
+//     Core-Networks -- fromRecord() in that package sends the whole RDATA
+//     as one opaque hcloud.ZoneRRSetRecord.Value string, no separate
+//     priority/weight/port fields.
+//   - rfc2136 (github.com/libdns/rfc2136 v1.0.1): safe, empirically -- this
+//     is the DNS UPDATE wire protocol, not JSON, so omitempty doesn't apply;
+//     also the one provider a real _autodiscover._tcp SRV 0 0 443 <target>
+//     record has actually been created through successfully, repeatedly,
+//     against live BIND instances during ns8-automx's real-node testing.
+//
+// Tracked in https://github.com/danb35/ns8-dnshelper/issues/19.
+
 import (
 	"context"
 	"strings"
 
-	"github.com/libdns/cloudflare"
 	"github.com/libdns/hetzner/v2"
 	"github.com/libdns/libdns"
-	"github.com/libdns/namedotcom"
 	"github.com/libdns/rfc2136"
 
 	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
+	// Locally vendored, patched copies -- see each package's file-level
+	// comment for why. Not github.com/libdns/cloudflare and
+	// github.com/libdns/namedotcom directly; go back to those once the
+	// zero-value-omitempty bug is fixed upstream.
+	"github.com/danb35/ns8-dnshelper/helper/internal/vendored/cloudflare"
+	"github.com/danb35/ns8-dnshelper/helper/internal/vendored/namedotcom"
 )
 
 func init() {

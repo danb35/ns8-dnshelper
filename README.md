@@ -11,7 +11,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.2.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.2.0) (the first
+The latest release is [0.2.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.2.1) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -246,7 +246,12 @@ the zones you need.
 What to know about each provider:
 
 - **Cloudflare**: HTTPS and SVCB records are not supported. TXT values containing `"` or `\` are
-  refused.
+  refused. The provider package (`github.com/libdns/cloudflare` v0.2.2) has a bug creating an SRV
+  or HTTPS record with a legitimately zero priority or weight (an SRV priority/weight of 0 is the
+  common case): it silently drops that field from the request instead of sending an explicit 0,
+  and Cloudflare then rejects the record as missing a required field. Patched locally with a
+  vendored copy of the package (`helper/internal/vendored/cloudflare`) until this is fixed
+  upstream; see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
 - **Core-Networks**: TTLs under 60 seconds are raised to 60, and a record without a TTL gets 1800.
   The service limits how often one can log in, so dnshelper keeps the session token (valid for an
   hour) between calls; see [Credentials](#credentials). Every change is committed to the name
@@ -257,7 +262,10 @@ What to know about each provider:
 - **Hetzner**: uses the Cloud DNS API (zones in the Hetzner Console), not the retired DNS Console
   API. Each API action takes 8 to 15 seconds. A TXT value beginning or ending with `"` is refused.
 - **name.com**: TTLs under 300 seconds are raised to 300. TXT values containing `"` or `\` are
-  refused.
+  refused. The provider package (`github.com/libdns/namedotcom` v0.9.0) has the same class of bug
+  as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
+  Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
+  (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
 
