@@ -5,7 +5,10 @@ import (
 	"time"
 
 	"github.com/libdns/libdns"
-	"github.com/libdns/namedotcom"
+
+	// Locally vendored, patched copy -- see providers.go and the package's
+	// own file-level comment.
+	"github.com/danb35/ns8-dnshelper/helper/internal/vendored/namedotcom"
 )
 
 // nameComMinTTL is the lowest TTL the name.com API accepts; a smaller or unset

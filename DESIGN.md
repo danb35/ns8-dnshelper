@@ -69,6 +69,17 @@ change event when zones change (follow the documented event naming convention).
   all require libdns v1.x (a provider's own 0.x version number does not mean the old API).
   Cloudflare does not handle HTTPS/SVCB records. Later live testing found that libdns/hetzner v1
   targets a retired API; use `github.com/libdns/hetzner/v2` (Hetzner Cloud DNS API).
+- 2026-09-23: live SRV creation through Cloudflare (a real `0 0 443 <target>` record, for
+  ns8-automx) failed with a 400 from Cloudflare's own API ("weight is a required data field").
+  Root cause: `libdns/cloudflare` v0.2.2 serializes SRV priority/weight/port as plain (non-pointer)
+  ints with `omitempty`, so a legitimately zero value -- the common case for SRV -- is dropped from
+  the request instead of sent as an explicit 0. Auditing every provider for the same mistake found
+  the identical pattern in `libdns/namedotcom` v0.9.0's SRV/MX priority field (not confirmed live).
+  Both patched locally (vendored copies under `helper/internal/vendored/`) rather than upstream;
+  see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19) and the README's Providers
+  section. The other four providers were checked and don't have this problem, for two different
+  reasons: GoDaddy already uses pointer ints; Core-Networks, Hetzner and RFC 2136 send the whole
+  record value as one opaque string, so there's no separate field for `omitempty` to drop.
 
 ## Credentials
 
