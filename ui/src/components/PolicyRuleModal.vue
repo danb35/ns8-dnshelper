@@ -46,14 +46,14 @@
         </div>
         <fieldset class="mg-bottom-md zones">
           <legend class="bx--label">{{ $t("access.col_zones") }}</legend>
-          <cv-checkbox
+          <NsCheckbox
             v-model="allZones"
             value="*"
             :label="$t('access.all_zones')"
             :disabled="loading"
           />
           <div class="zones-list">
-            <cv-checkbox
+            <NsCheckbox
               v-for="z in zoneChoices"
               :key="z"
               v-model="selectedZones"

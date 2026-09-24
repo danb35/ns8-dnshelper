@@ -613,6 +613,20 @@ class ModuleScriptTests(unittest.TestCase):
         for n in os.listdir(self.root):
             self.assertTrue(os.access(os.path.join(self.root, n), os.X_OK), n)
 
+    def test_update_reapplies_create_module_grants(self):
+        # Roles and the service entry are only created by create-module; the
+        # update hook must run the same scripts again, and they must exist.
+        import re
+        import subprocess
+        hook = os.path.join(HERE, '..', '..', 'imageroot', 'update-module.d', '10grants')
+        self.assertTrue(os.access(hook, os.X_OK))
+        subprocess.run(['bash', '-n', hook], check=True)
+        with open(hook) as f:
+            called = re.findall(r'actions/create-module/(\w+)', f.read())
+        self.assertEqual(sorted(called), ['30grants', '50register_service'])
+        for name in called:
+            self.assertTrue(os.access(os.path.join(self.root, name), os.X_OK), name)
+
 
 @unittest.skipUnless(os.environ.get('DNSHELPER_REAL_BIN'), 'set DNSHELPER_REAL_BIN to the built helper')
 class RealHelperTests(unittest.TestCase):

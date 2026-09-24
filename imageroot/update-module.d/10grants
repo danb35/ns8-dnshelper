@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# The roles and the service provider entry are created by create-module, which
+# does not run again on update. Apply them again so an instance updated from an
+# older version gets any action added to a role since. Both steps only add or
+# overwrite (SADD, HSET), so running them again is harmless.
+
+set -e
+exec 1>&2
+
+"${AGENT_INSTALL_DIR}/actions/create-module/30grants"
+"${AGENT_INSTALL_DIR}/actions/create-module/50register_service"

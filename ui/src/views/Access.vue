@@ -89,7 +89,7 @@
                   $t("access.access_" + row.access)
                 }}</cv-data-table-cell>
                 <cv-data-table-cell>
-                  <cv-tag
+                  <NsTag
                     v-for="n in row.names"
                     :key="n"
                     :label="n"
@@ -98,7 +98,7 @@
                   />
                 </cv-data-table-cell>
                 <cv-data-table-cell>
-                  <cv-tag
+                  <NsTag
                     v-for="t in row.types"
                     :key="t"
                     :label="t === '*' ? $t('access.all_types') : t"
