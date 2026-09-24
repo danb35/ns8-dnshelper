@@ -108,7 +108,7 @@ func TestListProvidersAndCapabilities(t *testing.T) {
 	for _, p := range r.Providers {
 		names[p.Name] = true
 	}
-	for _, want := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "route53", "fake"} {
+	for _, want := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53", "fake"} {
 		if !names[want] {
 			t.Errorf("provider %s missing from %v", want, names)
 		}
@@ -124,7 +124,7 @@ func TestListProvidersAndCapabilities(t *testing.T) {
 }
 
 func TestRealProvidersRejectIncompleteCredentialsBeforeAnyNetworkCall(t *testing.T) {
-	for _, p := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "route53"} {
+	for _, p := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53"} {
 		r := Run(context.Background(), contract.Request{Op: "get-records", Provider: p, Zone: "example.com"}, Options{})
 		if r.OK || r.Error.Code != contract.CodeInvalidRequest {
 			t.Errorf("%s: %+v", p, r)
@@ -178,5 +178,13 @@ func TestListZones(t *testing.T) {
 		Credentials: map[string]string{"server": "127.0.0.1:1", "key_name": "k", "key": "c2VjcmV0"}}, Options{})
 	if r.OK || r.Error.Code != contract.CodeUnsupported {
 		t.Fatalf("%+v", r)
+	}
+}
+
+func TestForbiddenCharsNamed(t *testing.T) {
+	for set, want := range map[string]string{"\"\\": "a double quote or a backslash", "\\": "a backslash"} {
+		if got := forbiddenChars(set); got != want {
+			t.Errorf("%q: got %q want %q", set, got, want)
+		}
 	}
 }
