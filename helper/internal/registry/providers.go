@@ -20,6 +20,10 @@ package registry
 //     structured fields at all, see the file's comment); priority, weight
 //     and port are *int, so an explicit 0 is sent, verified against the live
 //     API with a 0 0 443 SRV record.
+//   - linode.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/linode v0.5.0 (which is zero-safe but reads SRV
+//     names doubled, see the file's comment); priority, weight and port are
+//     *int, verified against the live API with a 0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -123,6 +127,18 @@ func init() {
 		Notes: "Uses the production GoDaddy API with a personal access token (the legacy classic API key and secret still work but GoDaddy is deprecating them). GoDaddy does not accept a TTL under 600 seconds: records written with a shorter or no TTL get 600.",
 		New: func(c map[string]string) any {
 			return &goDaddyProvider{APIToken: c["api_token"], APIKey: c["api_key"], APISecret: c["api_secret"]}
+		},
+	})
+	Register(Def{
+		Name:  "linode",
+		Label: "Linode (Akamai)",
+		Fields: []contract.Field{
+			{Name: "api_token", Label: "Personal access token (Domains: Read/Write, nothing else)", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "A Linode token reaches every domain of the account unless it is made by a restricted user with grants for only some domains. Linode rounds a TTL up to the next value it allows (30, 120, 300, 3600, 7200, ...); a record without a TTL gets the zone's default. SRV records can only sit directly under the zone (_service._protocol), not under a subdomain. CAA records cannot have flags. Changes can take several minutes to reach Linode's name servers.",
+		New: func(c map[string]string) any {
+			return &linodeProvider{APIToken: c["api_token"]}
 		},
 	})
 	Register(Def{

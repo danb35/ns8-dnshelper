@@ -22,6 +22,10 @@ package app
 //
 //	DNSHELPER_LIVE_DO_TOKEN=... DNSHELPER_LIVE_DO_ZONE=example.com go test ...
 //
+// Linode:
+//
+//	DNSHELPER_LIVE_LINODE_TOKEN=... DNSHELPER_LIVE_LINODE_ZONE=example.com go test ...
+//
 // Core-Networks:
 //
 //	DNSHELPER_LIVE_CORENETWORKS_LOGIN=... DNSHELPER_LIVE_CORENETWORKS_PASSWORD=... DNSHELPER_LIVE_CORENETWORKS_ZONE=example.com go test ...
@@ -99,6 +103,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"api_token": tok}
+	case "linode":
+		tok, zone := os.Getenv("DNSHELPER_LIVE_LINODE_TOKEN"), os.Getenv("DNSHELPER_LIVE_LINODE_ZONE")
+		if tok == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"api_token": tok}
 	case "corenetworks":
 		login, pw, zone := os.Getenv("DNSHELPER_LIVE_CORENETWORKS_LOGIN"), os.Getenv("DNSHELPER_LIVE_CORENETWORKS_PASSWORD"), os.Getenv("DNSHELPER_LIVE_CORENETWORKS_ZONE")
 		if login == "" || pw == "" || zone == "" {
@@ -162,7 +172,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "namedotcom", "rfc2136"}
+var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -265,6 +275,20 @@ func TestLiveBadCredentialsDigitalOcean(t *testing.T) {
 	eachLive(t, []string{"digitalocean"}, func(t *testing.T, l *live) {
 		r := l.run(contract.OpValidate, func(q *contract.Request) {
 			q.Credentials = map[string]string{"api_token": "dop_v1_0123456789-not-a-real-token-0123456789abcd"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-a-real") {
+			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsLinode(t *testing.T) {
+	eachLive(t, []string{"linode"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"api_token": "0123456789not-a-real-token0123456789abcdef0123456789abcdef012"}
 		})
 		if r.OK || r.Error.Code != contract.CodeAuthFailed {
 			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
