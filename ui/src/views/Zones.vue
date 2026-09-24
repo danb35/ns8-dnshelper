@@ -178,7 +178,7 @@
                 <cv-data-table-cell>{{ row.providerLabel }}</cv-data-table-cell>
                 <cv-data-table-cell>
                   <span v-if="!row.secrets_set.length">-</span>
-                  <cv-tag
+                  <NsTag
                     v-for="s in row.secrets_set"
                     :key="s"
                     :label="s + ': ' + $t('credentials.set')"

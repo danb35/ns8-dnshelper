@@ -134,7 +134,7 @@
                     <strong>{{ row.name }}</strong>
                   </cv-data-table-cell>
                   <cv-data-table-cell>
-                    <cv-tag :label="row.type" kind="blue" />
+                    <NsTag :label="row.type" kind="blue" />
                   </cv-data-table-cell>
                   <cv-data-table-cell>{{ row.ttl || "-" }}</cv-data-table-cell>
                   <cv-data-table-cell>
@@ -248,7 +248,7 @@
         </p>
         <p v-if="current" class="mg-bottom-md record-summary">
           <strong>{{ current.name }}</strong>
-          <cv-tag :label="current.type" kind="blue" class="mg-left-sm" />
+          <NsTag :label="current.type" kind="blue" class="mg-left-sm" />
           <span class="record-data">{{ shorten(current.data) }}</span>
         </p>
         <p class="mg-bottom-md">{{ $t("records.remove_explanation") }}</p>

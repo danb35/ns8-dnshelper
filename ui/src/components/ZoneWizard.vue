@@ -41,7 +41,7 @@
           <template v-if="provider">
             <div class="mg-bottom-sm">
               <span class="label">{{ $t("wizard.record_types") }}</span>
-              <cv-tag
+              <NsTag
                 v-for="t in provider.types"
                 :key="t"
                 :label="t"
@@ -179,7 +179,7 @@
               <div class="note mg-bottom-sm">
                 {{ $t("wizard.suggestions_help") }}
               </div>
-              <cv-tag
+              <NsTag
                 v-for="c in suggestions"
                 :key="c.zone"
                 :label="c.zone"
