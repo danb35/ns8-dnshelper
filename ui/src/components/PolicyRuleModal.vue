@@ -17,14 +17,13 @@
     <template slot="content">
       <cv-form @submit.prevent="save">
         <div class="mg-bottom-sm">{{ $t("access.presets") }}</div>
-        <div class="mg-bottom-md">
+        <div class="mg-bottom-md presets">
           <NsButton
             v-for="p in presets"
             :key="p.key"
             kind="tertiary"
             size="small"
             :disabled="loading"
-            class="mg-right-sm"
             @click="applyPreset(p)"
           >
             {{ $t("access.preset_" + p.key) }}
@@ -305,6 +304,14 @@ export default {
 </script>
 
 <style scoped lang="scss">
+// the preset buttons wrap onto more rows as presets are added: keep the same
+// space between rows as between buttons
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .zones {
   border: 0;
   padding: 0;
