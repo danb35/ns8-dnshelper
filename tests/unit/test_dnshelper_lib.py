@@ -629,7 +629,7 @@ class RealHelperTests(unittest.TestCase):
 
     def test_list_providers_matches_the_schema_the_library_expects(self):
         names = {p['name'] for p in lib.list_providers({})['providers']}
-        self.assertEqual(names, {'cloudflare', 'corenetworks', 'godaddy', 'hetzner', 'namedotcom', 'rfc2136'})
+        self.assertEqual(names, {'cloudflare', 'corenetworks', 'digitalocean', 'godaddy', 'hetzner', 'namedotcom', 'rfc2136'})
 
     def test_credential_lifecycle_with_defaults(self):
         cid = lib.add_credential({'name': 'bind', 'provider': 'rfc2136',

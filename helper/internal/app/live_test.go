@@ -18,6 +18,10 @@ package app
 //	(or the legacy DNSHELPER_LIVE_GODADDY_KEY=... DNSHELPER_LIVE_GODADDY_SECRET=... instead of the token)
 //	DNSHELPER_LIVE_NAMECOM_USER=... DNSHELPER_LIVE_NAMECOM_TOKEN=... DNSHELPER_LIVE_NAMECOM_ZONE=example.com go test ...
 //
+// DigitalOcean:
+//
+//	DNSHELPER_LIVE_DO_TOKEN=... DNSHELPER_LIVE_DO_ZONE=example.com go test ...
+//
 // Core-Networks:
 //
 //	DNSHELPER_LIVE_CORENETWORKS_LOGIN=... DNSHELPER_LIVE_CORENETWORKS_PASSWORD=... DNSHELPER_LIVE_CORENETWORKS_ZONE=example.com go test ...
@@ -89,6 +93,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"user": user, "api_token": tok}
+	case "digitalocean":
+		tok, zone := os.Getenv("DNSHELPER_LIVE_DO_TOKEN"), os.Getenv("DNSHELPER_LIVE_DO_ZONE")
+		if tok == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"api_token": tok}
 	case "corenetworks":
 		login, pw, zone := os.Getenv("DNSHELPER_LIVE_CORENETWORKS_LOGIN"), os.Getenv("DNSHELPER_LIVE_CORENETWORKS_PASSWORD"), os.Getenv("DNSHELPER_LIVE_CORENETWORKS_ZONE")
 		if login == "" || pw == "" || zone == "" {
@@ -152,9 +162,13 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "godaddy", "hetzner", "namedotcom", "rfc2136"}
+var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "namedotcom", "rfc2136"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
+
+// hostName is name without the leading underscore, for A and AAAA records:
+// some providers (DigitalOcean) refuse an underscore in a host name.
+func (l *live) hostName(n int) string { return strings.TrimPrefix(l.name(n), "_") }
 
 func (l *live) run(op string, mut func(*contract.Request), recs ...contract.Record) contract.Response {
 	l.t.Helper()
@@ -177,7 +191,7 @@ func (l *live) must(op string, recs ...contract.Record) contract.Response {
 func (l *live) mine() []contract.Record {
 	var out []contract.Record
 	for _, r := range l.must(contract.OpGetRecords).Records {
-		if strings.HasPrefix(r.Name, l.prefix) {
+		if strings.HasPrefix(r.Name, l.prefix) || strings.HasPrefix(r.Name, strings.TrimPrefix(l.prefix, "_")) {
 			out = append(out, r)
 		}
 	}
@@ -240,6 +254,20 @@ func TestLiveBadCredentialsHetzner(t *testing.T) {
 		t.Logf("bad token gives ok=%v err=%+v", r.OK, r.Error)
 		if r.OK {
 			t.Fatal("a bad token must not validate")
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-a-real") {
+			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsDigitalOcean(t *testing.T) {
+	eachLive(t, []string{"digitalocean"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"api_token": "dop_v1_0123456789-not-a-real-token-0123456789abcd"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-a-real") {
 			t.Fatal("token echoed")
@@ -324,16 +352,24 @@ func TestLiveTXTQuotesAndBackslashes(t *testing.T) {
 
 func TestLiveCNAMEConflictsAndRecordTypes(t *testing.T) {
 	eachLive(t, allProviders, func(t *testing.T, l *live) {
-		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(1), Type: "A", TTL: 120, Data: "192.0.2.10"})
-		if r := l.run(contract.OpAppendRecords, nil, contract.Record{Name: l.name(1), Type: "CNAME", Data: "example.net."}); r.OK || r.Error.Code != contract.CodeConflict {
+		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(1), Type: "A", TTL: 120, Data: "192.0.2.10"})
+		if r := l.run(contract.OpAppendRecords, nil, contract.Record{Name: l.hostName(1), Type: "CNAME", Data: "example.net."}); r.OK || r.Error.Code != contract.CodeConflict {
 			t.Fatalf("CNAME beside A must be refused: %+v", r)
 		}
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(2), Type: "CNAME", TTL: 120, Data: "target.example.net."})
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(3) + "._tcp", Type: "SRV", TTL: 120, Data: "10 5 5060 sip.example.net."})
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(4), Type: "MX", TTL: 120, Data: "10 mail.example.net."})
-		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(5), Type: "AAAA", TTL: 120, Data: "2001:db8::1"})
+		// Issue #19: zero priority and weight, as ns8-automx's _autodiscover._tcp.
+		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(6) + "._tcp", Type: "SRV", TTL: 120, Data: "0 0 443 mail.example.net."})
+		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(5), Type: "AAAA", TTL: 120, Data: "2001:db8::1"})
 		seen := map[string]string{}
 		for _, r := range l.mine() {
+			if r.Name == l.name(6)+"._tcp" {
+				if got := strings.TrimSuffix(r.Data, "."); got != "0 0 443 mail.example.net" {
+					t.Errorf("zero SRV: got %q", r.Data)
+				}
+				continue
+			}
 			seen[r.Type] = r.Data
 		}
 		for typ, want := range map[string]string{"A": "192.0.2.10", "CNAME": "target.example.net", "SRV": "10 5 5060 sip.example.net", "MX": "10 mail.example.net", "AAAA": "2001:db8::1"} {

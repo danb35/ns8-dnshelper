@@ -247,14 +247,15 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), GoDaddy, Hetzner (Cloud DNS API), name.com and
-RFC 2136. All have been tested live: Cloudflare, Core-Networks, GoDaddy, Hetzner and name.com against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), name.com and
+RFC 2136. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner and name.com against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
+| DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -277,6 +278,12 @@ What to know about each provider:
   The service limits how often one can log in, so dnshelper keeps the session token (valid for an
   hour) between calls; see [Credentials](#credentials). Every change is committed to the name
   servers at once. TXT values, including ones with `"` or `\`, are stored as written.
+- **DigitalOcean**: a token cannot be limited to some domains; it can change every domain of the
+  account (or team), so keep zones you do not want dnshelper to reach elsewhere. TTLs under 30
+  seconds are raised to 30, and a record without a TTL gets the zone's default (1800). TXT values
+  containing `\` are refused by DigitalOcean, as are A and AAAA names containing `_`. CAA records
+  are not supported yet. dnshelper talks to the API itself rather than through
+  `github.com/libdns/digitalocean`, which cannot write MX or SRV records correctly (see below).
 - **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
   and dnshelper waits and retries when it is exceeded. A credential that is not allowed to list
   domains needs the zone name typed in.
@@ -346,7 +353,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/namedotcom.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/namedotcom.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -370,6 +377,13 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   TTL under 600 seconds (shorter or unset TTLs are raised) and allows about 60 requests a minute (a
   429 answer is retried). GoDaddy also serves an apex A record whose value is a placeholder text,
   not an address; it is passed through as is.
+- The libdns DigitalOcean package sends the whole value (`0 0 443 target.`) as the record's data
+  and never fills the API's separate priority, weight and port fields, so MX and SRV records are
+  refused or stored wrong, and on read it loses them. `registry/digitalocean.go` talks to the API
+  itself: MX and SRV use the structured fields (an explicit 0 is sent and kept, checked live with
+  a `0 0 443` SRV record), host-name targets are sent fully qualified (the API demands the final
+  dot and returns names without it), and records are created and deleted one by one by ID. The
+  API's SOA entry carries only the zone TTL as its value and is left out of the records read.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from
