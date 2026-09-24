@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,7 +96,7 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		for _, r := range req.Records {
 			if strings.EqualFold(r.Type, "TXT") && def.TXTForbidden != "" && strings.ContainsAny(r.Data, def.TXTForbidden) {
 				return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "provider " +
-					def.Name + " cannot store TXT values containing a double quote or backslash (record " + quote(r.Name) + ")"})
+					def.Name + " cannot store TXT values containing " + forbiddenChars(def.TXTForbidden) + " (record " + quote(r.Name) + ")"})
 			}
 		}
 	}
@@ -147,4 +148,20 @@ func quote(s string) string {
 		}
 		return r
 	}, s) + `"`
+}
+
+// forbiddenChars names the characters of a provider's TXTForbidden list.
+func forbiddenChars(set string) string {
+	var names []string
+	for _, c := range set {
+		switch c {
+		case '"':
+			names = append(names, "a double quote")
+		case '\\':
+			names = append(names, "a backslash")
+		default:
+			names = append(names, strconv.Quote(string(c)))
+		}
+	}
+	return strings.Join(names, " or ")
 }

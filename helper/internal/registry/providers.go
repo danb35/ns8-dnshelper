@@ -24,6 +24,10 @@ package registry
 //     not github.com/libdns/linode v0.5.0 (which is zero-safe but reads SRV
 //     names doubled, see the file's comment); priority, weight and port are
 //     *int, verified against the live API with a 0 0 443 SRV record.
+//   - porkbun.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/porkbun (which never sends a priority at all); the
+//     priority is a string sent whenever the type has one, so "0" is always
+//     present, verified live with a 0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -181,6 +185,20 @@ func init() {
 		Notes: "Give the IAM user route53:ListResourceRecordSets and route53:ChangeResourceRecordSets on the hosted zones only, plus route53:ListHostedZonesByName (to find a zone) and route53:ListHostedZones (for the zone list), which AWS cannot limit to some zones; the README has the policy. Private hosted zones are not listed.",
 		New: func(c map[string]string) any {
 			return newRoute53(c["access_key_id"], c["secret_access_key"])
+		},
+	})
+	Register(Def{
+		Name:  "porkbun",
+		Label: "Porkbun",
+		Fields: []contract.Field{
+			{Name: "api_key", Label: "API key (pk1_...)", Required: true},
+			{Name: "secret_key", Label: "Secret API key (sk1_...)", Secret: true, Required: true},
+		},
+		Types:        []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes:        "The key only reaches domains with API access switched on at Porkbun: either for all domains at once, or in the settings of each domain. Porkbun raises a TTL under 60 seconds to 60; a record without a TTL gets 600. TXT values containing a backslash are refused: Porkbun's name servers drop it.",
+		TXTForbidden: "\\",
+		New: func(c map[string]string) any {
+			return &porkbunProvider{APIKey: c["api_key"], SecretKey: c["secret_key"]}
 		},
 	})
 	Register(Def{

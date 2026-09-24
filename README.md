@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com,
-RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode, name.com and Route 53 against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
+RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -260,6 +260,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
@@ -302,6 +303,13 @@ What to know about each provider:
   as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
   Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
   (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
+- **Porkbun**: create an API key at porkbun.com/account/api, and switch on API access either for
+  all domains at once (the account-wide switch) or for each domain dnshelper should manage (in the
+  domain's settings). The key reaches every domain that has API access. With the account-wide
+  switch on, a domain's own switch is ignored (the domain list then still reports `apiAccess: 0`). TTLs under 60 seconds are raised to 60, and a record without a TTL gets 600.
+  TXT values containing `\` are refused: Porkbun's name servers drop the backslash although the API
+  keeps it. dnshelper talks to the API itself rather than through `github.com/libdns/porkbun`
+  (see below).
 - **Route 53**: use an IAM user with an access key and only this policy, with the hosted zone
   IDs filled in. The record permissions can be limited to the zones; the two list permissions
   cannot (they only reveal zone names and IDs). `ListHostedZones` is only needed for the zone list
@@ -383,7 +391,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/route53.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -420,6 +428,11 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   `registry/linode.go` talks to the API itself. Linode ignores a name sent with an SRV record and
   places it at `_service._protocol` under the zone, so an SRV record below a subdomain is refused
   before anything is sent.
+- The libdns Porkbun package (v1.1.0) cannot be used: its delete removes every record with the
+  name and type whatever the value, it never sends an MX or SRV priority (Porkbun takes it as a
+  separate `prio` field), it drops MX and NS records when reading and misnames SRV records, and it
+  has no request timeout. `registry/porkbun.go` talks to the API itself, deleting by record ID and
+  always sending `prio` for MX and SRV, "0" included.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from
