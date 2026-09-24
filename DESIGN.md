@@ -93,9 +93,14 @@ Checklist, in addition to the usual live test against a real zone (README's Prov
   and what this project's own `_autodiscover._tcp` record uses) gets silently dropped instead of
   sent as an explicit 0, and the provider's API then answers "field required" for a field that
   *was* given, just given as zero. This bit both `libdns/cloudflare` and `libdns/namedotcom`
-  identically. It does not affect a provider that either uses pointer fields (GoDaddy) or sends the
+  identically. It does not affect a provider that either uses pointer fields (GoDaddy, DigitalOcean) or sends the
   whole record value as one opaque string with no structured sub-fields (Core-Networks, Hetzner,
   RFC 2136) -- check which shape the new provider uses before assuming either way.
+  - A related trap (found adding DigitalOcean, 2026-09-24): `libdns/digitalocean` does not drop
+    the zero, it never fills the structured fields at all, sending the whole `0 0 443 target.` as
+    the record's data. So also check that the package *uses* the provider's structured fields,
+    not only how it marshals them. dnshelper talks to DigitalOcean's API itself
+    (`registry/digitalocean.go`), as it does for GoDaddy.
   - Write a test asserting the actual bytes the provider would send include the zero value
     explicitly, not just that construction doesn't error. `internal/vendored/cloudflare/models_test.go`
     and `internal/vendored/namedotcom/namedotcom_test.go` are the template: build a zero-priority/

@@ -15,6 +15,11 @@ package registry
 //     field with omitempty), found by this audit but not confirmed against
 //     the live API. Patched locally the same way, see
 //     internal/vendored/namedotcom, out of caution.
+//   - digitalocean.go (this package, added after the audit): safe. Its own
+//     client, not github.com/libdns/digitalocean (which never fills the
+//     structured fields at all, see the file's comment); priority, weight
+//     and port are *int, so an explicit 0 is sent, verified against the live
+//     API with a 0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -82,6 +87,19 @@ func init() {
 		},
 		NewCached: func(c map[string]string, cacheDir string) any {
 			return &coreNetworksProvider{Login: c["login"], Password: c["password"], cacheDir: cacheDir}
+		},
+	})
+	Register(Def{
+		Name:  "digitalocean",
+		Label: "DigitalOcean",
+		Fields: []contract.Field{
+			{Name: "api_token", Label: "Personal access token (custom scopes: domain create, read, update and delete)", Secret: true, Required: true},
+		},
+		Types:        []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes:        "A DigitalOcean token cannot be limited to some domains: it can change every domain of the account, so keep the zones in an account (or team) of their own if that matters. DigitalOcean does not accept a TTL under 30 seconds: a shorter one is raised to 30, and a record without a TTL gets the zone's default (1800). TXT values containing a backslash, and A or AAAA names containing an underscore, are refused by DigitalOcean. CAA records are not supported yet.",
+		TXTForbidden: "\\",
+		New: func(c map[string]string) any {
+			return &digitalOceanProvider{APIToken: c["api_token"]}
 		},
 	})
 	Register(Def{
