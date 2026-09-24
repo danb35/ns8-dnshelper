@@ -33,9 +33,9 @@ import (
 //   - TXT values are served through Cloudflare, which drops a backslash (the
 //     API still returns it), so backslashes are refused; double quotes and
 //     long values are served correctly;
-//   - with API access switched on for the account, a key could read and
-//     write a domain whose own API access switch was off (listAll says
-//     apiAccess 0), so that switch is not checked here;
+//   - a key only reaches domains with API access switched on, either all at
+//     once (an account-wide switch) or per domain; listAll's apiAccess shows
+//     only the per-domain switch, so it is not checked here;
 //   - records have IDs, so appends and deletes touch only the records named.
 type porkbunProvider struct {
 	APIKey, SecretKey string
