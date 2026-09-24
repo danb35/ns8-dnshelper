@@ -130,6 +130,15 @@ const PRESETS = [
     access: "write",
   },
   {
+    // ns8-automx: the autoconfig/autodiscover CNAMEs and the autodiscover SRV,
+    // at the apex of a zone or for a mail domain below it
+    key: "automx",
+    names:
+      "autoconfig, autoconfig.*, autodiscover, autodiscover.*, _autodiscover._tcp, _autodiscover._tcp.*",
+    types: "CNAME, SRV",
+    access: "write",
+  },
+  {
     key: "acme",
     names: "_acme-challenge, _acme-challenge.*",
     types: "TXT",

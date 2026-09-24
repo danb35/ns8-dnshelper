@@ -212,6 +212,7 @@
     "access_write": "Leitura e alteração",
     "presets": "Começar de",
     "preset_mail": "Servidor de e-mail",
+    "preset_automx": "Configuração automática de e-mail (automx)",
     "preset_acme": "Certificados (ACME DNS-01)",
     "preset_web": "Servidor ou serviço web",
     "caller_placeholder": "Escolha um módulo ou digite um padrão",

@@ -212,6 +212,7 @@
     "access_write": "Lesen und ändern",
     "presets": "Ausgehen von",
     "preset_mail": "Mailserver",
+    "preset_automx": "Mail-Autokonfiguration (automx)",
     "preset_acme": "Zertifikate (ACME DNS-01)",
     "preset_web": "Webserver oder Webdienst",
     "caller_placeholder": "Modul wählen oder Muster eingeben",

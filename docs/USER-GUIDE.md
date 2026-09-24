@@ -152,7 +152,7 @@ A module's request is checked as a whole: if any record in it is not covered, no
 Reading follows the same rules: a module only sees the records a rule covers, and only the zones
 it has a rule for.
 
-Choose **Add rule**. Three buttons at the top fill in typical values so you do not have to type
+Choose **Add rule**. Four buttons at the top fill in typical values so you do not have to type
 them; you still choose the module and the zones.
 
 ![Adding a rule](images/access-add-rule.png)
@@ -160,6 +160,7 @@ them; you still choose the module and the zones.
 | Preset | Record names | Record types | For |
 |---|---|---|---|
 | **Mail server** | `@`, `*._domainkey`, `_dmarc`, `autoconfig`, `autodiscover`, `_autodiscover._tcp` | TXT, MX, CNAME, SRV | A mail server publishing its SPF, DKIM and DMARC records, MX and mail auto-configuration |
+| **Mail auto-configuration (automx)** | `autoconfig`, `autoconfig.*`, `autodiscover`, `autodiscover.*`, `_autodiscover._tcp`, `_autodiscover._tcp.*` | CNAME, SRV | [ns8-automx](https://github.com/danb35/ns8-automx), publishing the records mail clients use to find their settings, for mail domains at a zone's apex or below it |
 | **Certificates (ACME DNS-01)** | `_acme-challenge`, `_acme-challenge.*` | TXT | A module that proves domain ownership to get a certificate, for example a wildcard certificate |
 | **Web server or service** | `*` | CNAME | A web server, or an application on its own host name (SOGo, Grafana, Matomo...), that points a name at your server |
 
