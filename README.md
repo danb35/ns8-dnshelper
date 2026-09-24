@@ -384,9 +384,9 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   check that a credential really works. Apex NS and SOA records cannot be deleted. It is not a
   full DNS editor: there is no editing in place and no bulk change.
 - **Access**: the policy table (which module may change which record names and types), with
-  presets for a mail server, for ACME DNS-01 and for a web server or service (CNAME records with
-  any name, for modules such as the web server, SOGo or Grafana that publish a name for their own
-  FQDN), and the authorization label a consumer module
+  presets for a mail server, for mail auto-configuration (ns8-automx), for ACME DNS-01 and for a
+  web server or service (CNAME records with any name, for modules such as the web server, SOGo or
+  Grafana that publish a name for their own FQDN), and the authorization label a consumer module
   needs.
 
 ```bash
