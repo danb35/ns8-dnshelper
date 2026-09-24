@@ -93,7 +93,7 @@ Checklist, in addition to the usual live test against a real zone (README's Prov
   and what this project's own `_autodiscover._tcp` record uses) gets silently dropped instead of
   sent as an explicit 0, and the provider's API then answers "field required" for a field that
   *was* given, just given as zero. This bit both `libdns/cloudflare` and `libdns/namedotcom`
-  identically. It does not affect a provider that either uses pointer fields (GoDaddy, DigitalOcean) or sends the
+  identically. It does not affect a provider that either uses pointer fields (GoDaddy, DigitalOcean, Linode) or sends the
   whole record value as one opaque string with no structured sub-fields (Core-Networks, Hetzner,
   RFC 2136) -- check which shape the new provider uses before assuming either way.
   - A related trap (found adding DigitalOcean, 2026-09-24): `libdns/digitalocean` does not drop

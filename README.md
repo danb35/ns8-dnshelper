@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), name.com and
-RFC 2136. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner and name.com against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com and
+RFC 2136. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode and name.com against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -258,6 +258,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
@@ -289,6 +290,12 @@ What to know about each provider:
   domains needs the zone name typed in.
 - **Hetzner**: uses the Cloud DNS API (zones in the Hetzner Console), not the retired DNS Console
   API. Each API action takes 8 to 15 seconds. A TXT value beginning or ending with `"` is refused.
+- **Linode (Akamai)**: a token reaches every domain of the account, unless it is made by a
+  restricted user granted only some domains. TTLs are rounded up to the next value Linode allows
+  (30, 120, 300, 3600, 7200, ...), and a record without a TTL gets the zone's default. SRV records
+  can only sit directly under the zone (`_service._protocol`), not under a subdomain; CAA records
+  cannot have flags. Changes can take several minutes to reach Linode's name servers. dnshelper
+  talks to the API itself rather than through `github.com/libdns/linode` (see below).
 - **name.com**: TTLs under 300 seconds are raised to 300. TXT values containing `"` or `\` are
   refused. The provider package (`github.com/libdns/namedotcom` v0.9.0) has the same class of bug
   as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
@@ -353,7 +360,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/namedotcom.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -384,6 +391,12 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   a `0 0 443` SRV record), host-name targets are sent fully qualified (the API demands the final
   dot and returns names without it), and records are created and deleted one by one by ID. The
   API's SOA entry carries only the zone TTL as its value and is left out of the records read.
+- The libdns Linode package (v0.5.0) sends SRV fields correctly, zeros included, but reads SRV
+  names doubled (`_sip._tcp._sip._tcp`: Linode returns the name and the package prepends the
+  service and protocol again), so SRV records cannot be deleted by the name it shows.
+  `registry/linode.go` talks to the API itself. Linode ignores a name sent with an SRV record and
+  places it at `_service._protocol` under the zone, so an SRV record below a subdomain is refused
+  before anything is sent.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from
