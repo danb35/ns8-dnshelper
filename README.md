@@ -303,9 +303,10 @@ What to know about each provider:
   as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
   Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
   (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
-- **Porkbun**: create an API key at porkbun.com/account/api. If the key cannot see a domain,
-  switch on **API access** in that domain's settings at Porkbun. The key reaches every domain of
-  the account. TTLs under 60 seconds are raised to 60, and a record without a TTL gets 600.
+- **Porkbun**: switch on API access for the account and create an API key at
+  porkbun.com/account/api. With account-wide API access on, the per-domain "API access" switch
+  was not needed (tested with it off); if a domain still cannot be seen, switch it on in that
+  domain's settings. The key reaches every domain of the account. TTLs under 60 seconds are raised to 60, and a record without a TTL gets 600.
   TXT values containing `\` are refused: Porkbun's name servers drop the backslash although the API
   keeps it. dnshelper talks to the API itself rather than through `github.com/libdns/porkbun`
   (see below).

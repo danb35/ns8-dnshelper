@@ -195,7 +195,7 @@ func init() {
 			{Name: "secret_key", Label: "Secret API key (sk1_...)", Secret: true, Required: true},
 		},
 		Types:        []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
-		Notes:        "A Porkbun key reaches every domain of the account; if it cannot see one, switch on API access in that domain's Porkbun settings. Porkbun raises a TTL under 60 seconds to 60; a record without a TTL gets 600. TXT values containing a backslash are refused: Porkbun's name servers drop it.",
+		Notes:        "Switch on API access for the Porkbun account before creating the key; it reaches every domain of the account. If it cannot see one, also switch on API access in that domain's settings. Porkbun raises a TTL under 60 seconds to 60; a record without a TTL gets 600. TXT values containing a backslash are refused: Porkbun's name servers drop it.",
 		TXTForbidden: "\\",
 		New: func(c map[string]string) any {
 			return &porkbunProvider{APIKey: c["api_key"], SecretKey: c["secret_key"]}
