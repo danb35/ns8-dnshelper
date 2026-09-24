@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com and
-RFC 2136. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode and name.com against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com,
+RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode, name.com and Route 53 against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -260,6 +260,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard
@@ -301,6 +302,28 @@ What to know about each provider:
   as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
   Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
   (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
+- **Route 53**: use an IAM user with an access key and only this policy, with the hosted zone
+  IDs filled in. The record permissions can be limited to the zones; the two list permissions
+  cannot (they only reveal zone names and IDs). `ListHostedZones` is only needed for the zone list
+  in the wizard, and `GetChange` is not used today. Private hosted zones are not listed.
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": ["route53:ListResourceRecordSets", "route53:ChangeResourceRecordSets"],
+        "Resource": ["arn:aws:route53:::hostedzone/ZONEID"]
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["route53:ListHostedZonesByName", "route53:ListHostedZones"],
+        "Resource": "*"
+      }
+    ]
+  }
+  ```
+  TXT values, including ones with `"` or `\`, are stored as written.
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
 
@@ -360,7 +383,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/route53.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the

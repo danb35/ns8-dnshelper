@@ -37,6 +37,9 @@ package registry
 //     Core-Networks -- fromRecord() in that package sends the whole RDATA
 //     as one opaque hcloud.ZoneRRSetRecord.Value string, no separate
 //     priority/weight/port fields.
+//   - route53 (github.com/libdns/route53 v1.6.2, added after the audit): safe,
+//     same reasoning as Core-Networks -- every value, SRV included, goes out
+//     as one ResourceRecord.Value string; checked live with 0 0 443.
 //   - rfc2136 (github.com/libdns/rfc2136 v1.0.1): safe, empirically -- this
 //     is the DNS UPDATE wire protocol, not JSON, so omitempty doesn't apply;
 //     also the one provider a real _autodiscover._tcp SRV 0 0 443 <target>
@@ -165,6 +168,19 @@ func init() {
 		Notes: "Uses the Hetzner Cloud DNS API (zones in the Hetzner Console). The old DNS Console API at dns.hetzner.com has been retired.",
 		New: func(c map[string]string) any {
 			return hetznerProvider{&hetzner.Provider{APIToken: c["api_token"]}}
+		},
+	})
+	Register(Def{
+		Name:  "route53",
+		Label: "Amazon Route 53",
+		Fields: []contract.Field{
+			{Name: "access_key_id", Label: "Access key ID of an IAM user limited to the hosted zones (see the README for a policy)", Required: true},
+			{Name: "secret_access_key", Label: "Secret access key", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Give the IAM user route53:ListResourceRecordSets and route53:ChangeResourceRecordSets on the hosted zones only, plus route53:ListHostedZonesByName (to find a zone) and route53:ListHostedZones (for the zone list), which AWS cannot limit to some zones; the README has the policy. Private hosted zones are not listed.",
+		New: func(c map[string]string) any {
+			return newRoute53(c["access_key_id"], c["secret_access_key"])
 		},
 	})
 	Register(Def{

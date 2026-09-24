@@ -30,6 +30,10 @@ package app
 //
 //	DNSHELPER_LIVE_CORENETWORKS_LOGIN=... DNSHELPER_LIVE_CORENETWORKS_PASSWORD=... DNSHELPER_LIVE_CORENETWORKS_ZONE=example.com go test ...
 //
+// Route 53:
+//
+//	DNSHELPER_LIVE_R53_KEY_ID=... DNSHELPER_LIVE_R53_SECRET=... DNSHELPER_LIVE_R53_ZONE=example.com go test ...
+//
 // RFC 2136 (see testdata/bind/README.md for a local BIND):
 //
 //	DNSHELPER_LIVE_RFC2136_SERVER=127.0.0.1:5354 DNSHELPER_LIVE_RFC2136_ZONE=example.test \
@@ -115,6 +119,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"login": login, "password": pw}
+	case "route53":
+		id, secret, zone := os.Getenv("DNSHELPER_LIVE_R53_KEY_ID"), os.Getenv("DNSHELPER_LIVE_R53_SECRET"), os.Getenv("DNSHELPER_LIVE_R53_ZONE")
+		if id == "" || secret == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"access_key_id": id, "secret_access_key": secret}
 	case "rfc2136":
 		srv, zone, name, key := os.Getenv("DNSHELPER_LIVE_RFC2136_SERVER"), os.Getenv("DNSHELPER_LIVE_RFC2136_ZONE"),
 			os.Getenv("DNSHELPER_LIVE_RFC2136_KEY_NAME"), os.Getenv("DNSHELPER_LIVE_RFC2136_KEY")
@@ -172,7 +182,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136"}
+var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "route53"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -295,6 +305,20 @@ func TestLiveBadCredentialsLinode(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-a-real") {
 			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsRoute53(t *testing.T) {
+	eachLive(t, []string{"route53"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"access_key_id": l.cred["access_key_id"], "secret_access_key": "not-the-secret-0123456789abcdefghijklmnop"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-secret") {
+			t.Fatal("secret echoed")
 		}
 	})
 }

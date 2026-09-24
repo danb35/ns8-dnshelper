@@ -60,6 +60,7 @@ revoke it at your DNS host without touching anything else.
 | Hetzner | A Hetzner Cloud API token with **Read & Write** permission, made in the project that holds your DNS zones | [Generating an API token](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/) |
 | Linode (Akamai) | A personal access token with **Domains** set to Read/Write and every other scope to No Access. The token reaches every domain of the account, unless you make it as a restricted user granted only some domains | [Manage personal access tokens](https://techdocs.akamai.com/cloud-computing/docs/manage-personal-access-tokens) |
 | name.com | Your user name and an API token. Use a **production** token: a development token does not work | [Get your API token](https://docs.name.com/getting-started) |
+| Amazon Route 53 | The access key ID and secret access key of an IAM user that may only read and change the records of your hosted zones, and list hosted zones. The README has the exact policy | [IAM access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html) |
 | RFC 2136 (BIND, Knot, PowerDNS...) | The server address and port, the name of a TSIG key, its algorithm and the key. The server must allow dynamic updates and zone transfers (AXFR) for that key | Your DNS server's configuration |
 
 If your account uses two-step authentication, your DNS host may need API access switched on before

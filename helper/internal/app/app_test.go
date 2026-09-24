@@ -108,7 +108,7 @@ func TestListProvidersAndCapabilities(t *testing.T) {
 	for _, p := range r.Providers {
 		names[p.Name] = true
 	}
-	for _, want := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "fake"} {
+	for _, want := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "route53", "fake"} {
 		if !names[want] {
 			t.Errorf("provider %s missing from %v", want, names)
 		}
@@ -124,7 +124,7 @@ func TestListProvidersAndCapabilities(t *testing.T) {
 }
 
 func TestRealProvidersRejectIncompleteCredentialsBeforeAnyNetworkCall(t *testing.T) {
-	for _, p := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136"} {
+	for _, p := range []string{"cloudflare", "corenetworks", "digitalocean", "godaddy", "hetzner", "linode", "namedotcom", "rfc2136", "route53"} {
 		r := Run(context.Background(), contract.Request{Op: "get-records", Provider: p, Zone: "example.com"}, Options{})
 		if r.OK || r.Error.Code != contract.CodeInvalidRequest {
 			t.Errorf("%s: %+v", p, r)
