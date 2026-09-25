@@ -39,6 +39,11 @@ package registry
 //     LiveDNS takes every value as one presentation-format string ("0 0 443
 //     target."), so there is no separate field to drop; verified live with a
 //     0 0 443 SRV record.
+//   - vultr.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/vultr/v2 (whose delete can remove a record of
+//     another type, see the file's comment); the priority is a *int sent
+//     whenever the type has one, so an explicit 0 is always present, verified
+//     live with a 0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -234,6 +239,19 @@ func init() {
 		TXTForbidden: "\\",
 		New: func(c map[string]string) any {
 			return &porkbunProvider{APIKey: c["api_key"], SecretKey: c["secret_key"]}
+		},
+	})
+	Register(Def{
+		Name:  "vultr",
+		Label: "Vultr",
+		Fields: []contract.Field{
+			{Name: "api_token", Label: "API key (Account > API)", Secret: true, Required: true},
+		},
+		Types:        []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes:        "The account's API key reaches the whole account, not only DNS; a Vultr user with limited permissions has a key of its own. Vultr's API access control can limit the addresses allowed to use the key: make sure it allows the NethServer node's public address. Vultr's API is slow, a few seconds per request. Vultr raises a TTL under 60 seconds to 60; a record without a TTL gets 300. TXT values containing a double quote or a backslash are refused: Vultr does not accept the quote, and its name servers drop the backslash.",
+		TXTForbidden: "\"\\",
+		New: func(c map[string]string) any {
+			return &vultrProvider{APIToken: c["api_token"]}
 		},
 	})
 	Register(Def{
