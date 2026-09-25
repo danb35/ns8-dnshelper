@@ -76,6 +76,8 @@ change event when zones change (follow the documented event naming convention).
   `libdns/powerdns` v0.1.4 (pre-release libdns API) is not used either; `registry/powerdns.go`
   uses the same shared logic, tested against PowerDNS 4.9 and 5.0 in Docker. `libdns/googleclouddns`
   v1.2.0 wants the key as a file path; `registry/googleclouddns.go` signs its own token request.
+  `libdns/ionos` v1.2.0 (pre-release libdns API, TXT sent as plain text, which IONOS mangles) is
+  replaced by `registry/ionos.go`.
 - 2026-09-23: live SRV creation through Cloudflare (a real `0 0 443 <target>` record, for
   ns8-automx) failed with a 400 from Cloudflare's own API ("weight is a required data field").
   Root cause: `libdns/cloudflare` v0.2.2 serializes SRV priority/weight/port as plain (non-pointer)

@@ -20,6 +20,10 @@ package registry
 //     structured fields at all, see the file's comment); priority, weight
 //     and port are *int, so an explicit 0 is sent, verified against the live
 //     API with a 0 0 443 SRV record.
+//   - ionos.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/ionos (built on a pre-release libdns API); the
+//     priority is a *int sent whenever the type has one, so an explicit 0 is
+//     always present, verified live with a 0 0 443 SRV record.
 //   - linode.go (this package, added after the audit): safe. Its own client,
 //     not github.com/libdns/linode v0.5.0 (which is zero-safe but reads SRV
 //     names doubled, see the file's comment); priority, weight and port are
@@ -203,6 +207,19 @@ func init() {
 		Notes: "Uses the production GoDaddy API with a personal access token (the legacy classic API key and secret still work but GoDaddy is deprecating them). GoDaddy does not accept a TTL under 600 seconds: records written with a shorter or no TTL get 600.",
 		New: func(c map[string]string) any {
 			return &goDaddyProvider{APIToken: c["api_token"], APIKey: c["api_key"], APISecret: c["api_secret"]}
+		},
+	})
+	Register(Def{
+		Name:  "ionos",
+		Label: "IONOS",
+		Fields: []contract.Field{
+			{Name: "key_prefix", Label: "API key prefix (the public part, from developer.hosting.ionos.com/keys)", Required: true},
+			{Name: "key_secret", Label: "API key secret", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Create the key at developer.hosting.ionos.com/keys and copy both parts: the prefix and the secret. The key reaches every zone of the IONOS account. IONOS does not accept a TTL under 60 seconds: shorter ones become 60, and a record without a TTL gets 3600. Disabled records are left alone.",
+		New: func(c map[string]string) any {
+			return &ionosProvider{Prefix: c["key_prefix"], Secret: c["key_secret"]}
 		},
 	})
 	Register(Def{
