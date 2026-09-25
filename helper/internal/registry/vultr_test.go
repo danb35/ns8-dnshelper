@@ -220,6 +220,10 @@ func TestVultrZonesAndErrors(t *testing.T) {
 	if _, err := p.AppendRecords(ctx, "example.com.", []libdns.Record{libdns.RR{Name: "x", Type: "SRV", Data: "0 443 t."}}); err == nil {
 		t.Error("a malformed SRV value must be refused")
 	}
+	err = p.fail("could not get records", 401, []byte(`{"error":"Unauthorized IP address: 192.0.2.7","status":401}`))
+	if !errors.As(err, &ce) || ce.Code != contract.CodeAuthFailed || !strings.Contains(ce.Message, "does not allow the address 192.0.2.7;") {
+		t.Fatalf("address refused: %v", err)
+	}
 	p.APIToken = "wrong"
 	if _, err := p.GetRecords(ctx, "example.com."); !errors.As(err, &ce) || ce.Code != contract.CodeAuthFailed {
 		t.Fatalf("bad token: %v", err)

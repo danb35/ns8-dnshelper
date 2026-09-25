@@ -126,10 +126,15 @@ func (p *vultrProvider) fail(what string, status int, body []byte) error {
 	if len(msg) > 300 {
 		msg = msg[:300] + "..."
 	}
-	switch status {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return &contract.Error{Code: contract.CodeAuthFailed, Message: "Vultr refused the request (" + msg + "); check the token and the API access control list"}
-	case http.StatusNotFound:
+	switch {
+	case status == http.StatusUnauthorized && strings.HasPrefix(msg, "Unauthorized IP address"):
+		// A key is only accepted from the addresses in its (per user) API
+		// access control list; Vultr names the address it saw.
+		return &contract.Error{Code: contract.CodeAuthFailed, Message: "Vultr's API access control for this key does not allow the address " +
+			strings.TrimSpace(strings.TrimPrefix(msg, "Unauthorized IP address:")) + "; add it to the key's allowed addresses at Vultr"}
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return &contract.Error{Code: contract.CodeAuthFailed, Message: "Vultr refused the request (" + msg + ")"}
+	case status == http.StatusNotFound:
 		return &contract.Error{Code: contract.CodeZoneNotFound, Message: "Vultr has no such domain in this account"}
 	}
 	return fmt.Errorf("%s: Vultr answered %d: %s", what, status, msg)
