@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
-RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
+RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -256,6 +256,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Gandi LiveDNS | Personal access token from the Gandi Admin application with "Manage domain name technical configurations" | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
@@ -287,6 +288,15 @@ What to know about each provider:
   containing `\` are refused by DigitalOcean, as are A and AAAA names containing `_`. CAA records
   are not supported yet. dnshelper talks to the API itself rather than through
   `github.com/libdns/digitalocean`, which cannot write MX or SRV records correctly (see below).
+- **Gandi LiveDNS**: create a personal access token in the Gandi Admin application, for the
+  organization that holds the domains, with the permission **Manage domain name technical
+  configurations** (Gandi then also ticks **See and renew domain names**); it can be limited to
+  some domains. Gandi tokens expire, so
+  renew or replace the token before its end date and update the credential. TTLs under 300
+  seconds are raised to 300, and a record without a TTL gets 10800. Gandi keeps one TTL per name
+  and type, so adding a record with a TTL changes it for the records already there with the same
+  name and type. TXT values, including ones with `"` or `\`, are stored as written. dnshelper
+  talks to the API itself rather than through `github.com/libdns/gandi` (see below).
 - **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
   and dnshelper waits and retries when it is exceeded. A credential that is not allowed to list
   domains needs the zone name typed in.
@@ -391,7 +401,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -433,6 +443,12 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   separate `prio` field), it drops MX and NS records when reading and misnames SRV records, and it
   has no request timeout. `registry/porkbun.go` talks to the API itself, deleting by record ID and
   always sending `prio` for MX and SRV, "0" included.
+- The libdns Gandi package (v1.1.0) cannot be used: its SetRecords adds a value to the record set
+  instead of replacing the set, it sends TXT values unquoted but reads them back quoted (so a TXT
+  record cannot be deleted from a set holding two values), and it has no zone list and no request
+  timeout. `registry/gandi.go` talks to the LiveDNS API itself. LiveDNS stores whole record sets
+  with one TTL; every value is one zone-file string, so an SRV `0 0 443` is sent as written.
+  Values it holds relative to the zone (a target without a final dot) are read back absolute.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from
