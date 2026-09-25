@@ -74,7 +74,7 @@
   },
   "zones": {
     "title": "Zonen",
-    "intro": "Eine Zone ist eine Domain, deren DNS-Einträge andere Module über die API Ihres DNS-Anbieters anlegen und ändern dürfen. Jede Zone verwendet Zugangsdaten (ein API-Token) für ihren DNS-Anbieter.",
+    "intro": "Eine Zone ist eine Domain, deren DNS-Einträge andere Module über die API Ihres DNS-Anbieters anlegen und ändern dürfen. Jede Zone verwendet Zugangsdaten für ihren DNS-Anbieter: meist ein API-Token, bei manchen Anbietern ein Schlüssel und ein Geheimnis oder ein Benutzername und ein Passwort.",
     "add_zone": "Zone hinzufügen",
     "search": "Zonen suchen",
     "no_zones": "Keine Zonen",
@@ -96,7 +96,11 @@
     "missing_credential": "Zugangsdaten fehlen",
     "cannot_load": "Die Zonen können nicht geladen werden",
     "added_title": "Zone hinzugefügt",
-    "added": "{zone} wird jetzt verwaltet."
+    "added": "{zone} wird jetzt verwaltet.",
+    "removed_title": "Zone entfernt",
+    "removed": "{zone} wird nicht mehr verwaltet. Die Einträge bei Ihrem DNS-Anbieter bleiben unverändert.",
+    "credential_changed_title": "Zugangsdaten geändert",
+    "credential_changed": "{zone} verwendet jetzt die Zugangsdaten {name}."
   },
   "records": {
     "title": "Einträge",
@@ -130,7 +134,7 @@
   },
   "credentials": {
     "title": "Zugangsdaten",
-    "intro": "Zugangsdaten sind API-Tokens für Ihren DNS-Anbieter. Dieselben Zugangsdaten können mehrere Zonen bedienen, und ein Token zu erneuern ist eine einzige Änderung. Geheimnisse werden nach dem Speichern nie wieder angezeigt: Lassen Sie ein Geheimnisfeld leer, um den Wert beizubehalten. Bevorzugen Sie Tokens, die auf die benötigten Zonen beschränkt sind.",
+    "intro": "Zugangsdaten sind das, was Ihr DNS-Anbieter für seine API verlangt: meist ein API-Token, bei manchen Anbietern ein Schlüssel und ein Geheimnis oder ein Benutzername und ein Passwort. Dieselben Zugangsdaten können mehrere Zonen bedienen, und sie zu ersetzen ist eine einzige Änderung. Geheimnisse werden nach dem Speichern nie wieder angezeigt: Lassen Sie ein Geheimnisfeld leer, um den Wert beizubehalten. Bevorzugen Sie Zugangsdaten, die auf die benötigten Zonen beschränkt sind.",
     "col_name": "Name",
     "col_provider": "DNS-Anbieter",
     "col_secrets": "Geheimnisse",
@@ -141,7 +145,11 @@
     "no_credentials_description": "Zugangsdaten werden zusammen mit der ersten Zone angelegt, die sie verwendet.",
     "cannot_delete": "Die Zugangsdaten können nicht gelöscht werden",
     "remove_title": "Zugangsdaten löschen",
-    "remove_description": "Die Zugangsdaten {name} löschen. Das Token bleibt bei Ihrem DNS-Anbieter gültig: Widerrufen Sie es dort, wenn es nicht mehr funktionieren soll.",
+    "remove_description": "Die Zugangsdaten {name} löschen. Sie bleiben bei Ihrem DNS-Anbieter gültig: Widerrufen Sie sie dort, wenn sie nicht mehr funktionieren sollen.",
+    "removed_title": "Zugangsdaten gelöscht",
+    "removed": "{name} ist hier gelöscht. Bei Ihrem DNS-Anbieter bleiben die Zugangsdaten gültig, bis Sie sie dort widerrufen.",
+    "saved_title": "Zugangsdaten gespeichert",
+    "saved": "Die Änderungen an den Zugangsdaten sind gespeichert.",
     "edit_title": "{name} bearbeiten",
     "secret_unchanged": "Unverändert",
     "secret_help": "Leer lassen, um den gespeicherten Wert beizubehalten"
@@ -157,8 +165,8 @@
     "use_saved_credential": "Gespeicherte Zugangsdaten verwenden",
     "saved_credential": "Gespeicherte Zugangsdaten",
     "choose_credential": "Zugangsdaten wählen",
-    "least_privilege_title": "Verwenden Sie ein eingeschränktes Token",
-    "least_privilege": "Erstellen Sie ein API-Token, das nur die hier hinzugefügten Zonen bearbeiten kann, nicht Ihr gesamtes Konto. Das Token wird auf diesem Knoten gespeichert und in Backups eingeschlossen.",
+    "least_privilege_title": "Beschränkte Zugangsdaten verwenden",
+    "least_privilege": "Wenn Ihr DNS-Anbieter es erlaubt, erstellen Sie Zugangsdaten, die nur die hier hinzugefügten Zonen bearbeiten können, nicht Ihr gesamtes Konto. Sie werden auf diesem Knoten gespeichert und in Backups eingeschlossen.",
     "credential_name": "Name",
     "credential_name_help": "Eine Bezeichnung für diese Zugangsdaten, um sie später wiederzuerkennen",
     "zone_intro_listed": "Wählen Sie eine der Zonen, die diese Zugangsdaten verwalten können, oder geben Sie ihren Namen ein.",

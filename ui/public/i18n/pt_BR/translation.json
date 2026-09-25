@@ -74,7 +74,7 @@
   },
   "zones": {
     "title": "Zonas",
-    "intro": "Uma zona é um domínio cujos registros DNS outros módulos podem criar e alterar, por meio da API do seu provedor de DNS. Cada zona usa uma credencial (um token de API) para o seu provedor de DNS.",
+    "intro": "Uma zona é um domínio cujos registros DNS outros módulos podem criar e alterar, por meio da API do seu provedor de DNS. Cada zona usa uma credencial para o seu provedor de DNS: geralmente um token de API, em alguns provedores uma chave e um segredo ou um nome de usuário e uma senha.",
     "add_zone": "Adicionar zona",
     "search": "Pesquisar zonas",
     "no_zones": "Nenhuma zona",
@@ -96,7 +96,11 @@
     "missing_credential": "Credencial ausente",
     "cannot_load": "Não foi possível carregar as zonas",
     "added_title": "Zona adicionada",
-    "added": "{zone} agora é gerenciada."
+    "added": "{zone} agora é gerenciada.",
+    "removed_title": "Zona removida",
+    "removed": "{zone} não é mais gerenciada. Os registros no seu provedor de DNS não mudam.",
+    "credential_changed_title": "Credencial alterada",
+    "credential_changed": "{zone} agora usa a credencial {name}."
   },
   "records": {
     "title": "Registros",
@@ -130,7 +134,7 @@
   },
   "credentials": {
     "title": "Credenciais",
-    "intro": "Credenciais são tokens de API do seu provedor de DNS. Uma credencial pode atender várias zonas, e trocar um token é uma única edição. Os segredos nunca são exibidos novamente após salvar: deixe um campo secreto vazio para mantê-lo. Prefira tokens limitados às zonas de que você precisa.",
+    "intro": "Uma credencial é o que o seu provedor de DNS pede para usar a API dele: geralmente um token de API, em alguns provedores uma chave e um segredo ou um nome de usuário e uma senha. Uma credencial pode atender várias zonas, e substituí-la é uma única edição. Os segredos nunca são exibidos novamente após salvar: deixe um campo secreto vazio para mantê-lo. Prefira credenciais limitadas às zonas de que você precisa.",
     "col_name": "Nome",
     "col_provider": "Provedor de DNS",
     "col_secrets": "Segredos",
@@ -141,7 +145,11 @@
     "no_credentials_description": "Uma credencial é criada junto com a primeira zona que a usa.",
     "cannot_delete": "Não foi possível excluir a credencial",
     "remove_title": "Excluir credencial",
-    "remove_description": "Excluir a credencial {name}. O token continua válido no seu provedor de DNS: revogue-o lá se ele não deve mais funcionar.",
+    "remove_description": "Excluir a credencial {name}. Ela continua válida no seu provedor de DNS: revogue-a lá se ela não deve mais funcionar.",
+    "removed_title": "Credencial excluída",
+    "removed": "{name} foi excluída aqui. Ela continua válida no seu provedor de DNS até você revogá-la lá.",
+    "saved_title": "Credencial salva",
+    "saved": "As alterações na credencial foram salvas.",
     "edit_title": "Editar {name}",
     "secret_unchanged": "Inalterado",
     "secret_help": "Deixe vazio para manter o valor armazenado"
@@ -157,8 +165,8 @@
     "use_saved_credential": "Usar uma credencial salva",
     "saved_credential": "Credencial salva",
     "choose_credential": "Escolha uma credencial",
-    "least_privilege_title": "Use um token limitado",
-    "least_privilege": "Crie um token de API que só possa editar as zonas adicionadas aqui, e não toda a sua conta. O token é armazenado neste nó e incluído nos backups.",
+    "least_privilege_title": "Use uma credencial limitada",
+    "least_privilege": "Se o seu provedor de DNS permitir, crie uma credencial que só possa editar as zonas adicionadas aqui, e não toda a sua conta. Ela é armazenada neste nó e incluída nos backups.",
     "credential_name": "Nome",
     "credential_name_help": "Um rótulo para esta credencial, para reconhecê-la depois",
     "zone_intro_listed": "Escolha uma das zonas que esta credencial pode gerenciar, ou digite o nome dela.",

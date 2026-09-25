@@ -232,7 +232,7 @@
       :credential="current"
       :providers="providers"
       @hide="isEditCredentialShown = false"
-      @saved="load"
+      @saved="credentialSaved"
     />
     <!-- change the credential of a zone -->
     <NsModal
@@ -503,6 +503,15 @@ export default {
           data: { zone: this.current.zone, credential: this.newCredential },
         });
         this.isChangeCredentialShown = false;
+        const cred = this.credentials.find((c) => c.id === this.newCredential);
+        this.say(
+          "success",
+          this.$t("zones.credential_changed_title"),
+          this.$t("zones.credential_changed", {
+            zone: this.current.zone,
+            name: cred ? cred.name : this.newCredential,
+          })
+        );
         this.load();
       } catch (err) {
         this.error.changeCredential = this.errorText(err);
@@ -522,11 +531,24 @@ export default {
           data: { zone: this.current.zone },
         });
         this.isRemoveZoneShown = false;
+        this.say(
+          "success",
+          this.$t("zones.removed_title"),
+          this.$t("zones.removed", { zone: this.current.zone })
+        );
         this.load();
       } catch (err) {
         this.error.removeZone = this.errorText(err);
       }
       this.loading.removeZone = false;
+    },
+    credentialSaved() {
+      this.say(
+        "success",
+        this.$t("credentials.saved_title"),
+        this.$t("credentials.saved", { name: this.current.name })
+      );
+      this.load();
     },
     showEditCredential(row) {
       this.current = row;
@@ -545,6 +567,11 @@ export default {
           data: { id: this.current.id },
         });
         this.isRemoveCredentialShown = false;
+        this.say(
+          "success",
+          this.$t("credentials.removed_title"),
+          this.$t("credentials.removed", { name: this.current.name })
+        );
         this.load();
       } catch (err) {
         this.error.removeCredential = this.errorText(err);
