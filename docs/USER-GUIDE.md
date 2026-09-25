@@ -64,6 +64,7 @@ revoke it at your DNS host without touching anything else.
 | name.com | Your user name and an API token. Use a **production** token: a development token does not work | [Get your API token](https://docs.name.com/getting-started) |
 | Porkbun | The API key and secret API key. Porkbun only lets the key reach domains with **API access** switched on: switch it on for all domains at once, or in the settings of each domain dnshelper should manage | [Porkbun API access](https://kb.porkbun.com/article/190-getting-started-with-the-porkbun-api) |
 | Amazon Route 53 | The access key ID and secret access key of an IAM user that may only read and change the records of your hosted zones, and list hosted zones. The README has the exact policy | [IAM access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html) |
+| Vultr | The API key of a **service user** in your organization that has only the **Manage DNS** policy (Vultr asks for an e-mail address no other Vultr account uses). Your account's own key also works, but it can change everything in the account. In the key's API access control, add your NethServer's public address | [Vultr API](https://www.vultr.com/api/) |
 | RFC 2136 (BIND, Knot, PowerDNS...) | The server address and port, the name of a TSIG key, its algorithm and the key. The server must allow dynamic updates and zone transfers (AXFR) for that key | Your DNS server's configuration |
 
 If your account uses two-step authentication, your DNS host may need API access switched on before
@@ -255,15 +256,15 @@ These are the messages you may see, with what to check.
 | Zone not found at the DNS host, or not managed here | The zone name is misspelled, or the zone is not in the account this credential belongs to. For a module's request: the zone was never added on the **Zones** page |
 | Not allowed by the access rules | A module tried something no rule covers. Open **Access** and check the module, the zone, the record names and types, and whether the rule is *Read only* |
 | That would leave the zone invalid | The change would break DNS rules, most often a CNAME next to other records with the same name, or a CNAME at the zone itself. Remove the conflicting record first |
-| That record cannot be changed | dnshelper never changes a zone's NS and SOA records. Some DNS hosts also cannot store certain characters: Cloudflare, name.com and RFC 2136 do not accept a TXT value that contains a double quote or a backslash, DigitalOcean and Porkbun one that contains a backslash, and Hetzner one that starts or ends with a double quote. DigitalOcean also refuses an underscore in the name of an A or AAAA record, and Linode an SRV record below a subdomain (it only stores `_service._protocol` directly under the zone) |
+| That record cannot be changed | dnshelper never changes a zone's NS and SOA records. Some DNS hosts also cannot store certain characters: Cloudflare, name.com, RFC 2136 and Vultr do not accept a TXT value that contains a double quote or a backslash, DigitalOcean and Porkbun one that contains a backslash, and Hetzner one that starts or ends with a double quote. DigitalOcean also refuses an underscore in the name of an A or AAAA record, and Linode an SRV record below a subdomain (it only stores `_service._protocol` directly under the zone) |
 | This DNS host does not support that | The DNS host cannot do it: for example a record type it does not handle. The review step of the wizard lists what it can do |
 | The credential is still used by a zone | Change the zone's credential, or delete the zone, before deleting the credential |
 
 A few more things that look like problems and are not:
 
 - **A record has a different TTL from the one requested.** GoDaddy raises a TTL below 600 seconds
-  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, Gandi below 300 to 300, and deSEC below the domain's own minimum to that minimum. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
-- **Hetzner is slow.** Each action takes 8 to 15 seconds there; that is the DNS host, not a fault.
+  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, Gandi below 300 to 300, Vultr below 60 to 60, and deSEC below the domain's own minimum to that minimum. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
+- **Hetzner and Vultr are slow.** Each action takes several seconds there (8 to 15 at Hetzner); that is the DNS host, not a fault.
 - **GoDaddy limits the number of requests** to about 60 a minute. dnshelper waits and tries again.
 - **deSEC limits changes** to 15 a minute and 100 an hour per domain. dnshelper waits up to 90 seconds;
   beyond that it says how long to wait before trying again.

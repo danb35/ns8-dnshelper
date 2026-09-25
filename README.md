@@ -248,7 +248,7 @@ after restoring into a cluster where the consumer has another id, fix the policy
 ## Providers
 
 Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
-RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
+RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun, Route 53 and Vultr against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -264,6 +264,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
+| Vultr | API key of a service user with the Manage DNS policy (the account's own key works too, but reaches the whole account); the node's address must be in the key's access control list | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard
@@ -355,6 +356,16 @@ What to know about each provider:
   }
   ```
   TXT values, including ones with `"` or `\`, are stored as written.
+- **Vultr**: the account's API key (Account > API at my.vultr.com) reaches the whole account, not
+  only DNS. Prefer a **service user** of your organization with only the **Manage DNS** policy:
+  its API key can list domains and change their records, and is refused account details and
+  servers (tested live). Vultr asks for an e-mail address for the user that no other Vultr account
+  uses. Every key has its own API access control list of allowed addresses: add the NethServer
+  node's public address to it, or Vultr answers "Unauthorized IP address". TTLs under 60 seconds
+  are raised to 60, and a record without a TTL gets 300. TXT values containing `"` or `\` are refused:
+  Vultr refuses the quote and its name servers drop the backslash. Each API request takes a few
+  seconds. dnshelper talks to the API itself rather than through `github.com/libdns/vultr/v2`
+  (see below).
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
 
@@ -414,7 +425,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`, `registry/vultr.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -470,6 +481,10 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   timeout. `registry/gandi.go` talks to the LiveDNS API itself. LiveDNS stores whole record sets
   with one TTL; every value is one zone-file string, so an SRV `0 0 443` is sent as written.
   Values it holds relative to the zone (a target without a final dot) are read back absolute.
+- The libdns Vultr package (v2.0.4) cannot be used: to delete a record it has no ID for, it
+  takes the last record with the same name, whatever its type or value, and its SetRecords updates
+  one record instead of replacing the set. `registry/vultr.go` talks to the API itself, deleting
+  by record ID and always sending the priority of MX and SRV records, 0 included.
 - name.com accepts no TTL under 300 seconds, so an adapter raises shorter or unset ones. It reads a
   TXT value as zone-file text: `"` and `\` do not round-trip and are refused.
 - Core-Networks has no libdns package; `registry/corenetworks.go` talks to the API. It differs from

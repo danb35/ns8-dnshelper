@@ -46,6 +46,10 @@ package app
 //
 //	DNSHELPER_LIVE_R53_KEY_ID=... DNSHELPER_LIVE_R53_SECRET=... DNSHELPER_LIVE_R53_ZONE=example.com go test ...
 //
+// Vultr:
+//
+//	DNSHELPER_LIVE_VULTR_TOKEN=... DNSHELPER_LIVE_VULTR_ZONE=example.com go test ...
+//
 // RFC 2136 (see testdata/bind/README.md for a local BIND):
 //
 //	DNSHELPER_LIVE_RFC2136_SERVER=127.0.0.1:5354 DNSHELPER_LIVE_RFC2136_ZONE=example.test \
@@ -149,6 +153,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"api_key": key, "secret_key": secret}
+	case "vultr":
+		token, zone := os.Getenv("DNSHELPER_LIVE_VULTR_TOKEN"), os.Getenv("DNSHELPER_LIVE_VULTR_ZONE")
+		if token == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"api_token": token}
 	case "route53":
 		id, secret, zone := os.Getenv("DNSHELPER_LIVE_R53_KEY_ID"), os.Getenv("DNSHELPER_LIVE_R53_SECRET"), os.Getenv("DNSHELPER_LIVE_R53_ZONE")
 		if id == "" || secret == "" || zone == "" {
@@ -212,7 +222,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -362,6 +372,20 @@ func TestLiveBadCredentialsDeSEC(t *testing.T) {
 			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-the-token") {
+			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsVultr(t *testing.T) {
+	eachLive(t, []string{"vultr"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"api_token": "NOTTHETOKEN0123456789ABCDEFGHIJKLMNO"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "NOTTHETOKEN") {
 			t.Fatal("token echoed")
 		}
 	})
