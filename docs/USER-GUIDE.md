@@ -61,6 +61,7 @@ revoke it at your DNS host without touching anything else.
 | GoDaddy | A personal access token that can read your domains and manage their DNS records. The older "classic" API key and secret still work, but GoDaddy is retiring them | [GoDaddy developer site](https://developer.godaddy.com/en/docs/api-users/auth) |
 | Google Cloud DNS | The JSON key of a service account that has the **DNS Administrator** role in the project holding your zones: paste the whole key file. Give the project ID only if it is not the service account's own project | [Create service account keys](https://cloud.google.com/iam/docs/keys-create-delete) |
 | Hetzner | A Hetzner Cloud API token with **Read & Write** permission, made in the project that holds your DNS zones | [Generating an API token](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/) |
+| IONOS | An API key from developer.hosting.ionos.com/keys: its **prefix** and its **secret**, in the two fields. The key reaches every domain in your IONOS account. A domain registered elsewhere can use IONOS's DNS through the DNS Standard package | [IONOS DNS API](https://developer.hosting.ionos.com/docs/getstarted) |
 | Linode (Akamai) | A personal access token with **Domains** set to Read/Write and every other scope to No Access. The token reaches every domain of the account, unless you make it as a restricted user granted only some domains | [Manage personal access tokens](https://techdocs.akamai.com/cloud-computing/docs/manage-personal-access-tokens) |
 | name.com | Your user name and an API token. Use a **production** token: a development token does not work | [Get your API token](https://docs.name.com/getting-started) |
 | Porkbun | The API key and secret API key. Porkbun only lets the key reach domains with **API access** switched on: switch it on for all domains at once, or in the settings of each domain dnshelper should manage | [Porkbun API access](https://kb.porkbun.com/article/190-getting-started-with-the-porkbun-api) |
@@ -265,7 +266,7 @@ These are the messages you may see, with what to check.
 A few more things that look like problems and are not:
 
 - **A record has a different TTL from the one requested.** GoDaddy raises a TTL below 600 seconds
-  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, Gandi below 300 to 300, Vultr below 60 to 60, and deSEC below the domain's own minimum to that minimum. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
+  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, Gandi below 300 to 300, Vultr and IONOS below 60 to 60, and deSEC below the domain's own minimum to that minimum. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
 - **Hetzner and Vultr are slow.** Each action takes several seconds there (8 to 15 at Hetzner); that is the DNS host, not a fault.
 - **GoDaddy limits the number of requests** to about 60 a minute. dnshelper waits and tries again.
 - **deSEC limits changes** to 15 a minute and 100 an hour per domain. dnshelper waits up to 90 seconds;

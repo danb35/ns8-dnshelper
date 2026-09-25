@@ -35,6 +35,10 @@ package app
 //
 //	DNSHELPER_LIVE_GCP_KEY_FILE=~/key.json DNSHELPER_LIVE_GCP_ZONE=example.com go test ...
 //
+// IONOS:
+//
+//	DNSHELPER_LIVE_IONOS_PREFIX=... DNSHELPER_LIVE_IONOS_SECRET=... DNSHELPER_LIVE_IONOS_ZONE=example.com go test ...
+//
 // Linode:
 //
 //	DNSHELPER_LIVE_LINODE_TOKEN=... DNSHELPER_LIVE_LINODE_ZONE=example.com go test ...
@@ -164,6 +168,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"service_account_key": string(key)}
+	case "ionos":
+		prefix, secret, zone := os.Getenv("DNSHELPER_LIVE_IONOS_PREFIX"), os.Getenv("DNSHELPER_LIVE_IONOS_SECRET"), os.Getenv("DNSHELPER_LIVE_IONOS_ZONE")
+		if prefix == "" || secret == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"key_prefix": prefix, "key_secret": secret}
 	case "gandi":
 		token, zone := os.Getenv("DNSHELPER_LIVE_GANDI_TOKEN"), os.Getenv("DNSHELPER_LIVE_GANDI_ZONE")
 		if token == "" || zone == "" {
@@ -251,7 +261,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "ionos", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -451,6 +461,20 @@ func TestLiveBadCredentialsGoogleCloudDNS(t *testing.T) {
 	})
 }
 
+func TestLiveBadCredentialsIONOS(t *testing.T) {
+	eachLive(t, []string{"ionos"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"key_prefix": l.cred["key_prefix"], "key_secret": "not-the-secret-0123456789abcdef"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-secret") {
+			t.Fatal("secret echoed")
+		}
+	})
+}
+
 func TestLiveBadCredentialsGandi(t *testing.T) {
 	eachLive(t, []string{"gandi"}, func(t *testing.T, l *live) {
 		r := l.run(contract.OpValidate, func(q *contract.Request) {
@@ -527,7 +551,9 @@ func TestLiveLongTXTRoundTrip(t *testing.T) {
 		if len(got) != 1 || got[0].Data != dkim {
 			t.Fatalf("round trip changed a %d-byte value: %+v", len(dkim), got)
 		}
-		odd := "v=spf1 include:a.example.net; note=x  end"
+		// Not starting with v=spf1: IONOS refuses a TXT value that does but is
+		// not valid SPF, and this value is about the semicolon and the spaces.
+		odd := "site-verification=a.example.net; note=x  end"
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(2), Type: "TXT", TTL: 120, Data: odd})
 		for _, r := range l.mine() {
 			if r.Name == l.name(2) && r.Data != odd {

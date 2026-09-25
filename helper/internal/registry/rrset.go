@@ -110,6 +110,22 @@ func txtQuote(v string) string {
 	return strings.Join(parts, " ")
 }
 
+// escapeNonASCII writes the bytes of a quoted TXT value outside printable
+// ASCII as \DDD ("café" becomes "caf\195\169"), for hosts that refuse or
+// mangle them (Cloud DNS refuses them, IONOS turns é into e). txtUnquote
+// reads them back.
+func escapeNonASCII(v string) string {
+	var b strings.Builder
+	for i := 0; i < len(v); i++ {
+		if c := v[i]; c < 0x20 || c > 0x7e {
+			fmt.Fprintf(&b, "\\%03d", c)
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
 // toPresentation converts a libdns value to presentation format: TXT quoted,
 // targets given a final dot so that they are not read as relative to the zone.
 func toPresentation(rr libdns.RR) (string, error) {

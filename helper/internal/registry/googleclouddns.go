@@ -474,21 +474,6 @@ func (p *googleDNSProvider) apply(ctx context.Context, zone string, st gdnsState
 	return nil
 }
 
-// escapeNonASCII writes the bytes of a quoted TXT value outside printable
-// ASCII as \DDD: Cloud DNS refuses them as they are ("café" is sent as
-// "caf\195\169"). txtUnquote reads them back.
-func escapeNonASCII(v string) string {
-	var b strings.Builder
-	for i := 0; i < len(v); i++ {
-		if c := v[i]; c < 0x20 || c > 0x7e {
-			fmt.Fprintf(&b, "\\%03d", c)
-		} else {
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
-
 // AppendRecords adds the values to their sets, keeping the ones already
 // there. A TTL given in the input becomes the TTL of the whole set, as Cloud
 // DNS has one TTL per set.
