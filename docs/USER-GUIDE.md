@@ -55,6 +55,7 @@ revoke it at your DNS host without touching anything else.
 |---|---|---|
 | Cloudflare | An API token that can edit DNS for your zones (the "Edit zone DNS" permission). If the token is limited to one zone, a second token that can read zones is also asked for, so that the zone list works | [Create an API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | The login and password of an **API account**. This is not the login you use in the web interface: make a separate API account in the web interface, under API user accounts | [Core-Networks API documentation](https://beta.api.core-networks.de/doc/) |
+| deSEC | An API token, made under **Token Management**. It needs neither **Can create domains** nor **Can delete domains**. In the advanced settings, leave **Maximum unused period** empty: dnshelper only uses the token when a record changes, so the token could expire in between. If you limit the token to a subnet, include your NethServer's public address | [Manage tokens](https://desec.readthedocs.io/en/latest/auth/tokens.html) |
 | DigitalOcean | A personal access token with **custom scopes**: tick `domain` with create, read, update and delete, and nothing else. DigitalOcean cannot limit a token to some domains: it can change every domain in the account (or team) | [Personal access tokens](https://docs.digitalocean.com/reference/api/create-personal-access-token/) |
 | Gandi LiveDNS | A personal access token, made in the Gandi Admin application for the organization that holds your domains, with the permission **Manage domain name technical configurations** (Gandi then also ticks **See and renew domain names**). You can limit it to some domains. Gandi tokens expire: renew or replace yours before its end date, then update the credential here | [Authentication](https://api.gandi.net/docs/authentication/) |
 | GoDaddy | A personal access token that can read your domains and manage their DNS records. The older "classic" API key and secret still work, but GoDaddy is retiring them | [GoDaddy developer site](https://developer.godaddy.com/en/docs/api-users/auth) |
@@ -261,9 +262,11 @@ These are the messages you may see, with what to check.
 A few more things that look like problems and are not:
 
 - **A record has a different TTL from the one requested.** GoDaddy raises a TTL below 600 seconds
-  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, and Gandi below 300 to 300. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
+  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, Gandi below 300 to 300, and deSEC below the domain's own minimum to that minimum. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
 - **Hetzner is slow.** Each action takes 8 to 15 seconds there; that is the DNS host, not a fault.
 - **GoDaddy limits the number of requests** to about 60 a minute. dnshelper waits and tries again.
+- **deSEC limits changes** to 15 a minute and 100 an hour per domain. dnshelper waits up to 90 seconds;
+  beyond that it says how long to wait before trying again.
 - **Core-Networks limits how often you can log in.** dnshelper logs in once and reuses the session for
   up to an hour. If you see that logins are limited, wait a few minutes and try again.
 - **The zone list is empty or the wizard asks you to type the zone.** Some credentials are not

@@ -70,7 +70,9 @@ change event when zones change (follow the documented event naming convention).
   Cloudflare does not handle HTTPS/SVCB records. Later live testing found that libdns/hetzner v1
   targets a retired API; use `github.com/libdns/hetzner/v2` (Hetzner Cloud DNS API).
   2026-09-25: `libdns/gandi` v1.1.0 is not used either (its SetRecords appends to the record set
-  and TXT values do not round-trip); `registry/gandi.go` talks to the LiveDNS API itself.
+  and TXT values do not round-trip); `registry/gandi.go` talks to the LiveDNS API itself. Nor is
+  `libdns/desec` v1.1.1 (long TXT values misread, prints to stdout); `registry/desec.go` does the
+  same, sharing the record-set logic in `registry/rrset.go`.
 - 2026-09-23: live SRV creation through Cloudflare (a real `0 0 443 <target>` record, for
   ns8-automx) failed with a 400 from Cloudflare's own API ("weight is a required data field").
   Root cause: `libdns/cloudflare` v0.2.2 serializes SRV priority/weight/port as plain (non-pointer)
@@ -96,7 +98,7 @@ Checklist, in addition to the usual live test against a real zone (README's Prov
   sent as an explicit 0, and the provider's API then answers "field required" for a field that
   *was* given, just given as zero. This bit both `libdns/cloudflare` and `libdns/namedotcom`
   identically. It does not affect a provider that either uses pointer fields (GoDaddy, DigitalOcean, Linode) or sends the
-  whole record value as one opaque string with no structured sub-fields (Core-Networks, Gandi, Hetzner,
+  whole record value as one opaque string with no structured sub-fields (Core-Networks, deSEC, Gandi, Hetzner,
   RFC 2136) -- check which shape the new provider uses before assuming either way.
   - A related trap (found adding DigitalOcean, 2026-09-24): `libdns/digitalocean` does not drop
     the zero, it never fills the structured fields at all, sending the whole `0 0 443 target.` as

@@ -28,6 +28,11 @@ package registry
 //     not github.com/libdns/porkbun (which never sends a priority at all); the
 //     priority is a string sent whenever the type has one, so "0" is always
 //     present, verified live with a 0 0 443 SRV record.
+//   - desec.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/desec (which misreads long TXT values, see the
+//     file's comment); deSEC takes every value as one presentation-format
+//     string, so there is no separate field to drop; verified live with a
+//     0 0 443 SRV record.
 //   - gandi.go (this package, added after the audit): safe. Its own client,
 //     not github.com/libdns/gandi (whose SetRecords appends and whose TXT
 //     values do not round-trip, see the file's comment); like Core-Networks,
@@ -117,6 +122,18 @@ func init() {
 		TXTForbidden: "\\",
 		New: func(c map[string]string) any {
 			return &digitalOceanProvider{APIToken: c["api_token"]}
+		},
+	})
+	Register(Def{
+		Name:  "desec",
+		Label: "deSEC",
+		Fields: []contract.Field{
+			{Name: "token", Label: "API token (no permission to create or delete domains needed)", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Create a token under Token Management at desec.io; it needs neither \"Can create domains\" nor \"Can delete domains\". Leave \"Maximum unused period\" empty: dnshelper only uses the token when a record changes. If you restrict it to a subnet, include the NethServer node's public address; if you give it RRset policies, they must allow the names dnshelper writes. Each domain has its own minimum TTL: shorter TTLs are raised to it, and a record without a TTL gets 3600. The TTL is shared by all records with the same name and type. deSEC limits changes to 15 a minute and 100 an hour per domain; dnshelper waits up to 90 seconds for the limit, then reports how long to wait.",
+		New: func(c map[string]string) any {
+			return &desecProvider{Token: c["token"]}
 		},
 	})
 	Register(Def{

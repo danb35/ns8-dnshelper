@@ -22,6 +22,10 @@ package app
 //
 //	DNSHELPER_LIVE_DO_TOKEN=... DNSHELPER_LIVE_DO_ZONE=example.com go test ...
 //
+// deSEC:
+//
+//	DNSHELPER_LIVE_DESEC_TOKEN=... DNSHELPER_LIVE_DESEC_ZONE=example.com go test ...
+//
 // Gandi LiveDNS:
 //
 //	DNSHELPER_LIVE_GANDI_TOKEN=... DNSHELPER_LIVE_GANDI_ZONE=example.com go test ...
@@ -127,6 +131,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"login": login, "password": pw}
+	case "desec":
+		token, zone := os.Getenv("DNSHELPER_LIVE_DESEC_TOKEN"), os.Getenv("DNSHELPER_LIVE_DESEC_ZONE")
+		if token == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"token": token}
 	case "gandi":
 		token, zone := os.Getenv("DNSHELPER_LIVE_GANDI_TOKEN"), os.Getenv("DNSHELPER_LIVE_GANDI_ZONE")
 		if token == "" || zone == "" {
@@ -202,7 +212,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -339,6 +349,20 @@ func TestLiveBadCredentialsRoute53(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-the-secret") {
 			t.Fatal("secret echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsDeSEC(t *testing.T) {
+	eachLive(t, []string{"desec"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"token": "not-the-token-0123456789ab"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-token") {
+			t.Fatal("token echoed")
 		}
 	})
 }
