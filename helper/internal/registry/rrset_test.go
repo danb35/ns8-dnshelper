@@ -49,6 +49,8 @@ func TestSameRData(t *testing.T) {
 		{"CNAME", "Target.Example.net.", "target.example.net", true},
 		{"TXT", "Hello", "hello", false},
 		{"SRV", "0 0 443 mail.example.net.", "0 0 443 Mail.example.net", true},
+		{"HTTPS", `1 . alpn="h2,h3"`, "1 . alpn=h2,h3", true},
+		{"HTTPS", "1 . alpn=h2", "1 . alpn=h3", false},
 	} {
 		if got := sameRData(c.typ, c.a, c.b); got != c.same {
 			t.Errorf("%s %q %q: %v", c.typ, c.a, c.b, got)

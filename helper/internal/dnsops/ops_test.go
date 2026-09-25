@@ -583,3 +583,18 @@ func TestIdenticalRecordsFromAZoneTransferAreListedOnce(t *testing.T) {
 		t.Fatalf("want the SOA once, got %v", dataOf(got))
 	}
 }
+
+func TestHTTPSAndSVCBCompareWithoutParameterQuotes(t *testing.T) {
+	for _, c := range []struct {
+		typ, a, b string
+		same      bool
+	}{
+		{"HTTPS", `1 . alpn="h2,h3"`, "1 . alpn=h2,h3", true},
+		{"SVCB", "1 Svc.Example.com. port=8443", "1 svc.example.com port=8443", true},
+		{"HTTPS", "1 . alpn=h2", "1 . alpn=h3", false},
+	} {
+		if got := normData(c.typ, c.a) == normData(c.typ, c.b); got != c.same {
+			t.Errorf("%s %q %q: %v", c.typ, c.a, c.b, got)
+		}
+	}
+}

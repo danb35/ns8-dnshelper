@@ -50,6 +50,10 @@ package app
 //
 //	DNSHELPER_LIVE_VULTR_TOKEN=... DNSHELPER_LIVE_VULTR_ZONE=example.com go test ...
 //
+// PowerDNS (see testdata/powerdns/README.md for a local server):
+//
+//	DNSHELPER_LIVE_PDNS_URL=http://127.0.0.1:8081 DNSHELPER_LIVE_PDNS_KEY=... DNSHELPER_LIVE_PDNS_ZONE=example.test go test ...
+//
 // RFC 2136 (see testdata/bind/README.md for a local BIND):
 //
 //	DNSHELPER_LIVE_RFC2136_SERVER=127.0.0.1:5354 DNSHELPER_LIVE_RFC2136_ZONE=example.test \
@@ -153,6 +157,12 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"api_key": key, "secret_key": secret}
+	case "powerdns":
+		u, key, zone := os.Getenv("DNSHELPER_LIVE_PDNS_URL"), os.Getenv("DNSHELPER_LIVE_PDNS_KEY"), os.Getenv("DNSHELPER_LIVE_PDNS_ZONE")
+		if u == "" || key == "" || zone == "" {
+			return "", nil
+		}
+		return zone, map[string]string{"api_url": u, "api_key": key}
 	case "vultr":
 		token, zone := os.Getenv("DNSHELPER_LIVE_VULTR_TOKEN"), os.Getenv("DNSHELPER_LIVE_VULTR_ZONE")
 		if token == "" || zone == "" {
@@ -222,7 +232,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "rfc2136", "route53", "vultr"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -373,6 +383,20 @@ func TestLiveBadCredentialsDeSEC(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-the-token") {
 			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsPowerDNS(t *testing.T) {
+	eachLive(t, []string{"powerdns"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{"api_url": l.cred["api_url"], "api_key": "not-the-key-0123456789"}
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-key") {
+			t.Fatal("key echoed")
 		}
 	})
 }

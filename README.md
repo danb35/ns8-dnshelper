@@ -248,8 +248,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 ## Providers
 
 Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
-RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun, Route 53 and Vultr against
-real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
+PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun, Route 53 and Vultr against
+real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
@@ -265,6 +265,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
 | Vultr | API key of a service user with the Manage DNS policy (the account's own key works too, but reaches the whole account); the node's address must be in the key's access control list | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| PowerDNS | API URL of the Authoritative server, its API key and server id (usually `localhost`) | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | Yes (native and primary zones) |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard
@@ -366,6 +367,18 @@ What to know about each provider:
   Vultr refuses the quote and its name servers drop the backslash. Each API request takes a few
   seconds. dnshelper talks to the API itself rather than through `github.com/libdns/vultr/v2`
   (see below).
+- **PowerDNS**: for a PowerDNS Authoritative server (4.x or 5.x; 4.9 and 5.0 tested) with its HTTP
+  API switched on (`api=yes`, `api-key=...`, `webserver=yes`, and `webserver-address` and
+  `webserver-allow-from` letting the NethServer node in). Give the API URL as
+  `https://host:port` (with or without `/api/v1`). The key reaches every zone of the server, and
+  over `http://` it crosses the network unencrypted, so prefer `https://` through a reverse proxy
+  or a private network. Secondary zones are not listed. dnshelper keeps a record set's disabled
+  records and comments when it changes the set, and writes each change as one request, which
+  PowerDNS applies entirely or not at all. For secondaries to see changes, the zone's SOA serial
+  must go up: zones created through the API have `SOA-EDIT-API` set; for others run
+  `pdnsutil set-meta <zone> SOA-EDIT-API DEFAULT`. TXT values, including ones with `"` or `\`,
+  are stored as written. dnshelper talks to the API itself rather than through
+  `github.com/libdns/powerdns` (see below).
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
 
@@ -425,7 +438,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`, `registry/vultr.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -481,6 +494,12 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   timeout. `registry/gandi.go` talks to the LiveDNS API itself. LiveDNS stores whole record sets
   with one TTL; every value is one zone-file string, so an SRV `0 0 443` is sent as written.
   Values it holds relative to the zone (a target without a final dot) are read back absolute.
+- The libdns PowerDNS package (v0.1.4) is built on a pre-release libdns API (v1.0.0-beta.1) and a
+  third-party client, and writes record sets one request at a time. `registry/powerdns.go` talks to
+  the API itself with the record-set logic of `registry/rrset.go`, and sends a set's disabled
+  records again when it replaces the set (a replace would otherwise drop them). PowerDNS stores an
+  HTTPS value `alpn="h2,h3"` as `alpn=h2,h3`, so `dnsops` compares HTTPS and SVCB values without
+  those quotes.
 - The libdns Vultr package (v2.0.4) cannot be used: to delete a record it has no ID for, it
   takes the last record with the same name, whatever its type or value, and its SetRecords updates
   one record instead of replacing the set. `registry/vultr.go` talks to the API itself, deleting
