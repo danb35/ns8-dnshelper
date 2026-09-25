@@ -44,6 +44,11 @@ package registry
 //     another type, see the file's comment); the priority is a *int sent
 //     whenever the type has one, so an explicit 0 is always present, verified
 //     live with a 0 0 443 SRV record.
+//   - googleclouddns.go (this package, added after the audit): safe. Its own
+//     client, not github.com/libdns/googleclouddns (which wants the key as a
+//     file path); Cloud DNS takes every value as one presentation-format
+//     string, so there is no separate field to drop; verified live with a
+//     0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -156,6 +161,25 @@ func init() {
 		Notes: "Create a personal access token in the Gandi Admin application, for the organization that holds the domains, with the permission \"Manage domain name technical configurations\" (Gandi then also ticks \"See and renew domain names\"); it can be limited to some domains. Tokens expire: renew or replace the token before its end date and update the credential. Gandi does not accept a TTL under 300 seconds: shorter ones become 300. The TTL is shared by all records with the same name and type.",
 		New: func(c map[string]string) any {
 			return &gandiProvider{Token: c["api_token"]}
+		},
+	})
+	Register(Def{
+		Name:  "googleclouddns",
+		Label: "Google Cloud DNS",
+		Fields: []contract.Field{
+			{Name: "service_account_key", Label: "Service account key: paste the whole JSON key file", Secret: true, Required: true},
+			{Name: "project", Label: "Project ID, if not the service account's own project"},
+		},
+		Verify: func(c map[string]string) string {
+			if _, _, err := parseGCPKey(c["service_account_key"]); err != nil {
+				return "service_account_key: " + err.Error()
+			}
+			return ""
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "HTTPS", "MX", "NS", "SRV", "SVCB", "TXT"},
+		Notes: "Create a service account in the Google Cloud project that holds the zones, give it the DNS Administrator role, and add a JSON key to it (Keys > Add key). The role covers every zone of the project. Only public managed zones are used. Record sets with a routing policy are left alone.",
+		New: func(c map[string]string) any {
+			return &googleDNSProvider{KeyJSON: c["service_account_key"], Project: c["project"]}
 		},
 	})
 	Register(Def{
