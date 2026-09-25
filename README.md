@@ -283,8 +283,11 @@ What to know about each provider:
   The service limits how often one can log in, so dnshelper keeps the session token (valid for an
   hour) between calls; see [Credentials](#credentials). Every change is committed to the name
   servers at once. TXT values, including ones with `"` or `\`, are stored as written.
-- **deSEC**: create a token at desec.io/tokens; it needs neither the permission
-  to create domains nor to delete them. If you limit the token to some IP networks, include the
+- **deSEC**: create a token under **Token Management** (desec.io/tokens); it needs neither
+  **Can create domains** nor **Can delete domains**. Leave **Maximum unused period** empty (or long):
+  dnshelper only uses the token when a record changes, so a short one lets the token expire
+  between changes; a **Maximum age** means replacing the token before then. If you limit the
+  token to some subnets (advanced settings), include the
   NethServer node's public address, and if you give it RRset policies, they must allow the names
   dnshelper writes. Each domain has its own minimum TTL, shown in its settings at deSEC: shorter TTLs
   are raised to it, and a record without a TTL gets 3600; the maximum is 86400. deSEC keeps one TTL per

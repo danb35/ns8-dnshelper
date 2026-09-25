@@ -131,7 +131,7 @@ func init() {
 			{Name: "token", Label: "API token (no permission to create or delete domains needed)", Secret: true, Required: true},
 		},
 		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
-		Notes: "Create a token at desec.io/tokens. If you restrict it to some IP networks, include the NethServer node's public address; if you give it RRset policies, they must allow the names dnshelper writes. Each domain has its own minimum TTL: shorter TTLs are raised to it, and a record without a TTL gets 3600. The TTL is shared by all records with the same name and type. deSEC limits changes to 15 a minute and 100 an hour per domain; dnshelper waits up to 90 seconds for the limit, then reports how long to wait.",
+		Notes: "Create a token under Token Management at desec.io; it needs neither \"Can create domains\" nor \"Can delete domains\". Leave \"Maximum unused period\" empty: dnshelper only uses the token when a record changes. If you restrict it to a subnet, include the NethServer node's public address; if you give it RRset policies, they must allow the names dnshelper writes. Each domain has its own minimum TTL: shorter TTLs are raised to it, and a record without a TTL gets 3600. The TTL is shared by all records with the same name and type. deSEC limits changes to 15 a minute and 100 an hour per domain; dnshelper waits up to 90 seconds for the limit, then reports how long to wait.",
 		New: func(c map[string]string) any {
 			return &desecProvider{Token: c["token"]}
 		},
