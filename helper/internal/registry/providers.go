@@ -322,7 +322,7 @@ func init() {
 	})
 	Register(Def{
 		Name:  "rfc2136",
-		Label: "RFC 2136 dynamic update (BIND, Knot, PowerDNS...)",
+		Label: "RFC 2136 dynamic update (BIND, Knot, Technitium, PowerDNS...)",
 		Fields: []contract.Field{
 			{Name: "server", Label: "Server address, host:port", Required: true},
 			{Name: "key_name", Label: "TSIG key name", Required: true},

@@ -249,7 +249,7 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, Porkbun,
 PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, IONOS, Linode, name.com, Porkbun, Route 53 and Vultr against
-real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
+real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)) and Technitium DNS Server 15.5 in Docker (see [helper/testdata/technitium](helper/testdata/technitium/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
@@ -400,6 +400,12 @@ What to know about each provider:
   `github.com/libdns/powerdns` (see below).
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
+  - **Technitium DNS Server** (tested with 15.5) works through RFC 2136. Create a TSIG key in its
+    settings (the TSIG section), then in the zone's options allow **zone transfer** for that key
+    and **dynamic updates** with a security policy for that key on the zone and on `*.` the zone
+    (every record type). Without the key, both are refused. In API terms:
+    `settings/set` with `tsigKeys`, then `zones/options/set` with `zoneTransferTsigKeyNames` and
+    `updateSecurityPolicies` (see `helper/testdata/technitium/start.sh`).
 
 A provider that raises a TTL stores a different one from the one asked for, so an exact delete that
 states the old TTL will not match: leave the TTL out, or use the value as read back.
