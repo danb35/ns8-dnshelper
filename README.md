@@ -247,14 +247,15 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
-RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
+RFC 2136 and Amazon Route 53. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun and Route 53 against
 real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
+| deSEC | API token (no permission to create or delete domains needed) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Gandi LiveDNS | Personal access token from the Gandi Admin application with "Manage domain name technical configurations" | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
@@ -282,6 +283,15 @@ What to know about each provider:
   The service limits how often one can log in, so dnshelper keeps the session token (valid for an
   hour) between calls; see [Credentials](#credentials). Every change is committed to the name
   servers at once. TXT values, including ones with `"` or `\`, are stored as written.
+- **deSEC**: create a token at desec.io/tokens; it needs neither the permission
+  to create domains nor to delete them. If you limit the token to some IP networks, include the
+  NethServer node's public address, and if you give it RRset policies, they must allow the names
+  dnshelper writes. Each domain has its own minimum TTL, shown in its settings at deSEC: shorter TTLs
+  are raised to it, and a record without a TTL gets 3600; the maximum is 86400. deSEC keeps one TTL per
+  name and type. It limits changes to 15 a minute and 100 an hour per domain: dnshelper makes each
+  change one request, waits up to 90 seconds when the limit is reached, and otherwise reports how
+  long to wait. TXT values, including ones with `"` or `\`, are stored as written. dnshelper talks
+  to the API itself rather than through `github.com/libdns/desec` (see below).
 - **DigitalOcean**: a token cannot be limited to some domains; it can change every domain of the
   account (or team), so keep zones you do not want dnshelper to reach elsewhere. TTLs under 30
   seconds are raised to 30, and a record without a TTL gets the zone's default (1800). TXT values
@@ -401,7 +411,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/route53.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -443,6 +453,14 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   separate `prio` field), it drops MX and NS records when reading and misnames SRV records, and it
   has no request timeout. `registry/porkbun.go` talks to the API itself, deleting by record ID and
   always sending `prio` for MX and SRV, "0" included.
+- The libdns deSEC package (v1.1.1) cannot be used as it is: it reads a TXT value that deSEC has
+  split into several strings (any value over 255 bytes, such as a DKIM key) with a stray `" "`
+  inside, it prints to standard output when a value does not parse (where the helper writes its
+  answer), it deletes only values written exactly as it would write them (deSEC stores
+  `2001:DB8:0::1` as `2001:db8::1`), it assumes a minimum TTL of 3600 where each domain has its
+  own, and it fails on zones with more than 500 record sets. `registry/desec.go` talks to the API
+  itself; it shares the record-set logic of `registry/rrset.go` with the Gandi adapter, and writes
+  every change as one bulk request, which deSEC applies entirely or not at all.
 - The libdns Gandi package (v1.1.0) cannot be used: its SetRecords adds a value to the record set
   instead of replacing the set, it sends TXT values unquoted but reads them back quoted (so a TXT
   record cannot be deleted from a set holding two values), and it has no zone list and no request

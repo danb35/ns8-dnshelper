@@ -8,11 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/libdns/libdns"
 
@@ -214,152 +212,38 @@ func (g *gandiProvider) list(ctx context.Context, zone string) ([]gnRRset, error
 	return all, err
 }
 
-func (g *gandiProvider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
+func (s gnRRset) state() rrsetState {
+	return rrsetState{Name: s.Name, Type: s.Type, TTL: s.TTL, Values: s.Values}
+}
+
+func (g *gandiProvider) states(ctx context.Context, zone string) ([]rrsetState, error) {
 	sets, err := g.list(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]rrsetState, len(sets))
+	for i, s := range sets {
+		out[i] = s.state()
+	}
+	return out, nil
+}
+
+func (g *gandiProvider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
+	sets, err := g.states(ctx, zone)
 	if err != nil {
 		return nil, err
 	}
 	var out []libdns.Record
 	for _, s := range sets {
 		for _, v := range s.Values {
-			out = append(out, gnToLibdns(zone, s, v))
+			out = append(out, fromPresentation(zone, s, v))
 		}
 	}
 	return out, nil
 }
 
-// gnHasTarget is the set of types whose value ends in a host name.
-var gnHasTarget = map[string]bool{"ALIAS": true, "CNAME": true, "DNAME": true, "MX": true, "NS": true, "SRV": true}
-
-// gnToLibdns renders one value of a set in libdns' text form: TXT unquoted
-// and joined, targets fully qualified.
-func gnToLibdns(zone string, s gnRRset, v string) libdns.Record {
-	typ := strings.ToUpper(s.Type)
-	data := v
-	switch {
-	case typ == "TXT" || typ == "SPF":
-		data = gnUnquoteTXT(v)
-	case gnHasTarget[typ]:
-		if f := strings.Fields(v); len(f) > 0 {
-			f[len(f)-1] = gnQualify(f[len(f)-1], zone)
-			data = strings.Join(f, " ")
-		}
-	}
-	return libdns.RR{Name: gdName(s.Name), Type: typ, TTL: time.Duration(s.TTL) * time.Second, Data: data}
-}
-
-// gnQualify makes a target read from Gandi absolute: without a final dot it
-// is relative to the zone.
-func gnQualify(t, zone string) string {
-	z := strings.TrimSuffix(zone, ".") + "."
-	switch {
-	case t == "@":
-		return z
-	case strings.HasSuffix(t, "."):
-		return t
-	}
-	return t + "." + z
-}
-
-// gnUnquoteTXT joins the quoted strings of a TXT value and undoes the
-// escapes (\" \\ and \DDD). A value that is not quoted is returned as it is.
-func gnUnquoteTXT(v string) string {
-	v = strings.TrimSpace(v)
-	if !strings.HasPrefix(v, `"`) {
-		return v
-	}
-	var out []byte
-	in := false
-	for i := 0; i < len(v); i++ {
-		c := v[i]
-		switch {
-		case c == '"':
-			in = !in
-		case !in:
-			// the space between two strings
-		case c == '\\' && i+3 < len(v) && isDigits(v[i+1:i+4]):
-			n, _ := strconv.Atoi(v[i+1 : i+4])
-			out = append(out, byte(n))
-			i += 3
-		case c == '\\' && i+1 < len(v):
-			i++
-			out = append(out, v[i])
-		default:
-			out = append(out, c)
-		}
-	}
-	return string(out)
-}
-
-func isDigits(s string) bool {
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// gnQuoteTXT writes a TXT value as quoted strings of at most 255 bytes, split
-// between characters, with " and \ escaped.
-func gnQuoteTXT(v string) string {
-	var parts []string
-	for len(v) > 0 || len(parts) == 0 {
-		n := len(v)
-		if n > 255 {
-			n = 255
-			for n > 0 && !utf8.RuneStart(v[n]) {
-				n--
-			}
-		}
-		chunk := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v[:n])
-		parts = append(parts, `"`+chunk+`"`)
-		v = v[n:]
-	}
-	return strings.Join(parts, " ")
-}
-
-// gnValue converts a libdns value to Gandi's form: TXT quoted, targets given
-// a final dot so that Gandi does not read them as relative to the zone.
-func gnValue(rr libdns.RR) (string, error) {
-	typ := strings.ToUpper(rr.Type)
-	f := strings.Fields(rr.Data)
-	switch typ {
-	case "TXT", "SPF":
-		return gnQuoteTXT(rr.Data), nil
-	case "MX":
-		if len(f) != 2 {
-			return "", fmt.Errorf("MX data must be \"priority target\"")
-		}
-	case "SRV":
-		if len(f) != 4 {
-			return "", fmt.Errorf("SRV data must be \"priority weight port target\"")
-		}
-	}
-	if gnHasTarget[typ] && len(f) > 0 {
-		f[len(f)-1] = pbFQDN(f[len(f)-1])
-		return strings.Join(f, " "), nil
-	}
-	return rr.Data, nil
-}
-
-type gnKey struct{ typ, name string }
-
-func gnKeyOf(typ, name string) gnKey {
-	return gnKey{strings.ToUpper(typ), strings.ToLower(gdName(name))}
-}
-
-// gnSameData compares two values in libdns form: TXT exactly, other types
-// without case and final dots.
-func gnSameData(typ, a, b string) bool {
-	if t := strings.ToUpper(typ); t == "TXT" || t == "SPF" {
-		return a == b
-	}
-	return strings.EqualFold(strings.TrimSuffix(a, "."), strings.TrimSuffix(b, "."))
-}
-
-func gnTTL(d time.Duration) int {
-	ttl := int(d / time.Second)
+// gnTTL brings a TTL into Gandi's range; 0 stays 0 and lets Gandi choose.
+func gnTTL(ttl int) int {
 	switch {
 	case ttl <= 0:
 		return 0
@@ -371,135 +255,65 @@ func gnTTL(d time.Duration) int {
 	return ttl
 }
 
-// put replaces the set (typ, name) with values, or removes it when values is
-// empty. A TTL of 0 is left for Gandi to choose.
-func (g *gandiProvider) put(ctx context.Context, zone string, k gnKey, name string, ttl int, values []string) error {
-	path := "/domains/" + gnDomain(zone) + "/records/" + url.PathEscape(gdName(name)) + "/" + url.PathEscape(k.typ)
-	if len(values) == 0 {
+// put replaces a set with its new values, or removes it when there are none.
+// Gandi has no call that writes several sets at once.
+func (g *gandiProvider) put(ctx context.Context, zone string, c rrsetChange) error {
+	path := "/domains/" + gnDomain(zone) + "/records/" + url.PathEscape(gdName(c.Name)) + "/" + url.PathEscape(c.Type)
+	if len(c.Values) == 0 {
 		status, body, err := g.do(ctx, http.MethodDelete, path, nil)
 		if err != nil {
 			return err
 		}
 		if status != http.StatusNoContent && status != http.StatusOK && status != http.StatusNotFound {
-			return g.fail("could not delete "+k.typ+" records", status, body)
+			return g.fail("could not delete "+c.Type+" records", status, body)
 		}
 		return nil
 	}
-	status, body, err := g.do(ctx, http.MethodPut, path, gnRRset{TTL: ttl, Values: values})
+	status, body, err := g.do(ctx, http.MethodPut, path, gnRRset{TTL: gnTTL(c.TTL), Values: c.Values})
 	if err != nil {
 		return err
 	}
 	if status != http.StatusCreated && status != http.StatusOK {
-		return g.fail("could not write "+k.typ+" records", status, body)
+		return g.fail("could not write "+c.Type+" records", status, body)
 	}
 	return nil
 }
 
-// gnWanted is one set to write: its name as given, TTL and values.
-type gnWanted struct {
-	name   string
-	ttl    int
-	rrs    []libdns.RR
-	values []string
-}
-
-// gnGroup converts recs and splits them by set, in a stable order. The set's
-// TTL is the first one given.
-func gnGroup(recs []libdns.Record) (map[gnKey]*gnWanted, []gnKey, error) {
-	m := map[gnKey]*gnWanted{}
-	var order []gnKey
-	for _, r := range recs {
-		rr := r.RR()
-		v, err := gnValue(rr)
-		if err != nil {
-			return nil, nil, err
-		}
-		k := gnKeyOf(rr.Type, rr.Name)
-		w, ok := m[k]
-		if !ok {
-			w = &gnWanted{name: rr.Name}
-			m[k] = w
-			order = append(order, k)
-		}
-		if w.ttl == 0 {
-			w.ttl = gnTTL(rr.TTL)
-		}
-		dup := false
-		for _, have := range w.rrs {
-			dup = dup || gnSameData(k.typ, have.Data, rr.Data)
-		}
-		if !dup {
-			w.rrs = append(w.rrs, rr)
-			w.values = append(w.values, v)
+func (g *gandiProvider) apply(ctx context.Context, zone string, changes []rrsetChange) error {
+	for _, c := range changes {
+		if err := g.put(ctx, zone, c); err != nil {
+			return err
 		}
 	}
-	sort.SliceStable(order, func(i, j int) bool {
-		if order[i].name != order[j].name {
-			return order[i].name < order[j].name
-		}
-		return order[i].typ < order[j].typ
-	})
-	return m, order, nil
+	return nil
 }
 
 // AppendRecords adds the values to their sets, keeping the ones already
 // there. A TTL given in the input becomes the TTL of the whole set, as Gandi
 // has one TTL per set.
 func (g *gandiProvider) AppendRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-	add, order, err := gnGroup(recs)
+	have, err := g.states(ctx, zone)
 	if err != nil {
 		return nil, err
 	}
-	existing, err := g.list(ctx, zone)
+	changes, done, err := planAppend(zone, have, recs)
 	if err != nil {
 		return nil, err
 	}
-	have := map[gnKey]gnRRset{}
-	for _, s := range existing {
-		have[gnKeyOf(s.Type, s.Name)] = s
-	}
-	var done []libdns.Record
-	for _, k := range order {
-		w, s := add[k], have[k]
-		values := append([]string{}, s.Values...)
-		for i, rr := range w.rrs {
-			dup := false
-			for _, v := range s.Values {
-				dup = dup || gnSameData(k.typ, gnToLibdns(zone, s, v).RR().Data, rr.Data)
-			}
-			if !dup {
-				values = append(values, w.values[i])
-			}
-		}
-		ttl := w.ttl
-		if ttl == 0 {
-			ttl = s.TTL
-		}
-		if err := g.put(ctx, zone, k, w.name, ttl, values); err != nil {
-			return done, err
-		}
-		for _, rr := range w.rrs {
-			done = append(done, rr)
-		}
+	if err := g.apply(ctx, zone, changes); err != nil {
+		return nil, err
 	}
 	return done, nil
 }
 
 // SetRecords makes the given records the only members of their sets.
 func (g *gandiProvider) SetRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-	set, order, err := gnGroup(recs)
+	changes, done, err := planSet(recs)
 	if err != nil {
 		return nil, err
 	}
-	var done []libdns.Record
-	for _, k := range order {
-		w := set[k]
-		if err := g.put(ctx, zone, k, w.name, w.ttl, w.values); err != nil {
-			return nil, err
-		}
-		for _, rr := range w.rrs {
-			done = append(done, rr)
-		}
+	if err := g.apply(ctx, zone, changes); err != nil {
+		return nil, err
 	}
 	return done, nil
 }
@@ -507,37 +321,13 @@ func (g *gandiProvider) SetRecords(ctx context.Context, zone string, recs []libd
 // DeleteRecords removes the values that match by name and, when the input
 // states them, by type, value and TTL. Other values of a set stay.
 func (g *gandiProvider) DeleteRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-	existing, err := g.list(ctx, zone)
+	have, err := g.states(ctx, zone)
 	if err != nil {
 		return nil, err
 	}
-	var deleted []libdns.Record
-	for _, s := range existing {
-		var keep []string
-		var drop []libdns.Record
-		for _, v := range s.Values {
-			have := gnToLibdns(zone, s, v).RR()
-			match := false
-			for _, r := range recs {
-				w := r.RR()
-				match = match || (strings.EqualFold(gdName(w.Name), have.Name) &&
-					(w.Type == "" || strings.EqualFold(w.Type, have.Type)) &&
-					(w.Data == "" || gnSameData(have.Type, have.Data, w.Data)) &&
-					(w.TTL == 0 || w.TTL == have.TTL))
-			}
-			if match {
-				drop = append(drop, have)
-			} else {
-				keep = append(keep, v)
-			}
-		}
-		if len(drop) == 0 {
-			continue
-		}
-		if err := g.put(ctx, zone, gnKeyOf(s.Type, s.Name), s.Name, s.TTL, keep); err != nil {
-			return deleted, err
-		}
-		deleted = append(deleted, drop...)
+	changes, deleted := planDelete(zone, have, recs)
+	if err := g.apply(ctx, zone, changes); err != nil {
+		return nil, err
 	}
 	return deleted, nil
 }

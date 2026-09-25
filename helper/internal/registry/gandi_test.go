@@ -145,40 +145,6 @@ func TestGandiZeroSRVSentExplicitly(t *testing.T) {
 	}
 }
 
-func TestGandiTXTQuotingAndChunking(t *testing.T) {
-	long := strings.Repeat("a", 250) + `"\` + strings.Repeat("é", 10) + strings.Repeat("b", 300)
-	for _, tc := range []struct{ in, sent string }{
-		{`v=spf1 -all`, `"v=spf1 -all"`},
-		{`a " b \ c`, `"a \" b \\ c"`},
-		{"", `""`},
-	} {
-		if got := gnQuoteTXT(tc.in); got != tc.sent {
-			t.Errorf("quote %q: %s, want %s", tc.in, got, tc.sent)
-		}
-		if got := gnUnquoteTXT(tc.sent); got != tc.in {
-			t.Errorf("unquote %s: %q", tc.sent, got)
-		}
-	}
-	q := gnQuoteTXT(long)
-	if gnUnquoteTXT(q) != long {
-		t.Fatal("long value does not round-trip")
-	}
-	// Each string holds at most 255 bytes once unescaped, and no character is cut.
-	for _, part := range strings.Split(q, `" "`) {
-		u := gnUnquoteTXT(`"` + strings.Trim(part, `"`) + `"`)
-		if len(u) > 255 || strings.ContainsRune(u, '�') {
-			t.Fatalf("chunk of %d bytes: %q", len(u), u)
-		}
-	}
-	// Gandi's own split and a \DDD escape.
-	if got := gnUnquoteTXT(`"abc" "def\034g\\h"`); got != `abcdef"g\h` {
-		t.Fatalf("got %q", got)
-	}
-	if got := gnUnquoteTXT(`not quoted`); got != "not quoted" {
-		t.Fatalf("got %q", got)
-	}
-}
-
 func TestGandiRecordForms(t *testing.T) {
 	f, p := newFakeGandi(t)
 	ctx := context.Background()
