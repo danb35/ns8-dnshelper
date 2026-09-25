@@ -74,7 +74,7 @@
   },
   "zones": {
     "title": "Zones",
-    "intro": "A zone is a domain whose DNS records other modules may create and change, through your DNS host's API. Each zone uses a credential (an API token) for its DNS host.",
+    "intro": "A zone is a domain whose DNS records other modules may create and change, through your DNS host's API. Each zone uses a credential for its DNS host: usually an API token, for some hosts a key and secret or a user name and password.",
     "add_zone": "Add zone",
     "search": "Search zones",
     "no_zones": "No zones",
@@ -96,7 +96,11 @@
     "missing_credential": "Missing credential",
     "cannot_load": "Cannot load the zones",
     "added_title": "Zone added",
-    "added": "{zone} is now managed."
+    "added": "{zone} is now managed.",
+    "removed_title": "Zone removed",
+    "removed": "{zone} is no longer managed. Its records at your DNS host are unchanged.",
+    "credential_changed_title": "Credential changed",
+    "credential_changed": "{zone} now uses the credential {name}."
   },
   "records": {
     "title": "Records",
@@ -130,7 +134,7 @@
   },
   "credentials": {
     "title": "Credentials",
-    "intro": "Credentials are API tokens for your DNS host. One credential can serve several zones, and rotating a token is a single edit. Secrets are never shown again after saving: leave a secret field empty to keep it. Prefer tokens limited to the zones you need.",
+    "intro": "A credential is what your DNS host asks for to use its API: usually an API token, for some hosts a key and secret or a user name and password. One credential can serve several zones, and replacing it is a single edit. Secrets are never shown again after saving: leave a secret field empty to keep it. Prefer credentials limited to the zones you need.",
     "col_name": "Name",
     "col_provider": "DNS host",
     "col_secrets": "Secrets",
@@ -141,7 +145,11 @@
     "no_credentials_description": "A credential is created together with the first zone that uses it.",
     "cannot_delete": "Cannot delete the credential",
     "remove_title": "Delete credential",
-    "remove_description": "Delete the credential {name}. The token stays valid at your DNS host: revoke it there if it should no longer work.",
+    "remove_description": "Delete the credential {name}. It stays valid at your DNS host: revoke it there if it should no longer work.",
+    "removed_title": "Credential deleted",
+    "removed": "{name} is deleted here. It stays valid at your DNS host until you revoke it there.",
+    "saved_title": "Credential saved",
+    "saved": "The changes to the credential are saved.",
     "edit_title": "Edit {name}",
     "secret_unchanged": "Unchanged",
     "secret_help": "Leave empty to keep the stored value"
@@ -157,8 +165,8 @@
     "use_saved_credential": "Use a saved credential",
     "saved_credential": "Saved credential",
     "choose_credential": "Choose a credential",
-    "least_privilege_title": "Use a limited token",
-    "least_privilege": "Create an API token that can only edit the zones you add here, not your whole account. The token is stored on this node and included in backups.",
+    "least_privilege_title": "Use a limited credential",
+    "least_privilege": "If your DNS host allows it, create a credential that can only edit the zones you add here, not your whole account. It is stored on this node and included in backups.",
     "credential_name": "Name",
     "credential_name_help": "A label for this credential, to recognise it later",
     "zone_intro_listed": "Choose one of the zones this credential can manage, or type its name.",

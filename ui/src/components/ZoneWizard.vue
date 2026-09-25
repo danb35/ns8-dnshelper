@@ -349,11 +349,12 @@ export default {
       return this.providers.find((p) => p.name === this.providerName) || null;
     },
     providerOptions() {
-      return this.providers.map((p) => ({
-        name: p.name,
-        label: p.label,
-        value: p.name,
-      }));
+      // by the name people read ("Amazon Route 53" under A), not the id
+      return this.providers
+        .map((p) => ({ name: p.name, label: p.label, value: p.name }))
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+        );
     },
     savedForProvider() {
       return this.credentials.filter((c) => c.provider === this.providerName);

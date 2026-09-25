@@ -74,7 +74,7 @@
   },
   "zones": {
     "title": "Zones",
-    "intro": "Une zone est un domaine dont les enregistrements DNS peuvent être créés et modifiés par d'autres modules, via l'API de votre hébergeur DNS. Chaque zone utilise un identifiant (un jeton d'API) pour son hébergeur DNS.",
+    "intro": "Une zone est un domaine dont les enregistrements DNS peuvent être créés et modifiés par d'autres modules, via l'API de votre hébergeur DNS. Chaque zone utilise un identifiant pour son hébergeur DNS : le plus souvent un jeton d'API, chez certains hébergeurs une clé et un secret ou un nom d'utilisateur et un mot de passe.",
     "add_zone": "Ajouter une zone",
     "search": "Rechercher des zones",
     "no_zones": "Aucune zone",
@@ -96,7 +96,11 @@
     "missing_credential": "Identifiant manquant",
     "cannot_load": "Impossible de charger les zones",
     "added_title": "Zone ajoutée",
-    "added": "{zone} est maintenant gérée."
+    "added": "{zone} est maintenant gérée.",
+    "removed_title": "Zone retirée",
+    "removed": "{zone} n'est plus gérée. Ses enregistrements chez votre hébergeur DNS ne changent pas.",
+    "credential_changed_title": "Identifiant changé",
+    "credential_changed": "{zone} utilise maintenant l'identifiant {name}."
   },
   "records": {
     "title": "Enregistrements",
@@ -130,7 +134,7 @@
   },
   "credentials": {
     "title": "Identifiants",
-    "intro": "Les identifiants sont des jetons d'API pour votre hébergeur DNS. Un même identifiant peut servir plusieurs zones, et renouveler un jeton se fait en une seule modification. Les secrets ne sont plus affichés après l'enregistrement : laissez un champ secret vide pour le conserver. Préférez des jetons limités aux zones dont vous avez besoin.",
+    "intro": "Un identifiant est ce que votre hébergeur DNS demande pour utiliser son API : le plus souvent un jeton d'API, chez certains hébergeurs une clé et un secret ou un nom d'utilisateur et un mot de passe. Un même identifiant peut servir plusieurs zones, et le remplacer se fait en une seule modification. Les secrets ne sont plus affichés après l'enregistrement : laissez un champ secret vide pour le conserver. Préférez des identifiants limités aux zones dont vous avez besoin.",
     "col_name": "Nom",
     "col_provider": "Hébergeur DNS",
     "col_secrets": "Secrets",
@@ -141,7 +145,11 @@
     "no_credentials_description": "Un identifiant est créé en même temps que la première zone qui l'utilise.",
     "cannot_delete": "Impossible de supprimer l'identifiant",
     "remove_title": "Supprimer l'identifiant",
-    "remove_description": "Supprimer l'identifiant {name}. Le jeton reste valide chez votre hébergeur DNS : révoquez-le là-bas s'il ne doit plus fonctionner.",
+    "remove_description": "Supprimer l'identifiant {name}. Il reste valide chez votre hébergeur DNS : révoquez-le là-bas s'il ne doit plus fonctionner.",
+    "removed_title": "Identifiant supprimé",
+    "removed": "{name} est supprimé ici. Il reste valide chez votre hébergeur DNS jusqu'à ce que vous le révoquiez là-bas.",
+    "saved_title": "Identifiant enregistré",
+    "saved": "Les modifications de l'identifiant sont enregistrées.",
     "edit_title": "Modifier {name}",
     "secret_unchanged": "Inchangé",
     "secret_help": "Laissez vide pour conserver la valeur enregistrée"
@@ -157,8 +165,8 @@
     "use_saved_credential": "Utiliser un identifiant enregistré",
     "saved_credential": "Identifiant enregistré",
     "choose_credential": "Choisissez un identifiant",
-    "least_privilege_title": "Utilisez un jeton limité",
-    "least_privilege": "Créez un jeton d'API qui ne peut modifier que les zones ajoutées ici, et non l'ensemble de votre compte. Le jeton est stocké sur ce nœud et inclus dans les sauvegardes.",
+    "least_privilege_title": "Utilisez un identifiant limité",
+    "least_privilege": "Si votre hébergeur DNS le permet, créez un identifiant qui ne peut modifier que les zones ajoutées ici, et non l'ensemble de votre compte. Il est stocké sur ce nœud et inclus dans les sauvegardes.",
     "credential_name": "Nom",
     "credential_name_help": "Un libellé pour cet identifiant, afin de le reconnaître plus tard",
     "zone_intro_listed": "Choisissez l'une des zones que cet identifiant peut gérer, ou saisissez son nom.",
