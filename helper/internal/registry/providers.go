@@ -123,10 +123,10 @@ func init() {
 		Name:  "gandi",
 		Label: "Gandi LiveDNS",
 		Fields: []contract.Field{
-			{Name: "api_token", Label: "Personal access token, allowed to manage the DNS records of the domains", Secret: true, Required: true},
+			{Name: "api_token", Label: "Personal access token with \"Manage domain name technical configurations\"", Secret: true, Required: true},
 		},
 		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
-		Notes: "Create a personal access token in the Gandi Admin application, for the organization that holds the domains; it can be limited to some domains. Tokens expire: renew or replace the token before its end date and update the credential. Gandi does not accept a TTL under 300 seconds: shorter ones become 300. The TTL is shared by all records with the same name and type.",
+		Notes: "Create a personal access token in the Gandi Admin application, for the organization that holds the domains, with the permission \"Manage domain name technical configurations\" (Gandi then also ticks \"See and renew domain names\"); it can be limited to some domains. Tokens expire: renew or replace the token before its end date and update the credential. Gandi does not accept a TTL under 300 seconds: shorter ones become 300. The TTL is shared by all records with the same name and type.",
 		New: func(c map[string]string) any {
 			return &gandiProvider{Token: c["api_token"]}
 		},

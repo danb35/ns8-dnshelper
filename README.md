@@ -256,7 +256,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
-| Gandi LiveDNS | Personal access token from the Gandi Admin application, allowed to manage the domains' DNS records | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Gandi LiveDNS | Personal access token from the Gandi Admin application with "Manage domain name technical configurations" | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
@@ -289,7 +289,9 @@ What to know about each provider:
   are not supported yet. dnshelper talks to the API itself rather than through
   `github.com/libdns/digitalocean`, which cannot write MX or SRV records correctly (see below).
 - **Gandi LiveDNS**: create a personal access token in the Gandi Admin application, for the
-  organization that holds the domains; it can be limited to some domains. Gandi tokens expire, so
+  organization that holds the domains, with the permission **Manage domain name technical
+  configurations** (Gandi then also ticks **See and renew domain names**); it can be limited to
+  some domains. Gandi tokens expire, so
   renew or replace the token before its end date and update the credential. TTLs under 300
   seconds are raised to 300, and a record without a TTL gets 10800. Gandi keeps one TTL per name
   and type, so adding a record with a TTL changes it for the records already there with the same
