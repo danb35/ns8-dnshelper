@@ -273,7 +273,7 @@
       <template slot="primary-button">{{ $t("common.save") }}</template>
     </NsModal>
     <!-- remove a zone -->
-    <NsDangerDeleteModal
+    <ConfirmDeleteModal
       :isShown="isRemoveZoneShown"
       :name="current ? current.zone : ''"
       :title="$t('zones.remove_zone_title')"
@@ -282,9 +282,6 @@
         $t('zones.remove_zone_description', {
           zone: current ? current.zone : '',
         })
-      "
-      :typeToConfirm="
-        $t('common.type_to_confirm', { name: current ? current.zone : '' })
       "
       :isErrorShown="!!error.removeZone"
       :errorTitle="$t('action.remove-zone')"
@@ -296,9 +293,9 @@
       <template slot="explanation">
         <p class="mg-top-sm">{{ $t("zones.remove_zone_explanation") }}</p>
       </template>
-    </NsDangerDeleteModal>
+    </ConfirmDeleteModal>
     <!-- remove a credential -->
-    <NsDangerDeleteModal
+    <ConfirmDeleteModal
       :isShown="isRemoveCredentialShown"
       :name="current ? current.name : ''"
       :title="$t('credentials.remove_title')"
@@ -307,9 +304,6 @@
         $t('credentials.remove_description', {
           name: current ? current.name : '',
         })
-      "
-      :typeToConfirm="
-        $t('common.type_to_confirm', { name: current ? current.name : '' })
       "
       :isErrorShown="!!error.removeCredential"
       :errorTitle="$t('action.remove-credential')"
@@ -332,10 +326,11 @@ import {
 import DnsHelperService from "../mixins/dnshelper";
 import ZoneWizard from "../components/ZoneWizard";
 import CredentialModal from "../components/CredentialModal";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default {
   name: "Zones",
-  components: { ZoneWizard, CredentialModal },
+  components: { ZoneWizard, CredentialModal, ConfirmDeleteModal },
   mixins: [
     DnsHelperService,
     QueryParamService,

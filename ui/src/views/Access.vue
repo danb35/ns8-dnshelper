@@ -160,7 +160,7 @@
       @hide="isRuleShown = false"
       @save="saveRule"
     />
-    <NsDangerDeleteModal
+    <ConfirmDeleteModal
       :isShown="isRemoveShown"
       :name="editing ? editing.caller : ''"
       :title="$t('access.remove_title')"
@@ -169,9 +169,6 @@
         $t('access.remove_description', {
           caller: editing ? editing.caller : '',
         })
-      "
-      :typeToConfirm="
-        $t('common.type_to_confirm', { name: editing ? editing.caller : '' })
       "
       :isErrorShown="!!error.save"
       :errorTitle="$t('action.set-policy')"
@@ -193,10 +190,11 @@ import {
 } from "@nethserver/ns8-ui-lib";
 import DnsHelperService from "../mixins/dnshelper";
 import PolicyRuleModal from "../components/PolicyRuleModal";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default {
   name: "Access",
-  components: { PolicyRuleModal },
+  components: { PolicyRuleModal, ConfirmDeleteModal },
   mixins: [
     DnsHelperService,
     QueryParamService,
