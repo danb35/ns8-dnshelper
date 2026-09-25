@@ -57,3 +57,13 @@ func TestSameRData(t *testing.T) {
 		}
 	}
 }
+
+func TestEscapeNonASCIIForGoogle(t *testing.T) {
+	q := escapeNonASCII(txtQuote(`café "x" \ y`))
+	if q != `"caf\195\169 \"x\" \\ y"` {
+		t.Fatalf("got %s", q)
+	}
+	if got := txtUnquote(q); got != `café "x" \ y` {
+		t.Fatalf("round trip: %q", got)
+	}
+}

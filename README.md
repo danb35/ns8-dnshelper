@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
-PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Hetzner, Linode, name.com, Porkbun, Route 53 and Vultr against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), Linode (Akamai), name.com, Porkbun,
+PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, Linode, name.com, Porkbun, Route 53 and Vultr against
 real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -259,6 +259,7 @@ real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helpe
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Gandi LiveDNS | Personal access token from the Gandi Admin application with "Manage domain name technical configurations" | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | GoDaddy | Personal access token (PAT) from developer.godaddy.com with the domain and DNS scopes. The older **classic** API key and secret still work but GoDaddy is deprecating them; give one or the other | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes; type the zone if the credential may not list domains |
+| Google Cloud DNS | JSON key of a service account with the DNS Administrator role (paste the whole file); the project ID if not the key's own | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | Yes (public managed zones) |
 | Hetzner | Hetzner Cloud API token with read and write, from the project that holds the zone | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -315,6 +316,15 @@ What to know about each provider:
 - **GoDaddy**: TTLs under 600 seconds are raised to 600. The API allows about 60 requests a minute
   and dnshelper waits and retries when it is exceeded. A credential that is not allowed to list
   domains needs the zone name typed in.
+- **Google Cloud DNS**: in the Google Cloud project that holds the zones, create a service account
+  with the **DNS Administrator** role and add a JSON key to it (Keys > Add key > Create new key >
+  JSON); paste the whole file into the credential. The role covers every zone of the project, so
+  keep other zones in another project if that matters. Only public managed zones are used, and
+  record sets with a routing policy are left alone. Each change is one Cloud DNS change, applied
+  entirely or not at all; dnshelper waits until Google reports it done. A record without a TTL
+  gets 300. TXT values, including ones with `"`, `\` or non-ASCII text, are stored as written.
+  dnshelper talks to the API itself rather than through `github.com/libdns/googleclouddns` (see
+  below).
 - **Hetzner**: uses the Cloud DNS API (zones in the Hetzner Console), not the retired DNS Console
   API. Each API action takes 8 to 15 seconds. A TXT value beginning or ending with `"` is refused.
 - **Linode (Akamai)**: a token reaches every domain of the account, unless it is made by a
@@ -438,7 +448,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/googleclouddns.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -494,6 +504,13 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   timeout. `registry/gandi.go` talks to the LiveDNS API itself. LiveDNS stores whole record sets
   with one TTL; every value is one zone-file string, so an SRV `0 0 443` is sent as written.
   Values it holds relative to the zone (a target without a final dot) are read back absolute.
+- The libdns Google Cloud DNS package (v1.2.0) reads the service account key from a file path, so
+  the key would have to be written to disk; with no key it falls back to whatever Google
+  credentials the machine has; and it pulls in Google's whole API client.
+  `registry/googleclouddns.go` signs the service account's token request itself (RS256 JWT, Go's
+  standard library) and uses the record-set logic of `registry/rrset.go`. Cloud DNS refuses
+  non-ASCII bytes in a TXT value, so they are sent as `\DDD`; it stores an SVCB `port=8443` as
+  `port="8443"`, which the quote-insensitive HTTPS/SVCB comparison covers.
 - The libdns PowerDNS package (v0.1.4) is built on a pre-release libdns API (v1.0.0-beta.1) and a
   third-party client, and writes record sets one request at a time. `registry/powerdns.go` talks to
   the API itself with the record-set logic of `registry/rrset.go`, and sends a set's disabled

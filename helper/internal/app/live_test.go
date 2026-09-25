@@ -30,6 +30,11 @@ package app
 //
 //	DNSHELPER_LIVE_GANDI_TOKEN=... DNSHELPER_LIVE_GANDI_ZONE=example.com go test ...
 //
+// Google Cloud DNS (the key file is read from the path given; never copy it
+// into the repository):
+//
+//	DNSHELPER_LIVE_GCP_KEY_FILE=~/key.json DNSHELPER_LIVE_GCP_ZONE=example.com go test ...
+//
 // Linode:
 //
 //	DNSHELPER_LIVE_LINODE_TOKEN=... DNSHELPER_LIVE_LINODE_ZONE=example.com go test ...
@@ -65,7 +70,11 @@ package app
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"strings"
@@ -145,6 +154,16 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"token": token}
+	case "googleclouddns":
+		file, zone := os.Getenv("DNSHELPER_LIVE_GCP_KEY_FILE"), os.Getenv("DNSHELPER_LIVE_GCP_ZONE")
+		if file == "" || zone == "" {
+			return "", nil
+		}
+		key, err := os.ReadFile(file)
+		if err != nil {
+			return "", nil
+		}
+		return zone, map[string]string{"service_account_key": string(key)}
 	case "gandi":
 		token, zone := os.Getenv("DNSHELPER_LIVE_GANDI_TOKEN"), os.Getenv("DNSHELPER_LIVE_GANDI_ZONE")
 		if token == "" || zone == "" {
@@ -232,7 +251,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "hetzner", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -411,6 +430,23 @@ func TestLiveBadCredentialsVultr(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "NOTTHETOKEN") {
 			t.Fatal("token echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsGoogleCloudDNS(t *testing.T) {
+	eachLive(t, []string{"googleclouddns"}, func(t *testing.T, l *live) {
+		// The same service account with a freshly made key Google has never seen.
+		k, err := keyWithUnknownPrivateKey(l.cred["service_account_key"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := l.run(contract.OpValidate, func(q *contract.Request) { q.Credentials = map[string]string{"service_account_key": k} })
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "PRIVATE KEY") {
+			t.Fatal("key echoed")
 		}
 	})
 }
@@ -607,4 +643,21 @@ func contains(l []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// keyWithUnknownPrivateKey returns the service account key file with its
+// private key replaced by a new random one, which Google will refuse.
+func keyWithUnknownPrivateKey(keyJSON string) (string, error) {
+	var m map[string]any
+	if err := json.Unmarshal([]byte(keyJSON), &m); err != nil {
+		return "", err
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", err
+	}
+	der, _ := x509.MarshalPKCS8PrivateKey(priv)
+	m["private_key"] = string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	out, err := json.Marshal(m)
+	return string(out), err
 }
