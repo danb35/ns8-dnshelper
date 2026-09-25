@@ -60,6 +60,11 @@ package registry
 //   - route53 (github.com/libdns/route53 v1.6.2, added after the audit): safe,
 //     same reasoning as Core-Networks -- every value, SRV included, goes out
 //     as one ResourceRecord.Value string; checked live with 0 0 443.
+//   - powerdns.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/powerdns (built on a pre-release libdns API); the
+//     PowerDNS API takes every value as one presentation-format string, so
+//     there is no separate field to drop; verified against PowerDNS 4.9 and
+//     5.0 in Docker with a 0 0 443 SRV record.
 //   - rfc2136 (github.com/libdns/rfc2136 v1.0.1): safe, empirically -- this
 //     is the DNS UPDATE wire protocol, not JSON, so omitempty doesn't apply;
 //     also the one provider a real _autodiscover._tcp SRV 0 0 443 <target>
@@ -252,6 +257,26 @@ func init() {
 		TXTForbidden: "\"\\",
 		New: func(c map[string]string) any {
 			return &vultrProvider{APIToken: c["api_token"]}
+		},
+	})
+	Register(Def{
+		Name:  "powerdns",
+		Label: "PowerDNS (HTTP API)",
+		Fields: []contract.Field{
+			{Name: "api_url", Label: "API URL of the PowerDNS Authoritative server, for example https://ns1.example.com:8081", Required: true},
+			{Name: "api_key", Label: "API key (the server's api-key setting)", Secret: true, Required: true},
+			{Name: "server_id", Label: "Server id", Default: "localhost"},
+		},
+		Verify: func(c map[string]string) string {
+			if _, err := pdBaseURL(c["api_url"], c["server_id"]); err != nil {
+				return "api_url: " + err.Error()
+			}
+			return ""
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "HTTPS", "MX", "NS", "SRV", "SVCB", "TXT"},
+		Notes: "For a PowerDNS Authoritative server (4.x or 5.x) with its API switched on (api=yes, api-key, webserver=yes) and webserver-allow-from allowing the NethServer node. The key reaches every zone of the server; with http:// it crosses the network unencrypted, so prefer https:// through a reverse proxy, or a private network. Secondary zones are not listed. For the SOA serial to go up on each change, the zone needs SOA-EDIT-API (zones created through the API have it).",
+		New: func(c map[string]string) any {
+			return &powerDNSProvider{APIURL: c["api_url"], APIKey: c["api_key"], ServerID: c["server_id"]}
 		},
 	})
 	Register(Def{

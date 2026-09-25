@@ -152,11 +152,15 @@ func fromPresentation(zone string, s rrsetState, v string) libdns.RR {
 }
 
 // sameRData compares two values in libdns form: TXT exactly, addresses as
-// addresses (2001:DB8::0:1 is 2001:db8::1), other types without case and
-// final dots.
+// addresses (2001:DB8::0:1 is 2001:db8::1), HTTPS and SVCB without the quotes
+// around parameter values (PowerDNS stores alpn="h2,h3" as alpn=h2,h3), other
+// types without case and final dots.
 func sameRData(typ, a, b string) bool {
 	if isTXT(typ) {
 		return a == b
+	}
+	if t := strings.ToUpper(typ); t == "HTTPS" || t == "SVCB" {
+		a, b = strings.ReplaceAll(a, `"`, ""), strings.ReplaceAll(b, `"`, "")
 	}
 	if x, err := netip.ParseAddr(a); err == nil {
 		y, err := netip.ParseAddr(b)

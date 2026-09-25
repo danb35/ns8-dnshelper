@@ -45,6 +45,14 @@ func normData(typ, data string) string {
 			f[len(f)-1] = strings.ToLower(strings.TrimSuffix(f[len(f)-1], "."))
 			return strings.Join(f, " ")
 		}
+	case "HTTPS", "SVCB":
+		// Servers may drop the quotes around a parameter value (PowerDNS
+		// stores alpn="h2,h3" as alpn=h2,h3); the target is the second field.
+		f := strings.Fields(strings.ReplaceAll(data, `"`, ""))
+		if len(f) > 1 && f[1] != "." {
+			f[1] = strings.ToLower(strings.TrimSuffix(f[1], "."))
+		}
+		return strings.Join(f, " ")
 	}
 	return data
 }
