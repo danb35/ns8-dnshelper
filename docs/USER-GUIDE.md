@@ -56,6 +56,7 @@ revoke it at your DNS host without touching anything else.
 | Cloudflare | An API token that can edit DNS for your zones (the "Edit zone DNS" permission). If the token is limited to one zone, a second token that can read zones is also asked for, so that the zone list works | [Create an API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | The login and password of an **API account**. This is not the login you use in the web interface: make a separate API account in the web interface, under API user accounts | [Core-Networks API documentation](https://beta.api.core-networks.de/doc/) |
 | DigitalOcean | A personal access token with **custom scopes**: tick `domain` with create, read, update and delete, and nothing else. DigitalOcean cannot limit a token to some domains: it can change every domain in the account (or team) | [Personal access tokens](https://docs.digitalocean.com/reference/api/create-personal-access-token/) |
+| Gandi LiveDNS | A personal access token, made in the Gandi Admin application for the organization that holds your domains, that may manage their DNS records. You can limit it to some domains. Gandi tokens expire: renew or replace yours before its end date, then update the credential here | [Authentication](https://api.gandi.net/docs/authentication/) |
 | GoDaddy | A personal access token that can read your domains and manage their DNS records. The older "classic" API key and secret still work, but GoDaddy is retiring them | [GoDaddy developer site](https://developer.godaddy.com/en/docs/api-users/auth) |
 | Hetzner | A Hetzner Cloud API token with **Read & Write** permission, made in the project that holds your DNS zones | [Generating an API token](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/) |
 | Linode (Akamai) | A personal access token with **Domains** set to Read/Write and every other scope to No Access. The token reaches every domain of the account, unless you make it as a restricted user granted only some domains | [Manage personal access tokens](https://techdocs.akamai.com/cloud-computing/docs/manage-personal-access-tokens) |
@@ -260,7 +261,7 @@ These are the messages you may see, with what to check.
 A few more things that look like problems and are not:
 
 - **A record has a different TTL from the one requested.** GoDaddy raises a TTL below 600 seconds
-  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, and Porkbun below 60 to 60. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
+  to 600, name.com below 300 to 300, Core-Networks below 60 to 60, DigitalOcean below 30 to 30, Porkbun below 60 to 60, and Gandi below 300 to 300. Linode rounds any TTL up to the next value it allows (30, 120, 300, 3600, ...).
 - **Hetzner is slow.** Each action takes 8 to 15 seconds there; that is the DNS host, not a fault.
 - **GoDaddy limits the number of requests** to about 60 a minute. dnshelper waits and tries again.
 - **Core-Networks limits how often you can log in.** dnshelper logs in once and reuses the session for

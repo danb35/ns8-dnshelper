@@ -28,6 +28,12 @@ package registry
 //     not github.com/libdns/porkbun (which never sends a priority at all); the
 //     priority is a string sent whenever the type has one, so "0" is always
 //     present, verified live with a 0 0 443 SRV record.
+//   - gandi.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/gandi (whose SetRecords appends and whose TXT
+//     values do not round-trip, see the file's comment); like Core-Networks,
+//     LiveDNS takes every value as one presentation-format string ("0 0 443
+//     target."), so there is no separate field to drop; verified live with a
+//     0 0 443 SRV record.
 //   - godaddy.go (this package): safe. gdRecord.Priority/Weight/Port are
 //     already *int, so an explicit 0 round-trips through omitempty
 //     correctly (a nil pointer, not a zero int, is what omitempty drops).
@@ -111,6 +117,18 @@ func init() {
 		TXTForbidden: "\\",
 		New: func(c map[string]string) any {
 			return &digitalOceanProvider{APIToken: c["api_token"]}
+		},
+	})
+	Register(Def{
+		Name:  "gandi",
+		Label: "Gandi LiveDNS",
+		Fields: []contract.Field{
+			{Name: "api_token", Label: "Personal access token, allowed to manage the DNS records of the domains", Secret: true, Required: true},
+		},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes: "Create a personal access token in the Gandi Admin application, for the organization that holds the domains; it can be limited to some domains. Tokens expire: renew or replace the token before its end date and update the credential. Gandi does not accept a TTL under 300 seconds: shorter ones become 300. The TTL is shared by all records with the same name and type.",
+		New: func(c map[string]string) any {
+			return &gandiProvider{Token: c["api_token"]}
 		},
 	})
 	Register(Def{
