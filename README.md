@@ -264,7 +264,7 @@ real zones, RFC 2136 against a local BIND (see [helper/testdata/bind](helper/tes
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
-| Vultr | API key (Account > API); the account's key reaches the whole account | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| Vultr | API key of a service user with the Manage DNS policy (the account's own key works too, but reaches the whole account); the node's address must be in the key's access control list | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard
@@ -357,10 +357,12 @@ What to know about each provider:
   ```
   TXT values, including ones with `"` or `\`, are stored as written.
 - **Vultr**: the account's API key (Account > API at my.vultr.com) reaches the whole account, not
-  only DNS. Vultr can add users with limited permissions, each with its own API key; a user
-  allowed only DNS would be the safer choice (not tested with dnshelper yet). The API access control can limit the addresses allowed to use the
-  key, so make sure it allows the NethServer node's public address. TTLs under 60 seconds are
-  raised to 60, and a record without a TTL gets 300. TXT values containing `"` or `\` are refused:
+  only DNS. Prefer a **service user** of your organization with only the **Manage DNS** policy:
+  its API key can list domains and change their records, and is refused account details and
+  servers (tested live). Vultr asks for an e-mail address for the user that no other Vultr account
+  uses. Every key has its own API access control list of allowed addresses: add the NethServer
+  node's public address to it, or Vultr answers "Unauthorized IP address". TTLs under 60 seconds
+  are raised to 60, and a record without a TTL gets 300. TXT values containing `"` or `\` are refused:
   Vultr refuses the quote and its name servers drop the backslash. Each API request takes a few
   seconds. dnshelper talks to the API itself rather than through `github.com/libdns/vultr/v2`
   (see below).

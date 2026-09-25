@@ -245,10 +245,10 @@ func init() {
 		Name:  "vultr",
 		Label: "Vultr",
 		Fields: []contract.Field{
-			{Name: "api_token", Label: "API key (Account > API)", Secret: true, Required: true},
+			{Name: "api_token", Label: "API key, preferably of a service user with only the Manage DNS policy", Secret: true, Required: true},
 		},
 		Types:        []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
-		Notes:        "The account's API key reaches the whole account, not only DNS; a Vultr user with limited permissions has a key of its own. Vultr's API access control can limit the addresses allowed to use the key: make sure it allows the NethServer node's public address. Vultr's API is slow, a few seconds per request. Vultr raises a TTL under 60 seconds to 60; a record without a TTL gets 300. TXT values containing a double quote or a backslash are refused: Vultr does not accept the quote, and its name servers drop the backslash.",
+		Notes:        "The account's API key reaches the whole account; prefer a service user of your organization with only the Manage DNS policy. Every key has its own API access control list: add the NethServer node's public address to it. Vultr's API is slow, a few seconds per request. Vultr raises a TTL under 60 seconds to 60; a record without a TTL gets 300. TXT values containing a double quote or a backslash are refused: Vultr does not accept the quote, and its name servers drop the backslash.",
 		TXTForbidden: "\"\\",
 		New: func(c map[string]string) any {
 			return &vultrProvider{APIToken: c["api_token"]}
