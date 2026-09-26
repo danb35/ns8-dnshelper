@@ -209,3 +209,10 @@ domain is not necessarily a DNS zone the administrator controls.
   (nethserver.github.io/ns8-core)
 - libdns package docs (pkg.go.dev/github.com/libdns/libdns), v1.1.1 read on 2026-09-19
 - NethServer/agents module-conventions PR; ns8-odoo 1.1.0 release notes (secrets handling)
+
+## Future improvements
+
+- More DNS hosts
+- Consider a more full-fledged DNS record/zone editor.  Currently the records page lets you add or remove records, but it's designed as a test tool, not a full DNS manager.
+  - One useful feature would be a zone backup before editing, and allowing reverts to prior backups.
+  - Allow direct editing of records rather than delete/add.
