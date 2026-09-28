@@ -47,6 +47,12 @@ package app
 //
 //	DNSHELPER_LIVE_CORENETWORKS_LOGIN=... DNSHELPER_LIVE_CORENETWORKS_PASSWORD=... DNSHELPER_LIVE_CORENETWORKS_ZONE=example.com go test ...
 //
+// OVHcloud (a service account; or DNSHELPER_LIVE_OVH_APP_KEY, _APP_SECRET and
+// _CONSUMER_KEY instead of the client ID and secret; DNSHELPER_LIVE_OVH_ENDPOINT
+// defaults to ovh-eu):
+//
+//	DNSHELPER_LIVE_OVH_CLIENT_ID=EU.... DNSHELPER_LIVE_OVH_CLIENT_SECRET=... DNSHELPER_LIVE_OVH_ZONE=example.com go test ...
+//
 // Porkbun:
 //
 //	DNSHELPER_LIVE_PORKBUN_KEY=pk1_... DNSHELPER_LIVE_PORKBUN_SECRET=sk1_... DNSHELPER_LIVE_PORKBUN_ZONE=example.com go test ...
@@ -180,6 +186,23 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"api_token": token}
+	case "ovh":
+		zone := os.Getenv("DNSHELPER_LIVE_OVH_ZONE")
+		cred = map[string]string{"endpoint": os.Getenv("DNSHELPER_LIVE_OVH_ENDPOINT")}
+		if cred["endpoint"] == "" {
+			cred["endpoint"] = "ovh-eu"
+		}
+		if id, secret := os.Getenv("DNSHELPER_LIVE_OVH_CLIENT_ID"), os.Getenv("DNSHELPER_LIVE_OVH_CLIENT_SECRET"); id != "" && secret != "" {
+			cred["client_id"], cred["client_secret"] = id, secret
+		} else if ak, as, ck := os.Getenv("DNSHELPER_LIVE_OVH_APP_KEY"), os.Getenv("DNSHELPER_LIVE_OVH_APP_SECRET"), os.Getenv("DNSHELPER_LIVE_OVH_CONSUMER_KEY"); ak != "" && as != "" && ck != "" {
+			cred["application_key"], cred["application_secret"], cred["consumer_key"] = ak, as, ck
+		} else {
+			return "", nil
+		}
+		if zone == "" {
+			return "", nil
+		}
+		return zone, cred
 	case "porkbun":
 		key, secret, zone := os.Getenv("DNSHELPER_LIVE_PORKBUN_KEY"), os.Getenv("DNSHELPER_LIVE_PORKBUN_SECRET"), os.Getenv("DNSHELPER_LIVE_PORKBUN_ZONE")
 		if key == "" || secret == "" || zone == "" {
@@ -261,12 +284,13 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "ionos", "linode", "namedotcom", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
+var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "ionos", "linode", "namedotcom", "ovh", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
-// hostName is name without the leading underscore, for A and AAAA records:
-// some providers (DigitalOcean) refuse an underscore in a host name.
+// hostName is name without the leading underscore, for A, AAAA and MX records:
+// some providers refuse an underscore there (DigitalOcean in A and AAAA
+// names, OVHcloud in MX names).
 func (l *live) hostName(n int) string { return strings.TrimPrefix(l.name(n), "_") }
 
 func (l *live) run(op string, mut func(*contract.Request), recs ...contract.Record) contract.Response {
@@ -475,6 +499,24 @@ func TestLiveBadCredentialsIONOS(t *testing.T) {
 	})
 }
 
+func TestLiveBadCredentialsOVH(t *testing.T) {
+	eachLive(t, []string{"ovh"}, func(t *testing.T, l *live) {
+		cred := map[string]string{"endpoint": l.cred["endpoint"]}
+		if l.cred["client_id"] != "" {
+			cred["client_id"], cred["client_secret"] = l.cred["client_id"], "not-the-secret-0123456789abcdef"
+		} else {
+			cred["application_key"], cred["application_secret"], cred["consumer_key"] = l.cred["application_key"], "not-the-secret-0123456789abcdef", l.cred["consumer_key"]
+		}
+		r := l.run(contract.OpValidate, func(q *contract.Request) { q.Credentials = cred })
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-secret") {
+			t.Fatal("secret echoed")
+		}
+	})
+}
+
 func TestLiveBadCredentialsGandi(t *testing.T) {
 	eachLive(t, []string{"gandi"}, func(t *testing.T, l *live) {
 		r := l.run(contract.OpValidate, func(q *contract.Request) {
@@ -588,7 +630,7 @@ func TestLiveCNAMEConflictsAndRecordTypes(t *testing.T) {
 		}
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(2), Type: "CNAME", TTL: 120, Data: "target.example.net."})
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(3) + "._tcp", Type: "SRV", TTL: 120, Data: "10 5 5060 sip.example.net."})
-		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(4), Type: "MX", TTL: 120, Data: "10 mail.example.net."})
+		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(4), Type: "MX", TTL: 120, Data: "10 mail.example.net."})
 		// Issue #19: zero priority and weight, as ns8-automx's _autodiscover._tcp.
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(6) + "._tcp", Type: "SRV", TTL: 120, Data: "0 0 443 mail.example.net."})
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(5), Type: "AAAA", TTL: 120, Data: "2001:db8::1"})

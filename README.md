@@ -11,7 +11,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.4.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.4.0) (the first
+The latest release is [0.4.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.4.1) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -63,7 +63,7 @@ The output of the command returns the instance name:
     {"module_id": "dnshelper1", "image_name": "dnshelper", "image_url": "ghcr.io/danb35/dnshelper:latest"}
 
 To install a particular release instead of the newest build, use its tag in place of `latest`,
-for example `ghcr.io/danb35/dnshelper:0.4.0`.
+for example `ghcr.io/danb35/dnshelper:0.4.1`.
 
 Then open the module's page in the NS8 admin UI to add credentials and zones.
 
@@ -247,8 +247,8 @@ after restoring into a cluster where the consumer has another id, fix the policy
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, Porkbun,
-PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, IONOS, Linode, name.com, Porkbun, Route 53 and Vultr against
+Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, OVHcloud, Porkbun,
+PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, IONOS, Linode, name.com, OVHcloud, Porkbun, Route 53 and Vultr against
 real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)) and Technitium DNS Server 15.5 in Docker (see [helper/testdata/technitium](helper/testdata/technitium/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
@@ -264,6 +264,7 @@ real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helpe
 | IONOS | API key prefix and secret (developer.hosting.ionos.com/keys) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Linode (Akamai) | Personal access token with Domains: Read/Write | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | name.com | User name and a production API token (Settings > Security > API Tokens; accounts with two-step authentication must switch API access on) | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
+| OVHcloud | Client ID and secret of a service account (OAuth2) with an IAM policy for the zones, or the older application key, application secret and consumer key; the endpoint (`ovh-eu`, `ovh-ca` or `ovh-us`) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
 | Vultr | API key of a service user with the Manage DNS policy (the account's own key works too, but reaches the whole account); the node's address must be in the key's access control list | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -347,6 +348,19 @@ What to know about each provider:
   as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
   Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
   (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
+- **OVHcloud**: preferably a service account, which OVHcloud's IAM can limit to some zones. Make
+  one in the Control Panel or through the API (`POST /me/api/oauth2/client` with
+  `"flow": "CLIENT_CREDENTIALS"`, see [OVHcloud's guide](https://help.ovhcloud.com/csm/en-manage-service-account?id=kb_article_view&sysparm_article=KB0059343)),
+  keep its client ID (`EU.…`) and secret, then give it an IAM policy on the DNS zones it should
+  change, allowing the zone's record actions (read, create, delete) and zone refresh. The older application key also works:
+  make one at `https://eu.api.ovh.com/createToken/` (or `ca.`) with the rights `GET /domain/zone`
+  and `GET`, `POST` and `DELETE` on `/domain/zone/example.com/*`; that login was not tested live.
+  Changes are published by refreshing the zone after each change. TTLs under 60 seconds are raised
+  to 60, and a record without a TTL gets the zone's default. Records made in OVHcloud's web
+  interface with its SPF, DKIM or DMARC types are served as TXT and read as TXT. OVHcloud refuses
+  an underscore in an MX record's name. The API lists record IDs only, so reading a zone reads each
+  record on its own (eight at a time): a zone of a few hundred records takes a while. dnshelper
+  talks to the API itself rather than through `github.com/libdns/ovh` (see below).
 - **Porkbun**: create an API key at porkbun.com/account/api, and switch on API access either for
   all domains at once (the account-wide switch) or for each domain dnshelper should manage (in the
   domain's settings). The key reaches every domain that has API access. With the account-wide
@@ -463,7 +477,7 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/googleclouddns.go`, `registry/ionos.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
+`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/googleclouddns.go`, `registry/ionos.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/ovh.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
@@ -532,6 +546,11 @@ live tests are in `helper/internal/app/live_test.go`, skipped unless a provider'
   quoted and escaped, with non-ASCII bytes as `\DDD`, which IONOS stores and serves as sent. It
   always sends the `prio` of MX and SRV records, 0 included, and reads IPv6 addresses, which IONOS
   writes in full, in their short form.
+- The libdns OVH package (v1.1.0) only knows the older application key login, not the OAuth2
+  service accounts OVHcloud now recommends (which can be limited to some zones through IAM).
+  `registry/ovh.go` takes either. OVHcloud stores a TXT value sent already quoted as sent, `\"` and
+  `\\` included, but turns `\DDD` into a literal backslash, so non-ASCII text is sent as it is.
+  An SRV value is one string, so `0 0 443` cannot lose its zeros.
 - The libdns PowerDNS package (v0.1.4) is built on a pre-release libdns API (v1.0.0-beta.1) and a
   third-party client, and writes record sets one request at a time. `registry/powerdns.go` talks to
   the API itself with the record-set logic of `registry/rrset.go`, and sends a set's disabled
