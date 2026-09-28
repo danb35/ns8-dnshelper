@@ -28,6 +28,11 @@ package registry
 //     not github.com/libdns/linode v0.5.0 (which is zero-safe but reads SRV
 //     names doubled, see the file's comment); priority, weight and port are
 //     *int, verified against the live API with a 0 0 443 SRV record.
+//   - ovh.go (this package, added after the audit): safe. Its own client,
+//     not github.com/libdns/ovh (which only knows the older application-key
+//     login); OVHcloud takes every value as one "target" string ("0 0 443
+//     target."), so there is no separate field to drop; verified live with a
+//     0 0 443 SRV record.
 //   - porkbun.go (this package, added after the audit): safe. Its own client,
 //     not github.com/libdns/porkbun (which never sends a priority at all); the
 //     priority is a string sent whenever the type has one, so "0" is always
@@ -271,6 +276,25 @@ func init() {
 		Notes: "Give the IAM user route53:ListResourceRecordSets and route53:ChangeResourceRecordSets on the hosted zones only, plus route53:ListHostedZonesByName (to find a zone) and route53:ListHostedZones (for the zone list), which AWS cannot limit to some zones; the README has the policy. Private hosted zones are not listed.",
 		New: func(c map[string]string) any {
 			return newRoute53(c["access_key_id"], c["secret_access_key"])
+		},
+	})
+	Register(Def{
+		Name:  "ovh",
+		Label: "OVHcloud",
+		Fields: []contract.Field{
+			{Name: "endpoint", Label: "API endpoint: ovh-eu, ovh-ca or ovh-us", Required: true, Default: "ovh-eu"},
+			{Name: "client_id", Label: "Service account client ID (OAuth2, for example EU.0123456789abcdef)"},
+			{Name: "client_secret", Label: "Service account client secret", Secret: true},
+			{Name: "application_key", Label: "Application key (older login; use instead of a service account)"},
+			{Name: "application_secret", Label: "Application secret (older login)", Secret: true},
+			{Name: "consumer_key", Label: "Consumer key (older login)", Secret: true},
+		},
+		Verify: ovhVerify,
+		Types:  []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "SRV", "TXT"},
+		Notes:  "Preferably use a service account (OAuth2 client ID and secret) with an IAM policy that allows it only the DNS zones it should change; the README shows how to make one. An application key with a consumer key also works. Changes are published by refreshing the zone after every change. OVHcloud does not accept a TTL under 60 seconds: shorter ones become 60, and a record without a TTL gets the zone's default. Records made in OVHcloud's web interface as SPF, DKIM or DMARC are read as TXT. MX records cannot have an underscore in their name. Reading a zone reads each record on its own, which is slow for a large zone.",
+		New: func(c map[string]string) any {
+			return &ovhProvider{Endpoint: c["endpoint"], ClientID: c["client_id"], ClientSecret: c["client_secret"],
+				AppKey: c["application_key"], AppSecret: c["application_secret"], ConsumerKey: c["consumer_key"]}
 		},
 	})
 	Register(Def{
