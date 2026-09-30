@@ -85,7 +85,10 @@ change event when zones change (follow the documented event naming convention).
   Root cause: `libdns/cloudflare` v0.2.2 serializes SRV priority/weight/port as plain (non-pointer)
   ints with `omitempty`, so a legitimately zero value -- the common case for SRV -- is dropped from
   the request instead of sent as an explicit 0. Auditing every provider for the same mistake found
-  the identical pattern in `libdns/namedotcom` v0.9.0's SRV/MX priority field (not confirmed live).
+  the identical pattern in `libdns/namedotcom` v0.9.0's SRV/MX priority field. 2026-09-30, both
+  confirmed live: name.com rejects a zero SRV/MX priority ("Priority is required"), and Cloudflare
+  also rejects an MX record with preference 0 ("priority is a required field"), the same mistake on
+  its top-level `priority` field.
   Both patched locally (vendored copies under `helper/internal/vendored/`) rather than upstream;
   see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19) and the README's Providers
   section. The other four providers were checked and don't have this problem, for two different

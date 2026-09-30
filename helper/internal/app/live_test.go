@@ -633,12 +633,19 @@ func TestLiveCNAMEConflictsAndRecordTypes(t *testing.T) {
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(4), Type: "MX", TTL: 120, Data: "10 mail.example.net."})
 		// Issue #19: zero priority and weight, as ns8-automx's _autodiscover._tcp.
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.name(6) + "._tcp", Type: "SRV", TTL: 120, Data: "0 0 443 mail.example.net."})
+		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(7), Type: "MX", TTL: 120, Data: "0 mail.example.net."})
 		l.must(contract.OpAppendRecords, contract.Record{Name: l.hostName(5), Type: "AAAA", TTL: 120, Data: "2001:db8::1"})
 		seen := map[string]string{}
 		for _, r := range l.mine() {
 			if r.Name == l.name(6)+"._tcp" {
 				if got := strings.TrimSuffix(r.Data, "."); got != "0 0 443 mail.example.net" {
 					t.Errorf("zero SRV: got %q", r.Data)
+				}
+				continue
+			}
+			if r.Name == l.hostName(7) {
+				if got := strings.TrimSuffix(r.Data, "."); got != "0 mail.example.net" {
+					t.Errorf("zero MX: got %q", r.Data)
 				}
 				continue
 			}

@@ -280,8 +280,9 @@ What to know about each provider:
 - **Cloudflare**: HTTPS and SVCB records are not supported. TXT values containing `"` or `\` are
   refused. The provider package (`github.com/libdns/cloudflare` v0.2.2) has a bug creating an SRV
   or HTTPS record with a legitimately zero priority or weight (an SRV priority/weight of 0 is the
-  common case): it silently drops that field from the request instead of sending an explicit 0,
-  and Cloudflare then rejects the record as missing a required field. Patched locally with a
+  common case), or an MX record with preference 0: it silently drops that field from the request
+  instead of sending an explicit 0, and Cloudflare then rejects the record as missing a required
+  field. Patched locally with a
   vendored copy of the package (`helper/internal/vendored/cloudflare`) until this is fixed
   upstream; see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
 - **Core-Networks**: TTLs under 60 seconds are raised to 60, and a record without a TTL gets 1800.
@@ -345,8 +346,8 @@ What to know about each provider:
   talks to the API itself rather than through `github.com/libdns/linode` (see below).
 - **name.com**: TTLs under 300 seconds are raised to 300. TXT values containing `"` or `\` are
   refused. The provider package (`github.com/libdns/namedotcom` v0.9.0) has the same class of bug
-  as Cloudflare's, above, for a zero SRV/MX priority -- found by auditing every provider after the
-  Cloudflare bug, not independently confirmed against the live API. Patched locally the same way
+  as Cloudflare's, above, for a zero SRV/MX priority: name.com rejects such a record with
+  "Priority is required" (confirmed against the live API). Patched locally the same way
   (`helper/internal/vendored/namedotcom`); see [issue #19](https://github.com/danb35/ns8-dnshelper/issues/19).
 - **OVHcloud**: preferably a service account, which OVHcloud's IAM can limit to some zones. Make
   one in the Control Panel or through the API (`POST /me/api/oauth2/client` with
