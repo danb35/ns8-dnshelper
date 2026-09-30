@@ -221,3 +221,4 @@ domain is not necessarily a DNS zone the administrator controls.
 - Consider a more full-fledged DNS record/zone editor.  Currently the records page lets you add or remove records, but it's designed as a test tool, not a full DNS manager.
   - One useful feature would be a zone backup before editing, and allowing reverts to prior backups.
   - Allow direct editing of records rather than delete/add.
+  - Bulk record operations (I'd expect deletions as the main one, but the ability to bulk-retarget CNAMEs could also be useful)
