@@ -17,6 +17,13 @@ package cloudflare
 // 400 "weight is a required data field" -- confirmed live, 2026-09-23,
 // creating _autodiscover._tcp SRV 0 0 443 <target> for ns8-automx. See
 // PATCH below.
+//
+// The same mistake on the top-level cfDNSRecord.Priority (MX preference):
+// an MX record with preference 0 went out without "priority" and Cloudflare
+// answered 400 "priority is a required field" (code 9100) -- confirmed live,
+// 2026-09-30. Patched as a *uint16, set for MX records only, so other record
+// types still send no top-level priority. Both fixes match the patch prepared
+// for upstream libdns/cloudflare.
 
 import (
 	"encoding/json"
@@ -74,7 +81,7 @@ type cfDNSRecord struct {
 	Type       string    `json:"type,omitempty"`
 	Name       string    `json:"name,omitempty"`
 	Content    string    `json:"content,omitempty"`
-	Priority   uint16    `json:"priority,omitempty"`
+	Priority   *uint16   `json:"priority,omitempty"` // PATCH: was uint16; MX only, and 0 is a valid preference
 	Proxiable  bool      `json:"proxiable,omitempty"`
 	Proxied    bool      `json:"proxied,omitempty"`
 	TTL        int       `json:"ttl,omitempty"` // seconds
@@ -199,7 +206,7 @@ func (r cfDNSRecord) libdnsRecord(zone string) (libdns.Record, error) {
 		return libdns.MX{
 			Name:       name,
 			TTL:        ttl,
-			Preference: r.Priority,
+			Preference: r.mxPreference(), // PATCH: r.Priority is now *uint16
 			Target:     target,
 		}, nil
 	case "NS":
@@ -248,6 +255,14 @@ func (r cfDNSRecord) libdnsRecord(zone string) (libdns.Record, error) {
 	}
 }
 
+// PATCH: mxPreference returns the record's MX preference, or 0 if it has none.
+func (r cfDNSRecord) mxPreference() uint16 {
+	if r.Priority == nil {
+		return 0
+	}
+	return *r.Priority
+}
+
 func cloudflareRecord(r libdns.Record) (cfDNSRecord, error) {
 	// Super annoyingly, the Cloudflare API says that a "Content"
 	// field can contain the record data as a string, and that the
@@ -288,7 +303,8 @@ func cloudflareRecord(r libdns.Record) (cfDNSRecord, error) {
 		// Use RR().Data which properly formats the content field
 		cfRec.Content = rec.RR().Data
 	case libdns.MX:
-		cfRec.Priority = rec.Preference
+		pref := rec.Preference // PATCH: was `cfRec.Priority = rec.Preference`
+		cfRec.Priority = &pref
 		// Content should be just the target, not include priority
 		// Must strip trailing dot for Cloudflare API
 		cfRec.Content = strings.TrimSuffix(rec.Target, ".")

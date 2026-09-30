@@ -9,6 +9,7 @@ package cloudflare
 
 import (
 	"encoding/json"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -38,5 +39,46 @@ func TestCloudflareRecordSendsZeroPriorityAndWeight(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("request body missing %s (omitted by encoding/json's omitempty): %s", want, body)
 		}
+	}
+}
+
+// The top-level priority (MX preference) must be sent as an explicit 0 too:
+// Cloudflare answered 400 "priority is a required field" without it, live,
+// 2026-09-30. Checked on the top-level key, since the SRV patch above makes
+// data.priority appear in every body.
+func TestCloudflareRecordSendsZeroMXPreference(t *testing.T) {
+	rec, err := cloudflareRecord(libdns.MX{Name: "@", Preference: 0, Target: "mail.example.com."})
+	if err != nil {
+		t.Fatalf("cloudflareRecord: %v", err)
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var top map[string]any
+	if err := json.Unmarshal(b, &top); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if top["priority"] != float64(0) {
+		t.Errorf(`request body missing top-level "priority":0: %s`, b)
+	}
+}
+
+// Record types without a top-level priority must not gain one.
+func TestCloudflareRecordOmitsPriorityForOtherTypes(t *testing.T) {
+	rec, err := cloudflareRecord(libdns.Address{Name: "www", IP: netip.MustParseAddr("192.0.2.1")})
+	if err != nil {
+		t.Fatalf("cloudflareRecord: %v", err)
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var top map[string]any
+	if err := json.Unmarshal(b, &top); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if _, ok := top["priority"]; ok {
+		t.Errorf("request body has a spurious top-level priority: %s", b)
 	}
 }
