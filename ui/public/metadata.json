@@ -1,9 +1,16 @@
 {
   "name": "dnshelper",
   "description": {
-    "en": "Manage DNS records through DNS provider APIs, for other modules"
+    "en": "Manage DNS records through DNS provider APIs, for other modules",
+    "de": "Verwaltet DNS-Einträge über die APIs von DNS-Anbietern, für andere Module",
+    "es": "Gestiona registros DNS a través de las API de los proveedores DNS, para otros módulos",
+    "eu": "DNS erregistroak kudeatzen ditu DNS hornitzaileen APIen bidez, beste moduluentzat",
+    "fr": "Gère les enregistrements DNS via les API des hébergeurs DNS, pour les autres modules",
+    "it": "Gestisce i record DNS tramite le API dei provider DNS, per altri moduli",
+    "pt": "Gere registos DNS através das APIs dos fornecedores de DNS, para outros módulos",
+    "pt_BR": "Gerencia registros DNS por meio das APIs dos provedores de DNS, para outros módulos"
   },
-  "categories": ["system"],
+  "categories": ["system_administration", "security"],
   "authors": [
     {
       "name": "Dan Brown"
