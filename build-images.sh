@@ -34,7 +34,7 @@ buildah run \
 # Reuse existing gobuilder-dnshelper container, to speed up builds
 if ! buildah containers --format "{{.ContainerName}}" | grep -q gobuilder-dnshelper; then
     echo "Pulling Go toolchain..."
-    buildah from --name gobuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/golang:1.27.1-alpine
+    buildah from --name gobuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/golang:1.27.3-alpine
 fi
 
 echo "Test and build the static dnshelper binary..."

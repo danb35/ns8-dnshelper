@@ -1,6 +1,6 @@
 module github.com/danb35/ns8-dnshelper/helper
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.1
@@ -10,7 +10,7 @@ require (
 	github.com/libdns/libdns v1.1.1
 	github.com/libdns/rfc2136 v1.0.1
 	github.com/libdns/route53 v1.6.2
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 )
 
 require (
