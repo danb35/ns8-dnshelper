@@ -21,15 +21,16 @@ container=$(buildah from scratch)
 # Reuse existing nodebuilder-dnshelper container, to speed up builds
 if ! buildah containers --format "{{.ContainerName}}" | grep -q nodebuilder-dnshelper; then
     echo "Pulling NodeJS runtime..."
-    buildah from --name nodebuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/node:lts
+    buildah from --name nodebuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/node:24.22.1-bookworm
 fi
 
+# Node 25 and later no longer bundle corepack: install it from npm when missing
 echo "Build static UI files with node..."
 buildah run \
     --workingdir=/usr/src/ui \
     --env="NODE_OPTIONS=--openssl-legacy-provider" \
     nodebuilder-dnshelper \
-    sh -c "corepack enable && yarn install && yarn build"
+    sh -c "(command -v corepack >/dev/null || npm install -g corepack) && corepack enable && yarn install && yarn build"
 
 # Reuse existing gobuilder-dnshelper container, to speed up builds
 if ! buildah containers --format "{{.ContainerName}}" | grep -q gobuilder-dnshelper; then

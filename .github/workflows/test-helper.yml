@@ -6,11 +6,13 @@ on:
       - 'helper/**'
       - 'imageroot/pypkg/**'
       - 'tests/unit/**'
+      - '.github/workflows/test-helper.yml'
   pull_request:
     paths:
       - 'helper/**'
       - 'imageroot/pypkg/**'
       - 'tests/unit/**'
+      - '.github/workflows/test-helper.yml'
 
 permissions:
   contents: read
@@ -23,7 +25,7 @@ jobs:
         working-directory: helper
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: helper/go.mod
       - run: go vet ./...
