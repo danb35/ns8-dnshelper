@@ -499,6 +499,40 @@ class PolicyTests(Base):
             self.assertFalse(lib.has_zone({'name': 'x.other.org'})['allowed'])
             self.assertEqual([z['zone'] for z in lib.list_zones({})['zones']], ['example.com'])
 
+    def test_has_zone_reports_access_per_record(self):
+        # The case that hid ns8-automx's SRV record: a rule for the zone that
+        # covers the CNAMEs but not the SRV, so get-records leaves it out.
+        lib.set_policy({'rules': [
+            self.rule(caller='module/automx1', zones=['*'], names=['*'], types=['CNAME']),
+            self.rule(caller='module/automx1', zones=['example.com'], access='read', names=['_autodiscover._tcp'], types=['TXT']),
+        ]})
+        recs = [{'name': 'autoconfig.example.com', 'type': 'CNAME'},
+                {'name': '_autodiscover._tcp.example.com.', 'type': 'SRV'},
+                {'name': '_autodiscover._tcp.Example.com', 'type': 'TXT'},
+                {'name': 'example.com', 'type': 'CNAME'},
+                {'name': 'www.other.org', 'type': 'CNAME'},
+                {'name': 'www.example.com'}]
+        with as_module('automx1'):
+            out = lib.has_zone({'name': 'example.com', 'records': recs})
+        self.assertEqual(out['allowed'], True)
+        self.assertEqual([(r['name'], r['type'], r['read'], r['write']) for r in out['records']], [
+            ('autoconfig.example.com', 'CNAME', True, True),
+            ('_autodiscover._tcp.example.com.', 'SRV', False, False),
+            ('_autodiscover._tcp.Example.com', 'TXT', True, False),
+            ('example.com', 'CNAME', True, True),      # '@' matches names ['*']
+            ('www.other.org', 'CNAME', False, False),  # outside the zone asked about
+            ('www.example.com', None, False, False),   # any type needs a '*' type rule
+        ])
+        self.assertEqual(self.calls(), [])  # decided from the rules alone
+
+    def test_has_zone_records_for_administrators_and_unmanaged_names(self):
+        recs = [{'name': 'autoconfig.example.com', 'type': 'CNAME'}]
+        out = lib.has_zone({'name': 'example.com', 'records': recs})
+        self.assertEqual(out['records'], [{'name': 'autoconfig.example.com', 'type': 'CNAME', 'read': True, 'write': True}])
+        out = lib.has_zone({'name': 'nowhere.test', 'records': [{'name': 'a.nowhere.test', 'type': 'A'}]})
+        self.assertEqual(out['records'], [{'name': 'a.nowhere.test', 'type': 'A', 'read': False, 'write': False}])
+        self.assertNotIn('records', lib.has_zone({'name': 'example.com'}))
+
 
 class AuditAndEventTests(ActionRunner):
     def test_audit_line_for_a_module_change(self):

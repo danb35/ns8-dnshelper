@@ -6,6 +6,19 @@
     "examples": [
         {
             "name": "mail.example.com"
+        },
+        {
+            "name": "example.com",
+            "records": [
+                {
+                    "name": "autoconfig.example.com",
+                    "type": "CNAME"
+                },
+                {
+                    "name": "_autodiscover._tcp.example.com",
+                    "type": "SRV"
+                }
+            ]
         }
     ],
     "type": "object",
@@ -18,6 +31,30 @@
             "type": "string",
             "minLength": 1,
             "description": "A zone or a host name inside one, like 'mail.example.com'"
+        },
+        "records": {
+            "type": "array",
+            "description": "Records to check the caller's access to, by full host name (inside the zone found for 'name'). Checked against the access rules only; the provider is not contacted",
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Full host name, like '_autodiscover._tcp.example.com'"
+                    },
+                    "type": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Record type; leave it out to ask about every type, which needs a rule with type '*'"
+                    }
+                }
+            }
         }
     }
 }

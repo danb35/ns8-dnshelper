@@ -131,7 +131,7 @@ TXT is one plain, unquoted string of any length, MX is `"priority target"` and S
 
 | Action | Input | Output |
 |---|---|---|
-| `has-zone` | `name`: a zone or a host name | `{"managed", "zone", "allowed"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it |
+| `has-zone` | `name`: a zone or a host name; optional `records`: `[{"name", "type"}]` with full host names | `{"managed", "zone", "allowed"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it. With `records`, also `"records": [{"name", "type", "read", "write"}]`, in the same order: whether the caller may read each record and change it (see below) |
 | `list-zones` | none | `{"zones": [{"zone", "credential", "provider"}]}`, only the zones the caller has a rule for |
 | `get-records` | `zone`; optional `name`, `type` filters | `{"records": [...]}`, only records the caller's rules cover |
 | `append-records` | `zone`, `records`, optional `dry_run` | `{"dry_run", "changes": {"add", "remove"}, "records"}`; adds records, never removes; adding one that already exists is not an error |
@@ -184,6 +184,12 @@ module with the role can call the actions but is refused everything.
   contacted. A delete without a `type` needs a rule with type `*`.
 - `get-records` returns only the records a rule covers; `list-zones` only zones with a rule;
   `has-zone` says `allowed`.
+- A record the rules do not let the caller read is simply absent from `get-records`, which looks
+  the same as a record that does not exist. To tell them apart, pass the records to `has-zone`
+  as `records`: each comes back with `read` and `write`, decided from the rules alone without
+  contacting the provider. A consumer can then say which rule is missing instead of reporting the
+  record as missing. Releases up to 0.4.4 refuse the `records` field (their schema does not allow
+  it), so fall back to `allowed` when the call is refused.
 - Administrators (any caller that is not `module/...`, seen as `AGENT_TASK_USER`) are not
   restricted by the policy.
 
