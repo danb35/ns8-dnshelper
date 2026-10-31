@@ -24,6 +24,37 @@
         "allowed": {
             "type": "boolean",
             "description": "Whether the caller may use the zone at all: always true for administrators, for a module whether its policy has a rule for it"
+        },
+        "records": {
+            "type": "array",
+            "description": "Present when the input listed records: for each, in the same order, whether the caller may read it (get-records shows it) and change it. A record outside the zone, or in no managed zone, is neither",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "read",
+                    "write"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "read": {
+                        "type": "boolean"
+                    },
+                    "write": {
+                        "type": "boolean"
+                    }
+                }
+            }
         }
     }
 }

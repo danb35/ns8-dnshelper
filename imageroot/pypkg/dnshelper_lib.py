@@ -436,7 +436,28 @@ def has_zone(data):
         if (name == z or name.endswith('.' + z)) and (best is None or len(z) > len(best)):
             best = z
     allowed = best is not None and (not _restricted() or bool(_rules_for(best)))
-    return {'managed': best is not None, 'zone': best, 'allowed': allowed}
+    out = {'managed': best is not None, 'zone': best, 'allowed': allowed}
+    if 'records' in data:
+        out['records'] = [_record_access(best, r) for r in data['records']]
+    return out
+
+
+def _record_access(zone, rec):
+    """What the caller may do with one record, named by its full host name:
+    read it (get-records shows it) and write it (append, set, delete). Decided
+    from the rules alone; the provider is not contacted."""
+    out = {'name': rec['name'], 'type': rec.get('type'), 'read': False, 'write': False}
+    host = rec['name'].strip().lower().rstrip('.')
+    if zone is None or not (host == zone or host.endswith('.' + zone)):
+        return out
+    if not _restricted():
+        out['read'] = out['write'] = True
+        return out
+    name = '@' if host == zone else host[:-len('.' + zone)]
+    rules = _rules_for(zone)
+    out['read'] = _may(rules, name, rec.get('type'), write=False)
+    out['write'] = _may(rules, name, rec.get('type'), write=True)
+    return out
 
 
 def _zone_request(zone):
