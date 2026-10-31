@@ -251,6 +251,11 @@ creates its roles and service key. Policy callers such as `module/mail1` are mat
 after restoring into a cluster where the consumer has another id, fix the policy with
 `set-policy`; the restore warns about exactly this.
 
+**Clone and move.** The core copies the whole state directory, credentials included, from the
+source instance. `clone-module/50check_state` then runs the same checks as a restore. A clone
+manages the same zones as its source: each instance only serializes its own changes, so remove
+one of them, or the zone from one of them, rather than let both change a zone.
+
 ## Providers
 
 Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, OVHcloud, Porkbun,
