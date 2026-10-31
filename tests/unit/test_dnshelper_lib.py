@@ -336,7 +336,7 @@ class RunTests(ActionRunner):
     def test_every_action_has_a_handler_and_a_step(self):
         actions = os.path.join(HERE, '..', '..', 'imageroot', 'actions')
         for name in os.listdir(actions):
-            if name in ('configure-module', 'create-module', 'restore-module'):   # lifecycle actions
+            if name in ('clone-module', 'configure-module', 'create-module', 'restore-module'):   # lifecycle actions
                 continue
             self.assertIn(name, lib.HANDLERS)
             self.assertTrue(os.access(os.path.join(actions, name, '10run'), os.X_OK), name)

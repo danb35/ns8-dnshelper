@@ -1,5 +1,6 @@
 <!--
-  Copyright (C) 2023 Nethesis S.r.l.
+  Copyright (C) 2023 Nethesis S.r.l. (ns8-kickstart template)
+  Copyright (C) 2026 dnshelper contributors
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <template>
@@ -22,7 +23,7 @@
     </cv-row>
     <cv-row>
       <cv-column>
-        <cv-tile :light="true">
+        <NsTile :light="true">
           <cv-skeleton-text
             v-if="loading.moduleInfo"
             :paragraph="true"
@@ -152,7 +153,7 @@
               </span>
             </div>
           </div>
-        </cv-tile>
+        </NsTile>
       </cv-column>
     </cv-row>
   </cv-grid>

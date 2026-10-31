@@ -49,11 +49,25 @@ class EnsureStateTests(Base):
     def test_scripts_run_and_are_executable(self):
         subprocess.run([sys.executable, DUMP_STATE], check=True, env=dict(os.environ))
         self.assertTrue(os.path.exists(os.path.join(self.state, 'policy.json')))
-        for rel in ('bin/module-dump-state', 'actions/restore-module/50check_state', 'actions/create-module/10init_state'):
+        for rel in ('bin/module-dump-state', 'actions/restore-module/50check_state',
+                    'actions/clone-module/50check_state', 'actions/create-module/10init_state'):
             self.assertTrue(os.access(os.path.join(ROOT, 'imageroot', rel), os.X_OK), rel)
         for rel in ('actions/restore-module/50check_state', 'actions/create-module/10init_state'):
             with open(os.path.join(ROOT, 'imageroot', rel)) as f:
                 compile(f.read(), rel, 'exec')
+
+    def test_clone_runs_the_restore_check(self):
+        # a stand-in for the restore step, which needs the agent package
+        fake = os.path.join(self.tmp.name, 'install')
+        step = os.path.join(fake, 'actions', 'restore-module', '50check_state')
+        os.makedirs(os.path.dirname(step))
+        marker = os.path.join(self.tmp.name, 'ran')
+        with open(step, 'w') as f:
+            f.write('#!/bin/sh\ntouch %s\n' % marker)
+        os.chmod(step, 0o755)
+        subprocess.run([os.path.join(ROOT, 'imageroot', 'actions', 'clone-module', '50check_state')],
+                       check=True, input=b'{}', env=dict(os.environ, AGENT_INSTALL_DIR=fake))
+        self.assertTrue(os.path.exists(marker))
 
 
 class CheckRestoredStateTests(Base):

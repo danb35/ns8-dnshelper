@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Runs after the core 10recvstate step has copied the source instance's state
+# directory here (clone and move). Check it the same way a restore does:
+# validate the files, repair permissions, warn about references that no
+# longer resolve, and tell listeners that this instance's zones changed.
+
+set -e
+exec 1>&2
+
+"${AGENT_INSTALL_DIR}/actions/restore-module/50check_state" </dev/null
