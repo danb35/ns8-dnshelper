@@ -256,6 +256,12 @@ source instance. `clone-module/50check_state` then runs the same checks as a res
 manages the same zones as its source: each instance only serializes its own changes, so remove
 one of them, or the zone from one of them, rather than let both change a zone.
 
+**One instance per node.** The image sets `org.nethserver.max-per-node=1`, because two instances on
+a node would not share a lock for the zones they both manage, and modules use the cluster's default
+instance anyway. The Software center and `add-module` then refuse a second instance on a node, for
+an install, a clone or a restore. Another node is still allowed, and so are updates. For a test,
+`add-module --force` skips the check.
+
 ## Providers
 
 Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, OVHcloud, Porkbun,
@@ -645,5 +651,9 @@ The Robot suite in `tests/` is the smoke test that CI runs (`test-module.sh`):
 ```bash
 ./test-module.sh <NODE_ADDR> ghcr.io/danb35/dnshelper:latest
 ```
+
+Use a node without a dnshelper instance: its install step uses `add-module`, which refuses a second
+instance on a node once the repository lists a version with the `max-per-node` label.
+
 ## Author
 [Dan Brown](https://community.nethserver.org/u/dan)
