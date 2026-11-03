@@ -11,7 +11,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.4.4](https://github.com/danb35/ns8-dnshelper/releases/tag/0.4.4) (the first
+The latest release is [0.4.5](https://github.com/danb35/ns8-dnshelper/releases/tag/0.4.5) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -63,7 +63,7 @@ The output of the command returns the instance name:
     {"module_id": "dnshelper1", "image_name": "dnshelper", "image_url": "ghcr.io/danb35/dnshelper:latest"}
 
 To install a particular release instead of the newest build, use its tag in place of `latest`,
-for example `ghcr.io/danb35/dnshelper:0.4.3`.
+for example `ghcr.io/danb35/dnshelper:0.4.5`.
 
 Then open the module's page in the NS8 admin UI to add credentials and zones.
 
@@ -626,7 +626,7 @@ been reviewed by native speakers.
 ## Acknowledgements
 
 Thanks to Marko for providing a test domain and credentials, which made it possible to build and
-test the Core-Networks provider against the live service.
+test the Core-Networks provider against the live service.  Thanks also to Matthieu for providing a test domain and credentials for OVH, allowing me to support that host.
 
 ## Development
 
@@ -645,3 +645,5 @@ The Robot suite in `tests/` is the smoke test that CI runs (`test-module.sh`):
 ```bash
 ./test-module.sh <NODE_ADDR> ghcr.io/danb35/dnshelper:latest
 ```
+## Author
+[Dan Brown](https://community.nethserver.org/u/dan)
