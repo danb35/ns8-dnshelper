@@ -17,6 +17,7 @@
     }
   ],
   "docs": {
+    "terms_url": "https://github.com/danb35/ns8-dnshelper/blob/master/TERMS.md",
     "documentation_url": "https://github.com/danb35/ns8-dnshelper/blob/master/docs/USER-GUIDE.md",
     "bug_url": "https://github.com/danb35/ns8-dnshelper/issues",
     "code_url": "https://github.com/danb35/ns8-dnshelper"
