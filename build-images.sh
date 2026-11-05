@@ -22,7 +22,7 @@ container=$(buildah from scratch)
 # Reuse existing nodebuilder-dnshelper container, to speed up builds
 if ! buildah containers --format "{{.ContainerName}}" | grep -q nodebuilder-dnshelper; then
     echo "Pulling NodeJS runtime..."
-    buildah from --name nodebuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/node:26.12.0-bookworm
+    buildah from --name nodebuilder-dnshelper -v "${PWD}:/usr/src:Z" docker.io/library/node:26.12.1-bookworm
 fi
 
 # Node 25 and later no longer bundle corepack: install it from npm when missing
