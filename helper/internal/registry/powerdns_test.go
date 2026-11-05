@@ -150,6 +150,32 @@ func TestPowerDNSZeroSRVSentExplicitly(t *testing.T) {
 	}
 }
 
+// PTR records of adopted reverse zones (DESIGN.md, Adopting ns8-powerdns
+// zones): the target is a host name, made absolute before it is sent, read
+// back absolute, and matched for deletion without case or final dot.
+func TestPowerDNSPTR(t *testing.T) {
+	f, p := newFakePowerDNS(t)
+	ctx := context.Background()
+	if _, err := p.AppendRecords(ctx, "example.com.", []libdns.Record{libdns.RR{Name: "10", Type: "PTR", Data: "host.example.net"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(f.patches[0]); got != `{"rrsets":[{"name":"10.example.com.","type":"PTR","ttl":3600,"changetype":"REPLACE","records":[{"content":"host.example.net.","disabled":false}]}]}` {
+		t.Errorf("body %s", got)
+	}
+	if got := pdData(t, p); len(got) != 1 || got[0] != "10 PTR host.example.net." {
+		t.Fatalf("read back %v", got)
+	}
+	if del, err := p.DeleteRecords(ctx, "example.com.", []libdns.Record{libdns.RR{Name: "10", Type: "PTR", Data: "HOST.example.net"}}); err != nil || len(del) != 1 {
+		t.Fatalf("delete: %v %v", del, err)
+	}
+	if _, ok := f.sets["10.example.com./PTR"]; ok {
+		t.Errorf("the PTR set must be gone: %+v", f.sets)
+	}
+	if d, _ := Get("powerdns"); !strings.Contains(strings.Join(d.Types, " "), "PTR") {
+		t.Errorf("PTR must be among the PowerDNS types: %v", d.Types)
+	}
+}
+
 func TestPowerDNSOneRequestAndDisabledRecordsKept(t *testing.T) {
 	f, p := newFakePowerDNS(t)
 	ctx := context.Background()
