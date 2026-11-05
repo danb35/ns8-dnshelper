@@ -34,14 +34,27 @@
       <cv-row>
         <cv-column>
           <p class="section-intro">{{ $t("zones.intro") }}</p>
+          <p v-if="hasAdopted" class="section-intro">
+            {{ $t("zones.adopted_intro") }}
+          </p>
           <NsButton
             kind="primary"
             :icon="Add20"
             :disabled="loading.load"
             @click="isWizardShown = true"
-            class="mg-bottom-md"
+            class="mg-bottom-md mg-right-sm"
           >
             {{ $t("zones.add_zone") }}
+          </NsButton>
+          <NsButton
+            kind="tertiary"
+            :icon="Renew20"
+            :disabled="loading.load || loading.sync"
+            :loading="loading.sync"
+            @click="syncPowerdns"
+            class="mg-bottom-md"
+          >
+            {{ $t("zones.sync_powerdns") }}
           </NsButton>
         </cv-column>
       </cv-row>
@@ -86,6 +99,12 @@
               >
                 <cv-data-table-cell>
                   <strong>{{ row.zone }}</strong>
+                  <NsTag
+                    v-if="row.managedBy"
+                    :label="$t('zones.adopted_from', { module: row.managedBy })"
+                    kind="purple"
+                    class="mg-left-sm"
+                  />
                 </cv-data-table-cell>
                 <cv-data-table-cell>{{ row.providerLabel }}</cv-data-table-cell>
                 <cv-data-table-cell>{{
@@ -99,14 +118,21 @@
                         :label="$t('zones.validate')"
                       />
                     </cv-overflow-menu-item>
-                    <cv-overflow-menu-item @click="showChangeCredential(row)">
+                    <cv-overflow-menu-item
+                      v-if="!row.managedBy"
+                      @click="showChangeCredential(row)"
+                    >
                       <NsMenuItem
                         :icon="Edit20"
                         :label="$t('zones.change_credential')"
                       />
                     </cv-overflow-menu-item>
-                    <NsMenuDivider />
-                    <cv-overflow-menu-item danger @click="showRemoveZone(row)">
+                    <NsMenuDivider v-if="!row.managedBy" />
+                    <cv-overflow-menu-item
+                      v-if="!row.managedBy"
+                      danger
+                      @click="showRemoveZone(row)"
+                    >
                       <NsMenuItem
                         :icon="TrashCan20"
                         :label="core.$t('common.delete')"
@@ -174,6 +200,12 @@
               >
                 <cv-data-table-cell>
                   <strong>{{ row.name }}</strong>
+                  <NsTag
+                    v-if="row.managedBy"
+                    :label="$t('zones.adopted_from', { module: row.managedBy })"
+                    kind="purple"
+                    class="mg-left-sm"
+                  />
                 </cv-data-table-cell>
                 <cv-data-table-cell>{{ row.providerLabel }}</cv-data-table-cell>
                 <cv-data-table-cell>
@@ -192,7 +224,11 @@
                   <span v-else>{{ row.zones.join(", ") }}</span>
                 </cv-data-table-cell>
                 <cv-data-table-cell class="table-overflow-menu-cell">
-                  <cv-overflow-menu flip-menu class="table-overflow-menu">
+                  <cv-overflow-menu
+                    v-if="!row.managedBy"
+                    flip-menu
+                    class="table-overflow-menu"
+                  >
                     <cv-overflow-menu-item @click="showEditCredential(row)">
                       <NsMenuItem
                         :icon="Edit20"
@@ -222,7 +258,7 @@
     <ZoneWizard
       :isShown="isWizardShown"
       :providers="providers"
-      :credentials="credentials"
+      :credentials="manualCredentials"
       :managedZones="zones.map((z) => z.zone)"
       @hide="isWizardShown = false"
       @added="zoneAdded"
@@ -364,6 +400,7 @@ export default {
         changeCredential: false,
         removeZone: false,
         removeCredential: false,
+        sync: false,
       },
       error: {
         load: "",
@@ -399,6 +436,7 @@ export default {
         return {
           zone: z.zone,
           credential: z.credential,
+          managedBy: this.moduleOf(z.managed_by),
           credentialName: cred
             ? cred.name
             : this.$t("zones.missing_credential"),
@@ -409,14 +447,22 @@ export default {
     credentialRows() {
       return this.credentials.map((c) => ({
         ...c,
+        managedBy: this.moduleOf(c.managed_by),
         providerLabel: this.providerLabel(c.provider),
         zones: this.zones
           .filter((z) => z.credential === c.id)
           .map((z) => z.zone),
       }));
     },
+    hasAdopted() {
+      return this.zones.some((z) => z.managed_by);
+    },
+    // credentials adopted from ns8-powerdns cannot be given to other zones
+    manualCredentials() {
+      return this.credentials.filter((c) => !c.managed_by);
+    },
     credentialOptions() {
-      return this.credentials.map((c) => ({
+      return this.manualCredentials.map((c) => ({
         name: c.id,
         label: `${c.name} (${this.providerLabel(c.provider)})`,
         value: c.id,
@@ -455,6 +501,48 @@ export default {
     },
     say(kind, title, text) {
       this.notice = { kind, title, text };
+    },
+    // "module/powerdns1" -> "powerdns1"
+    moduleOf(managedBy) {
+      return managedBy ? managedBy.replace(/^module\//, "") : "";
+    },
+    async syncPowerdns() {
+      this.loading.sync = true;
+      try {
+        const out = await this.callAction("sync-powerdns");
+        const counts = {
+          added: out.added.length + out.moved.length,
+          removed: out.removed.length,
+        };
+        if (out.status === "multiple_primaries") {
+          this.say(
+            "warning",
+            this.$t("zones.sync_multiple_title"),
+            this.$t("zones.sync_multiple", { modules: out.modules.join(", ") })
+          );
+        } else if (out.status === "no_primary") {
+          this.say(
+            "info",
+            this.$t("zones.sync_done_title"),
+            this.$t("zones.sync_no_primary", counts)
+          );
+        } else {
+          let text = this.$t("zones.sync_adopted", {
+            ...counts,
+            module: out.primary,
+          });
+          if (out.skipped.length) {
+            text +=
+              " " +
+              this.$t("zones.sync_skipped", { zones: out.skipped.join(", ") });
+          }
+          this.say("success", this.$t("zones.sync_done_title"), text);
+        }
+        this.load();
+      } catch (err) {
+        this.say("error", this.$t("zones.sync_failed"), this.errorText(err));
+      }
+      this.loading.sync = false;
     },
     zoneAdded(zone) {
       this.say(

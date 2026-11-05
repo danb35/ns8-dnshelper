@@ -288,6 +288,7 @@ const EXAMPLES = {
   SRV: "10 5 5060 sip.example.net.",
   TXT: "v=spf1 -all",
   CAA: '0 issue "letsencrypt.org"',
+  PTR: "host.example.net.",
 };
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
@@ -305,7 +306,9 @@ export default {
   },
   data() {
     return {
-      q: { page: "records" },
+      // zone: the deep link /apps/<id>?page=records&zone=example.com, which
+      // the ns8-powerdns Records page opens for a zone dnshelper manages
+      q: { page: "records", zone: "" },
       urlCheckInterval: null,
       zones: [],
       zoneInfo: {}, // zone -> { provider }
@@ -353,6 +356,16 @@ export default {
       return EXAMPLES[this.form.type] || "";
     },
   },
+  watch: {
+    // the link was followed while this page was already open
+    "q.zone"(value) {
+      const requested = this.zoneFromQuery(value);
+      if (requested && requested !== this.zone) {
+        this.zone = requested;
+        this.loadRecords();
+      }
+    },
+  },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
       vm.watchQueryData(vm);
@@ -390,17 +403,28 @@ export default {
       }
       this.loading.zones = false;
       if (this.zones.length) {
-        // keep the zone the administrator was looking at, if it still exists
-        if (!this.zones.includes(this.zone)) {
+        const requested = this.zoneFromQuery(
+          this.q.zone || this.getQueryParamsForApp().zone
+        );
+        if (requested) {
+          this.zone = requested;
+        } else if (!this.zones.includes(this.zone)) {
+          // keep the zone the administrator was looking at, if it still exists
           this.zone = this.zones[0];
         }
         await this.loadRecords();
       }
     },
+    // a zone named in the URL, if it is one of the managed zones
+    zoneFromQuery(value) {
+      const z = (value || "").trim().toLowerCase().replace(/\.$/, "");
+      return this.zones.includes(z) ? z : "";
+    },
     async loadRecords() {
       if (!this.zone) {
         return;
       }
+      this.q.zone = this.zone;
       this.loading.records = true;
       this.error.load = "";
       try {

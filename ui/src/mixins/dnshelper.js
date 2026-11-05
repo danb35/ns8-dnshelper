@@ -99,7 +99,14 @@ export default {
         return e.message;
       }
       // For these the message names what was refused (a record, a zone, a credential)
-      if (["not_permitted", "credential_in_use"].includes(e.error)) {
+      if (
+        [
+          "not_permitted",
+          "credential_in_use",
+          "managed_credential",
+          "managed_zone",
+        ].includes(e.error)
+      ) {
         return `${text} (${e.message})`;
       }
       return text;
