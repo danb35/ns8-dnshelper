@@ -57,7 +57,8 @@
     "list-routes": "Listar rotas web",
     "get-records": "Obter registros",
     "append-records": "Adicionar registro",
-    "delete-records": "Excluir registro"
+    "delete-records": "Excluir registro",
+    "sync-powerdns": "Sincronizar com o PowerDNS"
   },
   "error": {
     "error": "Erro",
@@ -100,7 +101,17 @@
     "removed_title": "Zona removida",
     "removed": "{zone} não é mais gerenciada. Os registros no seu provedor de DNS não mudam.",
     "credential_changed_title": "Credencial alterada",
-    "credential_changed": "{zone} agora usa a credencial {name}."
+    "credential_changed": "{zone} agora usa a credencial {name}.",
+    "sync_powerdns": "Sincronizar com o PowerDNS",
+    "adopted_from": "Adotada de {module}",
+    "adopted_intro": "As zonas do servidor primário PowerDNS deste cluster são adotadas automaticamente e mantidas em sincronia com ele. Não podem ser alteradas nem removidas aqui; gerencie-as no módulo PowerDNS.",
+    "sync_done_title": "Sincronizado com o PowerDNS",
+    "sync_adopted": "Zonas de {module}: {added} adotadas, {removed} removidas.",
+    "sync_no_primary": "Não existe nenhum servidor primário PowerDNS neste cluster. {removed} zonas adotadas removidas.",
+    "sync_skipped": "Já configuradas aqui à mão, por isso não adotadas: {zones}.",
+    "sync_multiple_title": "Mais de um servidor primário PowerDNS",
+    "sync_multiple": "{modules} afirmam todos ser o servidor primário PowerDNS. Nada foi alterado.",
+    "sync_failed": "Não é possível sincronizar com o PowerDNS"
   },
   "records": {
     "title": "Registros",
@@ -258,6 +269,11 @@
     "invalid_access": "Acesso inválido",
     "invalid_name_pattern": "Padrão de nome de registro inválido",
     "invalid_type": "Tipo de registro inválido",
-    "too_many_rules": "Regras demais"
+    "too_many_rules": "Regras demais",
+    "managed_credential": "Esta credencial foi adotada do PowerDNS e não pode ser alterada aqui",
+    "managed_zone": "Esta zona foi adotada do PowerDNS e não pode ser alterada aqui",
+    "leader_unreachable": "Não é possível contatar o líder do cluster; nada foi alterado",
+    "primary_unreachable": "O servidor primário PowerDNS não respondeu; nada foi alterado",
+    "credential_id_taken": "Já existe uma credencial com o id do módulo PowerDNS"
   }
 }

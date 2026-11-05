@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# The core publishes cluster/event/module-removed {"module", "node"} after it
+# has deleted the module's keys. When the removed module is the ns8-powerdns
+# primary whose zones were adopted, reconcile: with no primary left, the
+# adopted zones and credential are removed.
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ['AGENT_INSTALL_DIR'], 'pypkg'))
+import dnshelper_lib
+
+try:
+    removed = json.load(sys.stdin).get('module')
+except (ValueError, AttributeError):
+    removed = None
+
+if removed and removed in dnshelper_lib.managed_owners():
+    dnshelper_lib.run_sync('module-removed ' + removed)

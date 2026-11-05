@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); see README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones implemented, not yet tested against a live primary; see README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -37,7 +37,7 @@ Status: build order steps 1-7 done (scaffold, Go helper, actions + credential st
 | Group | Actions |
 |---|---|
 | UI convention | `configure-module`, `get-configuration` |
-| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers` |
+| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns` |
 | Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 
 Each action: `validate-input.json` and `validate-output.json` (NS8 validation framework).
@@ -184,6 +184,164 @@ dropping IPs, single labels, public suffixes and unknown top-level domains such 
 `suggest-zones` action marks candidates that are already managed; `list-provider-zones` lets the
 wizard confirm them against the provider's own zone list. Results are candidates only: a mail
 domain is not necessarily a DNS zone the administrator controls.
+
+## Adopting ns8-powerdns zones (pull model)
+
+ns8-powerdns is an NS8 authoritative DNS module (PowerDNS 5). dnshelper finds its primary and
+takes over its zones without the administrator copying the API key. This section is the dnshelper
+side of ns8-powerdns DESIGN §8 (the contract is there: §8.1 what powerdns provides, §8.2 what
+dnshelper adds, §8.4 more than one primary; also §3, §9.2-9.4, §10). Verified 2026-11-05 against
+ns8-powerdns master and ns8-core sources.
+
+What powerdns provides (summary, not repeated in full):
+
+- service key `module/<id>/srv/tcp/powerdns-api` (`host`, `port`, `role`), written only by the
+  primary and not while it is a standby copy (powerdns §10); at most one primary (§3);
+- role `dnsprovider` = `get-provider-config` and `list-zones`;
+- `get-provider-config` returns `{"provider": "powerdns", "fields": {"api_url", "api_key",
+  "server_id"}, "zones": [...]}`, zone names without the final dot;
+- events `powerdns-zones-changed` (after add-zone / remove-zone) and `powerdns-provider-changed`
+  (address, port or key changed; also on leaving standby), payload `{"module_id", "module_uuid"}`;
+- it asks dnshelper's `has-zone` (role `dnsreader`, unchanged here) and refuses its own record
+  writes with `managed_by_dnshelper` while dnshelper manages the zone.
+
+### Authorization
+
+`build-images.sh` declares `org.nethserver.authorizations=powerdns@any:dnsprovider`. Verified in
+ns8-core: `add-module` grants a new module's authorizations *before* it runs `create-module`, and
+`update-module` grants the new image's authorizations before the module's update hooks, so the
+sync can call `get-provider-config` from either; `refresh_permissions` after every install means
+install order does not matter (a primary installed after dnshelper is reachable too).
+
+### The reconcile (`sync-powerdns`)
+
+One function, `dnshelper_lib.sync_powerdns()`, run from every trigger. It is idempotent and never
+trusts an event's payload: it always looks at the cluster as it is.
+
+1. Read the `powerdns-api` service keys (`agent.list_service_providers(rdb, 'powerdns-api',
+   'tcp')`) from the **leader**. If the leader is unreachable, stop with `leader_unreachable` and
+   change nothing: a stale replica must not make dnshelper drop zones.
+2. **More than one key (powerdns §8.4):** change nothing (no new zones, existing adopted zones
+   and credentials left as they are), log an error naming the modules, and report
+   `status: "multiple_primaries"` with their ids so the UI can show it.
+3. **No key: the primary is gone.** Remove every managed credential and the zones adopted
+   through it (see "Removing an adopted zone").
+4. **One key:** call its `get-provider-config` with `agent.tasks.run()`. If the call fails or the
+   output is not a PowerDNS configuration, stop with `primary_unreachable` and change nothing (the
+   primary may be restarting; the next event or Sync tries again). The response is never logged:
+   it holds the key.
+5. Create or update the managed credential (below). Its file is rewritten only when a field
+   changed, so a sync with nothing new writes nothing. If a credential made by hand already has
+   that id (impossible with `add-credential`'s ids), stop with `credential_id_taken`.
+6. For each zone the primary lists (normalized like `add-zone`; a name `add-zone` would refuse is
+   skipped and logged):
+   - not configured in dnshelper: add it with the managed credential;
+   - already adopted from an earlier primary: point it at the current managed credential
+     (reported as `moved`);
+   - configured by hand (any provider, including a hand-made PowerDNS credential): leave it
+     alone and report it as `skipped`. The administrator can remove it and press Sync to adopt
+     it instead.
+7. Adopted zones the primary no longer lists are removed.
+8. Managed credentials of any other module (an earlier primary) are removed, after their zones
+   were moved or removed in 6-7.
+
+The whole run holds `state/sync.lock` (flock), so an event and a Sync click do not interleave;
+the file updates also take the existing configuration lock. The output is
+`{"status": "adopted" | "no_primary" | "multiple_primaries", "primary", "modules", "added",
+"moved", "removed", "skipped"}`.
+
+When the set of zones changed, the run writes one audit line (`action=sync-powerdns`, the
+primary, added, moved and removed zones; never a field value) and publishes
+`service-dnshelper-changed`, like `add-zone` / `remove-zone`.
+
+### Triggers
+
+| Trigger | Where | On failure |
+|---|---|---|
+| `powerdns-zones-changed`, `powerdns-provider-changed` | `imageroot/events/<name>/10sync` | log, exit 0 (the next event or Sync retries) |
+| primary removed | `imageroot/events/module-removed/10sync`: the core publishes `cluster/event/module-removed` `{"module", "node"}` after deleting the module's keys; the handler runs only when `module` owns a managed credential | as above |
+| dnshelper installed after the primary | `create-module/60sync_powerdns` | warning only: an install must not fail because powerdns is down |
+| dnshelper updated (an install from before this feature) | `update-module.d/20sync_powerdns` | warning only |
+| restore and clone | `restore-module/60sync_powerdns` (clone runs it through `clone-module`), after the state check | warning only |
+| Sync button on the Zones page | action `sync-powerdns`, admin only (in no role) | the error is shown |
+
+Agents subscribe to `*/event/*` (ns8-core `agent/hevent.go`), so a dnshelper handler receives
+events published on `module/powerdns1/event/...`. Handlers ignore the payload, as said above.
+
+### The managed credential and the `managed_by` marker
+
+- The credential's id is the module id (`powerdns1`), its name the module id too. Hand-made
+  credentials have random ids `c<8 hex>`, so the two cannot collide, and a fixed id keeps the
+  reconcile idempotent.
+- The marker lives in the credential file itself, `state/credentials/powerdns1.json`:
+  `{"name": "powerdns1", "provider": "powerdns", "fields": {...}, "managed_by": "module/powerdns1"}`.
+  A zone is **adopted** when its credential carries `managed_by`; zones.json is unchanged
+  (`{"credential": "powerdns1"}`), so there is one source of truth and no second marker to keep in
+  step.
+- **Backup and restore:** `state/credentials` is already in `state-include.conf`, so the marker is
+  backed up and restored with the credential. After a restore or clone the sync runs and brings it
+  in line with the cluster as it is then: a primary restored under a new id gets a new credential
+  and the zones move to it (step 6), the old one is removed (step 8); with no primary, adopted zones
+  are removed (and come back when the primary is restored and publishes its events).
+  `check_restored_state` accepts the field.
+- `get-configuration` reports `managed_by` on credentials and on zones (derived), for the UI.
+
+### The API key
+
+The key is stored like the key of any PowerDNS credential: in `fields.api_key` of the credential
+file, mode 0600, written atomically by the existing `_write_private`. It is never passed to
+`agent.set_env()`, never in argv or environment (it reaches the Go helper on stdin as for every
+credential), never in the audit line, and `get-configuration` shows it only as "set" (the
+provider schema marks `api_key` secret). Task output of `get-provider-config` holds the key; that
+is acceptable (powerdns §8.1: only the calling module and cluster administrators can read it).
+
+### Read-only for the administrator
+
+- Hand-written changes to managed objects are refused by the backend, not only hidden in the UI:
+  `update-credential` and `remove-credential` on a managed credential (`managed_credential`),
+  `update-zone` and `remove-zone` on an adopted zone (`managed_zone`), and `add-zone` or
+  `update-zone` with a managed credential (`managed_credential`: a zone attached by hand would be
+  taken for an adopted one and removed by the next sync). `validate-zone` and
+  `list-provider-zones` still work: they only read.
+- The UI shows an "Adopted from powerdns1" tag on the credential and its zones and offers no
+  edit, change-credential or delete entries for them; "Validate" stays.
+- Record changes through dnshelper (Records page, consumer actions) work on adopted zones as on any
+  zone: that is the point of adopting them. The policy table is not touched: an adopted zone is
+  default-deny for other modules until the administrator adds rules.
+
+### Removing an adopted zone
+
+"Remove" means: delete the zone's entry from `zones.json`, exactly what `remove-zone` does.
+
+- **Records** written through dnshelper stay on the PowerDNS server. dnshelper never deletes
+  records when it stops managing a zone, and it keeps no record ownership that would need
+  cleaning. (When the primary dropped the zone, the records are gone with it anyway.)
+- **Policy rules** naming the zone are kept, as the policy table is not touched. They have no
+  effect while the zone is not managed (consumers get `zone_not_found`) and apply again if the
+  zone is adopted again, for instance after a move or restore of the primary. The administrator
+  removes them on the Access page if they are no longer wanted.
+- `has-zone` then answers `managed: false`, so powerdns allows edits on its own Records page again.
+
+### Moves, clones and restores of the primary
+
+An NS8 move is a clone followed by removing the source; the copy starts as a standby that does not
+register the key (powerdns §10). Removing the source fires `module-removed`, the sync sees no key
+and removes the adopted zones; when the copy leaves standby it publishes
+`powerdns-provider-changed` and `powerdns-zones-changed`, and the next sync adopts them again under
+the copy's module id. Between the two, consumers get `zone_not_found` for those zones, and
+powerdns's own Records page is writable. Accepted for v1: the window is the copy's reconcile
+interval, nothing is lost, and the alternative (keeping zones of a primary that is gone) would
+leave them pointing at a dead API.
+
+### Records page deep link and PTR
+
+- The Records page reads `zone` from its query (`/apps/dnshelper1?page=records&zone=example.com`,
+  the link powerdns's read-only Records view opens) and selects that zone when dnshelper manages
+  it; otherwise the first zone, as before.
+- `PTR` is added to the PowerDNS provider's record types, so PTR records in adopted reverse zones
+  can be edited here. The shared record-set code (`registry/rrset.go`, also used by deSEC, Gandi,
+  Google Cloud DNS, IONOS, OVH and Vultr) treats PTR's value as a host name, like CNAME: made
+  absolute before sending and compared without case and final dot.
 
 ## Additional goals
 

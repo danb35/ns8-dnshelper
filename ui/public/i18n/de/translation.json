@@ -57,7 +57,8 @@
     "list-routes": "Web-Routen auflisten",
     "get-records": "Einträge abrufen",
     "append-records": "Eintrag hinzufügen",
-    "delete-records": "Eintrag löschen"
+    "delete-records": "Eintrag löschen",
+    "sync-powerdns": "Mit PowerDNS abgleichen"
   },
   "error": {
     "error": "Fehler",
@@ -100,7 +101,17 @@
     "removed_title": "Zone entfernt",
     "removed": "{zone} wird nicht mehr verwaltet. Die Einträge bei Ihrem DNS-Anbieter bleiben unverändert.",
     "credential_changed_title": "Zugangsdaten geändert",
-    "credential_changed": "{zone} verwendet jetzt die Zugangsdaten {name}."
+    "credential_changed": "{zone} verwendet jetzt die Zugangsdaten {name}.",
+    "sync_powerdns": "Mit PowerDNS abgleichen",
+    "adopted_from": "Übernommen von {module}",
+    "adopted_intro": "Die Zonen des PowerDNS-Primärservers dieses Clusters werden automatisch übernommen und mit ihm abgeglichen. Sie können hier nicht geändert oder entfernt werden; verwalten Sie sie im PowerDNS-Modul.",
+    "sync_done_title": "Mit PowerDNS abgeglichen",
+    "sync_adopted": "Zonen von {module}: {added} übernommen, {removed} entfernt.",
+    "sync_no_primary": "In diesem Cluster gibt es keinen PowerDNS-Primärserver. {removed} übernommene Zonen entfernt.",
+    "sync_skipped": "Bereits hier von Hand eingerichtet und daher nicht übernommen: {zones}.",
+    "sync_multiple_title": "Mehr als ein PowerDNS-Primärserver",
+    "sync_multiple": "{modules} geben alle an, der PowerDNS-Primärserver zu sein. Es wurde nichts geändert.",
+    "sync_failed": "Abgleich mit PowerDNS nicht möglich"
   },
   "records": {
     "title": "Einträge",
@@ -258,6 +269,11 @@
     "invalid_access": "Ungültiger Zugriff",
     "invalid_name_pattern": "Ungültiges Muster für Eintragsnamen",
     "invalid_type": "Ungültiger Eintragstyp",
-    "too_many_rules": "Zu viele Regeln"
+    "too_many_rules": "Zu viele Regeln",
+    "managed_credential": "Diese Zugangsdaten sind von PowerDNS übernommen und können hier nicht geändert werden",
+    "managed_zone": "Diese Zone ist von PowerDNS übernommen und kann hier nicht geändert werden",
+    "leader_unreachable": "Der Cluster-Leader ist nicht erreichbar; es wurde nichts geändert",
+    "primary_unreachable": "Der PowerDNS-Primärserver hat nicht geantwortet; es wurde nichts geändert",
+    "credential_id_taken": "Es gibt bereits Zugangsdaten mit der Kennung des PowerDNS-Moduls"
   }
 }

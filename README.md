@@ -77,7 +77,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 
 | Group | Actions |
 |---|---|
-| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy` |
+| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 | UI convention | `configure-module` (no settings yet), `get-configuration` |
 
@@ -260,11 +260,44 @@ source instance. `clone-module/50check_state` then runs the same checks as a res
 manages the same zones as its source: each instance only serializes its own changes, so remove
 one of them, or the zone from one of them, rather than let both change a zone.
 
+**Zones adopted from ns8-powerdns** are reconciled after a restore or clone
+(`restore-module/60sync_powerdns`, `clone-module/60sync_powerdns`): the managed credential and its
+`managed_by` marker are restored with the other credentials, then brought in line with the primary
+the cluster has now (another module id, other zones, or none).
+
 **One instance per node.** The image sets `org.nethserver.max-per-node=1`, because two instances on
 a node would not share a lock for the zones they both manage, and modules use the cluster's default
 instance anyway. The Software center and `add-module` then refuse a second instance on a node, for
 an install, a clone or a restore. Another node is still allowed, and so are updates. For a test,
 `add-module --force` skips the check.
+
+## Zones adopted from ns8-powerdns
+
+[ns8-powerdns](https://github.com/danb35/ns8-powerdns) is an authoritative DNS module for NS8.
+When its primary is installed in the cluster, dnshelper finds it and manages its zones with no input
+from the administrator: the API key is never shown or typed. Design: DESIGN.md, "Adopting
+ns8-powerdns zones", and powerdns DESIGN §8.
+
+- The image declares `org.nethserver.authorizations=powerdns@any:dnsprovider`, which lets dnshelper
+  call the primary's `get-provider-config` (API URL, key, server id and zone list).
+- One reconcile, `sync-powerdns`, runs on the primary's `powerdns-zones-changed` and
+  `powerdns-provider-changed` events, when the primary is removed (`module-removed`), at install,
+  update, restore and clone, and from the **Sync with PowerDNS** button on the Zones page.
+- It keeps a credential named after the module (`powerdns1`) and marked
+  `managed_by: module/powerdns1`, adds the primary's zones that are not configured here, and removes
+  adopted zones the primary no longer lists. If the primary is gone, its credential and zones are
+  removed. A zone you configured by hand is left alone (reported as skipped).
+- Adopted zones and their credential are read-only: the UI labels them "Adopted from powerdns1" and
+  the admin actions refuse to change or remove them (`managed_credential`, `managed_zone`). Records
+  are changed through dnshelper as in any zone, and powerdns refuses its own record changes while
+  dnshelper manages a zone (it asks `has-zone`).
+- The policy table is not touched: an adopted zone is closed to other modules until you add rules.
+  Removing an adopted zone keeps its records on the server and its policy rules (they apply again
+  if the zone comes back).
+- If more than one module registers the `powerdns-api` key, nothing is adopted or removed and an
+  error naming them is logged.
+- The Records page opens a given zone with `/apps/dnshelper1?page=records&zone=example.com`; the
+  powerdns Records page links there.
 
 ## Providers
 
@@ -289,7 +322,7 @@ real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helpe
 | Porkbun | API key and secret API key | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | Route 53 | Access key ID and secret access key of an IAM user (policy below) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (public hosted zones) |
 | Vultr | API key of a service user with the Manage DNS policy (the account's own key works too, but reaches the whole account); the node's address must be in the key's access control list | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
-| PowerDNS | API URL of the Authoritative server, its API key and server id (usually `localhost`) | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | Yes (native and primary zones) |
+| PowerDNS | API URL of the Authoritative server, its API key and server id (usually `localhost`) | A, AAAA, CAA, CNAME, HTTPS, MX, NS, PTR, SRV, SVCB, TXT | Yes (native and primary zones) |
 | RFC 2136 | Server address, TSIG key name, algorithm and key | A, AAAA, CAA, CNAME, HTTPS, MX, NS, SRV, SVCB, TXT | No: type the zone |
 
 The record types are those the provider package is tested or documented to handle; the wizard
@@ -433,7 +466,8 @@ What to know about each provider:
   must go up: zones created through the API have `SOA-EDIT-API` set; for others run
   `pdnsutil set-meta <zone> SOA-EDIT-API DEFAULT`. TXT values, including ones with `"` or `\`,
   are stored as written. dnshelper talks to the API itself rather than through
-  `github.com/libdns/powerdns` (see below).
+  `github.com/libdns/powerdns` (see below). For the NS8 PowerDNS module, nothing has to be entered:
+  see [Zones adopted from ns8-powerdns](#zones-adopted-from-ns8-powerdns).
 - **RFC 2136**: reading a zone needs zone transfer (AXFR) to be allowed for the TSIG key. TXT values
   containing `"` or `\` are refused.
   - **Technitium DNS Server** (tested with 15.5) works through RFC 2136. Create a TSIG key in its

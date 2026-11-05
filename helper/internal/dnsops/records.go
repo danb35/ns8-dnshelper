@@ -37,7 +37,7 @@ func normData(typ, data string) string {
 		if a, err := netip.ParseAddr(strings.TrimSpace(data)); err == nil {
 			return a.String()
 		}
-	case "CNAME", "NS":
+	case "CNAME", "NS", "PTR":
 		return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(data), "."))
 	case "MX", "SRV":
 		f := strings.Fields(data)

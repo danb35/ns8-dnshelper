@@ -1,0 +1,82 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "sync-powerdns output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/sync-powerdns",
+    "description": "What the reconcile with the ns8-powerdns primary did",
+    "examples": [
+        {
+            "status": "adopted",
+            "primary": "powerdns1",
+            "modules": [
+                "powerdns1"
+            ],
+            "added": [
+                "example.com"
+            ],
+            "moved": [],
+            "removed": [],
+            "skipped": []
+        }
+    ],
+    "type": "object",
+    "required": [
+        "status",
+        "primary",
+        "modules",
+        "added",
+        "moved",
+        "removed",
+        "skipped"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "status": {
+            "type": "string",
+            "enum": [
+                "adopted",
+                "no_primary",
+                "multiple_primaries"
+            ],
+            "description": "adopted: one primary found and reconciled; no_primary: none, adopted zones were removed; multiple_primaries: more than one, nothing was changed"
+        },
+        "primary": {
+            "type": "string",
+            "description": "Module id of the primary, '' unless status is adopted"
+        },
+        "modules": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Module ids that register the powerdns-api service key"
+        },
+        "added": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Zones adopted by this run"
+        },
+        "moved": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Adopted zones moved from an earlier primary to this one"
+        },
+        "removed": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Adopted zones the primary no longer lists, or all of them when there is no primary"
+        },
+        "skipped": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Zones of the primary that are configured here by hand and were left alone"
+        }
+    }
+}

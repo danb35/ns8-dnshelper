@@ -136,6 +136,17 @@ The **Zones** page has two tables.
 - **Delete** removes a credential that no zone uses. The token stays valid at your DNS host: revoke
   it there too if it should stop working.
 
+### Zones from the PowerDNS module
+
+If the cluster runs the PowerDNS module (ns8-powerdns) as a primary DNS server, dnshelper adopts its
+zones by itself: there is no credential to enter. They appear in the table with an **Adopted from
+powerdns1** tag, and so does their credential. They follow the PowerDNS module: a zone added or
+removed there is added or removed here within seconds. **Sync with PowerDNS** does the same at once.
+
+Adopted zones cannot be changed or deleted here, only checked; manage them in the PowerDNS module.
+A zone you had already added here by hand is left as it is. Their records can be changed on the
+Records page, and other modules need access rules for them like for any zone.
+
 ## Letting modules change DNS records
 
 Modules are **denied everything until you allow them**. A module that is installed and allowed to

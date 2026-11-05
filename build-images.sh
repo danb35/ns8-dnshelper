@@ -54,6 +54,7 @@ buildah config --entrypoint=/ \
     --label="org.nethserver.rootfull=0" \
     --label="org.nethserver.min-core=3.20.1" \
     --label="org.nethserver.max-per-node=1" \
+    --label="org.nethserver.authorizations=powerdns@any:dnsprovider" \
     "${container}"
 # Commit the image
 buildah commit "${container}" "${repobase}/${reponame}"

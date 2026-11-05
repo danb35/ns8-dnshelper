@@ -47,6 +47,10 @@
                             "type": "string"
                         },
                         "description": "Names of secret fields that have a value"
+                    },
+                    "managed_by": {
+                        "type": "string",
+                        "description": "'module/<id>' when the credential was adopted from that ns8-powerdns primary and cannot be changed here; '' otherwise"
                     }
                 }
             }
@@ -66,6 +70,10 @@
                     },
                     "credential": {
                         "type": "string"
+                    },
+                    "managed_by": {
+                        "type": "string",
+                        "description": "'module/<id>' when the zone was adopted from that ns8-powerdns primary; '' otherwise"
                     }
                 }
             }

@@ -35,7 +35,7 @@ type rrsetChange struct {
 }
 
 // hasTarget is the set of types whose value ends in a host name.
-var hasTarget = map[string]bool{"ALIAS": true, "CNAME": true, "DNAME": true, "MX": true, "NS": true, "SRV": true}
+var hasTarget = map[string]bool{"ALIAS": true, "CNAME": true, "DNAME": true, "MX": true, "NS": true, "PTR": true, "SRV": true}
 
 func isTXT(typ string) bool { t := strings.ToUpper(typ); return t == "TXT" || t == "SPF" }
 

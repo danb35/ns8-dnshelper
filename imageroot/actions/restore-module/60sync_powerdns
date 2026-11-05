@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# After a restore or clone (50check_state has validated the state): bring the
+# adopted zones in line with the ns8-powerdns primary of this cluster, which
+# may have another id, other zones or none at all. A failure is logged only.
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pypkg'))
+import dnshelper_lib
+
+dnshelper_lib.run_sync('restore-module')

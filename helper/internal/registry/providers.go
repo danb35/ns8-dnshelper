@@ -338,7 +338,7 @@ func init() {
 			}
 			return ""
 		},
-		Types: []string{"A", "AAAA", "CAA", "CNAME", "HTTPS", "MX", "NS", "SRV", "SVCB", "TXT"},
+		Types: []string{"A", "AAAA", "CAA", "CNAME", "HTTPS", "MX", "NS", "PTR", "SRV", "SVCB", "TXT"},
 		Notes: "For a PowerDNS Authoritative server (4.x or 5.x) with its API switched on (api=yes, api-key, webserver=yes) and webserver-allow-from allowing the NethServer node. The key reaches every zone of the server; with http:// it crosses the network unencrypted, so prefer https:// through a reverse proxy, or a private network. Secondary zones are not listed. For the SOA serial to go up on each change, the zone needs SOA-EDIT-API (zones created through the API have it).",
 		New: func(c map[string]string) any {
 			return &powerDNSProvider{APIURL: c["api_url"], APIKey: c["api_key"], ServerID: c["server_id"]}

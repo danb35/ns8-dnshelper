@@ -57,7 +57,8 @@
     "list-routes": "List web routes",
     "get-records": "Get records",
     "append-records": "Add record",
-    "delete-records": "Delete record"
+    "delete-records": "Delete record",
+    "sync-powerdns": "Sync with PowerDNS"
   },
   "error": {
     "error": "Error",
@@ -100,7 +101,17 @@
     "removed_title": "Zone removed",
     "removed": "{zone} is no longer managed. Its records at your DNS host are unchanged.",
     "credential_changed_title": "Credential changed",
-    "credential_changed": "{zone} now uses the credential {name}."
+    "credential_changed": "{zone} now uses the credential {name}.",
+    "sync_powerdns": "Sync with PowerDNS",
+    "adopted_from": "Adopted from {module}",
+    "adopted_intro": "Zones of the PowerDNS primary of this cluster are adopted automatically and kept in step with it. They cannot be changed or removed here; manage them in the PowerDNS module.",
+    "sync_done_title": "Synchronized with PowerDNS",
+    "sync_adopted": "Zones of {module}: {added} adopted, {removed} removed.",
+    "sync_no_primary": "There is no PowerDNS primary in this cluster. {removed} adopted zones removed.",
+    "sync_skipped": "Already configured here by hand, so not adopted: {zones}.",
+    "sync_multiple_title": "More than one PowerDNS primary",
+    "sync_multiple": "{modules} all claim to be the PowerDNS primary. Nothing was changed.",
+    "sync_failed": "Cannot sync with PowerDNS"
   },
   "records": {
     "title": "Records",
@@ -258,6 +269,11 @@
     "invalid_access": "Invalid access",
     "invalid_name_pattern": "Invalid record name pattern",
     "invalid_type": "Invalid record type",
-    "too_many_rules": "Too many rules"
+    "too_many_rules": "Too many rules",
+    "managed_credential": "This credential is adopted from PowerDNS and cannot be changed here",
+    "managed_zone": "This zone is adopted from PowerDNS and cannot be changed here",
+    "leader_unreachable": "The cluster leader cannot be reached; nothing was changed",
+    "primary_unreachable": "The PowerDNS primary did not answer; nothing was changed",
+    "credential_id_taken": "A credential with the id of the PowerDNS module already exists"
   }
 }

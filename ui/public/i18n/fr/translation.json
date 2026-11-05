@@ -57,7 +57,8 @@
     "list-routes": "Lister les routes web",
     "get-records": "Obtenir les enregistrements",
     "append-records": "Ajouter un enregistrement",
-    "delete-records": "Supprimer un enregistrement"
+    "delete-records": "Supprimer un enregistrement",
+    "sync-powerdns": "Synchroniser avec PowerDNS"
   },
   "error": {
     "error": "Erreur",
@@ -100,7 +101,17 @@
     "removed_title": "Zone retirée",
     "removed": "{zone} n'est plus gérée. Ses enregistrements chez votre hébergeur DNS ne changent pas.",
     "credential_changed_title": "Identifiant changé",
-    "credential_changed": "{zone} utilise maintenant l'identifiant {name}."
+    "credential_changed": "{zone} utilise maintenant l'identifiant {name}.",
+    "sync_powerdns": "Synchroniser avec PowerDNS",
+    "adopted_from": "Reprise de {module}",
+    "adopted_intro": "Les zones du serveur primaire PowerDNS de ce cluster sont reprises automatiquement et tenues à jour avec lui. Elles ne peuvent pas être modifiées ni retirées ici ; gérez-les dans le module PowerDNS.",
+    "sync_done_title": "Synchronisé avec PowerDNS",
+    "sync_adopted": "Zones de {module} : {added} reprises, {removed} retirées.",
+    "sync_no_primary": "Il n'y a pas de serveur primaire PowerDNS dans ce cluster. {removed} zones reprises retirées.",
+    "sync_skipped": "Déjà configurées ici à la main, donc non reprises : {zones}.",
+    "sync_multiple_title": "Plus d'un serveur primaire PowerDNS",
+    "sync_multiple": "{modules} se présentent tous comme le serveur primaire PowerDNS. Rien n'a été modifié.",
+    "sync_failed": "Impossible de synchroniser avec PowerDNS"
   },
   "records": {
     "title": "Enregistrements",
@@ -258,6 +269,11 @@
     "invalid_access": "Accès invalide",
     "invalid_name_pattern": "Motif de nom d'enregistrement invalide",
     "invalid_type": "Type d'enregistrement invalide",
-    "too_many_rules": "Trop de règles"
+    "too_many_rules": "Trop de règles",
+    "managed_credential": "Cet identifiant est repris de PowerDNS et ne peut pas être modifié ici",
+    "managed_zone": "Cette zone est reprise de PowerDNS et ne peut pas être modifiée ici",
+    "leader_unreachable": "Le leader du cluster est injoignable ; rien n'a été modifié",
+    "primary_unreachable": "Le serveur primaire PowerDNS n'a pas répondu ; rien n'a été modifié",
+    "credential_id_taken": "Un identifiant portant l'id du module PowerDNS existe déjà"
   }
 }
