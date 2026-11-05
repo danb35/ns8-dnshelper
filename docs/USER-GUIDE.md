@@ -115,7 +115,9 @@ The **Zones** page has two tables.
 
 ![The Zones page](images/zones.png)
 
-**Zones.** The three dots at the end of a row open a menu:
+**Zones.** Zones adopted from the PowerDNS module carry an **Adopted from powerdns1** tag (see
+[Zones from the PowerDNS module](#zones-from-the-powerdns-module)). The three dots at the end of a
+row open a menu:
 
 - **Check credentials** tests again that the credential works for the zone. Use it after you
   changed something at your DNS host.
@@ -139,13 +141,28 @@ The **Zones** page has two tables.
 ### Zones from the PowerDNS module
 
 If the cluster runs the PowerDNS module (ns8-powerdns) as a primary DNS server, dnshelper adopts its
-zones by itself: there is no credential to enter. They appear in the table with an **Adopted from
-powerdns1** tag, and so does their credential. They follow the PowerDNS module: a zone added or
-removed there is added or removed here within seconds. **Sync with PowerDNS** does the same at once.
+zones by itself: there is no credential to enter, and the PowerDNS API key is never shown. The zones
+appear in the table with an **Adopted from powerdns1** tag (the name of the PowerDNS module), and
+their credential appears in the credentials table under that name, with the same tag.
 
-Adopted zones cannot be changed or deleted here, only checked; manage them in the PowerDNS module.
-A zone you had already added here by hand is left as it is. Their records can be changed on the
-Records page, and other modules need access rules for them like for any zone.
+They follow the PowerDNS module. A zone added there shows up here within seconds, and a zone
+removed there disappears here. If the PowerDNS module is removed, its zones and their credential
+are removed here too; the records stay on the server. **Sync with PowerDNS** does the same at
+once, and says what it adopted or removed. Use it if a zone has not shown up, for example after
+the PowerDNS module was restarted.
+
+Adopted zones cannot be edited, given another credential or deleted here: their menu only offers
+**Check credentials**. Manage them in the PowerDNS module. A zone you had already added here by hand
+is left as it is; to have it adopted instead, delete it here and choose **Sync with PowerDNS**.
+
+The records of an adopted zone are changed on the Records page like those of any other zone,
+including the PTR records of a reverse zone (`2.0.192.in-addr.arpa`). The PowerDNS module's own
+Records page shows them read-only while dnshelper manages the zone, and links to this page.
+
+![An adopted reverse zone on the Records page](images/records-adopted.png)
+
+Other modules need access rules for adopted zones like for any zone: adopting a zone does not let
+any module change it.
 
 ## Letting modules change DNS records
 
@@ -274,6 +291,9 @@ These are the messages you may see, with what to check.
 | That record cannot be changed | dnshelper never changes a zone's NS and SOA records. Some DNS hosts also cannot store certain characters: Cloudflare, name.com, RFC 2136 and Vultr do not accept a TXT value that contains a double quote or a backslash, DigitalOcean and Porkbun one that contains a backslash, and Hetzner one that starts or ends with a double quote. DigitalOcean also refuses an underscore in the name of an A or AAAA record, and Linode an SRV record below a subdomain (it only stores `_service._protocol` directly under the zone) |
 | This DNS host does not support that | The DNS host cannot do it: for example a record type it does not handle. The review step of the wizard lists what it can do |
 | The credential is still used by a zone | Change the zone's credential, or delete the zone, before deleting the credential |
+| This zone (or credential) is adopted from PowerDNS and cannot be changed here | It belongs to the PowerDNS module. Change or remove it there; dnshelper follows within seconds |
+| More than one PowerDNS primary | More than one PowerDNS module claims to be the primary. dnshelper changes nothing until only one is left: remove the extra one |
+| The PowerDNS primary did not answer, or the cluster leader cannot be reached | Nothing was changed. The PowerDNS module may be starting or updating: wait a minute and choose **Sync with PowerDNS** again |
 
 A few more things that look like problems and are not:
 

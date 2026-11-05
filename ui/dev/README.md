@@ -7,7 +7,8 @@ awkward to look at. This harness fakes the shell so the built UI can be exercise
   `$t`) and relays task results to the app, the way the shell does over its websocket.
 - `server.py` is a mock NS8 API. Actions of `dnshelper1` run through the **real** Python code in
   `imageroot/pypkg/dnshelper_lib.py`; the mail, web server, Traefik and cluster actions the UI
-  calls return canned data (shapes checked against those modules' sources).
+  calls return canned data (shapes checked against those modules' sources). A fake ns8-powerdns
+  primary (`powerdns1`, zones `example.net` and `2.0.192.in-addr.arpa`) answers `sync-powerdns`.
 - `fake_helper.py` stands in for the Go binary: it fakes the DNS host. A token containing `bad`
   is rejected, `readonly` gives a host that cannot replace records, `nolist` one that cannot list
   zones. Set `DNSHELPER_REAL_BIN` to forward `list-providers` and `registrable-domains` to the real

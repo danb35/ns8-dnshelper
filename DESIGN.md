@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones implemented, not yet tested against a live primary; see README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones implemented and tested 2026-11-05 against a live primary on an NS8 test cluster (adopt, follow zone adds and removals, PTR zone, refusals, primary removed); moves, clones, restores and two primaries were not tested live; see README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
