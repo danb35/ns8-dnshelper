@@ -24,8 +24,8 @@ from urllib.parse import parse_qs, urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 STATE = tempfile.mkdtemp(prefix='dnshelper-ui-')
-os.environ.update(AGENT_STATE_DIR=STATE, AGENT_TASK_USER='admin',
-                  DNSHELPER_BIN=os.path.join(HERE, 'fake_helper.py'))
+os.environ.update(AGENT_STATE_DIR=STATE, AGENT_TASK_USER='admin', MODULE_ID='dnshelper1',
+                  AGENT_ID='module/dnshelper1', DNSHELPER_BIN=os.path.join(HERE, 'fake_helper.py'))
 sys.path.insert(0, os.path.join(ROOT, 'imageroot', 'pypkg'))
 import dnshelper_lib as lib  # noqa: E402
 
@@ -37,7 +37,42 @@ EVENTS, LOCK = [], threading.Lock()
 INSTALLED = {'ghcr.io/nethserver/mail': [{'id': 'mail1', 'node': '1', 'module': 'mail', 'ui_name': 'Company mail'}],
              'ghcr.io/nethserver/traefik': [{'id': 'traefik1', 'node': '1', 'module': 'traefik'}],
              'ghcr.io/nethserver/webserver': [{'id': 'webserver1', 'node': '1', 'module': 'webserver'}],
-             'ghcr.io/nethserver/dnshelper': [{'id': 'dnshelper1', 'node': '1', 'module': 'dnshelper'}]}
+             'ghcr.io/nethserver/dnshelper': [{'id': 'dnshelper1', 'node': '1', 'module': 'dnshelper'}],
+             'ghcr.io/danb35/powerdns': [{'id': 'powerdns1', 'node': '1', 'module': 'powerdns'}]}
+
+# The ns8-powerdns primary that sync-powerdns adopts from. Its zones are also served by
+# the fake DNS host (fake_helper.py), so Check credentials works on them.
+POWERDNS_ZONES = ['example.net', '2.0.192.in-addr.arpa']
+
+
+class FakeAgent:
+    """What dnshelper_lib uses of the NS8 agent package: the cluster's one
+    powerdns-api key, the primary's get-provider-config, and event publishing."""
+    SD_ERR, SD_WARNING, SD_INFO, SD_DEBUG = '<3>', '<4>', '<6>', '<7>'
+
+    class _Redis:
+        def ping(self):
+            return True
+
+        def publish(self, channel, message):
+            return 0
+
+    def __init__(self):
+        self.tasks = self
+
+    def redis_connect(self, **kw):
+        return self._Redis()
+
+    def list_service_providers(self, rdb, service, transport='*', filters={}):
+        return [{'module_id': 'powerdns1', 'host': '10.5.4.1', 'port': '20004', 'role': 'primary'}]
+
+    def run(self, agent_id, action, data={}, **kw):
+        return {'exit_code': 0, 'output': {
+            'provider': 'powerdns', 'zones': list(POWERDNS_ZONES),
+            'fields': {'api_url': 'http://10.5.4.1:20004', 'api_key': 'pdns-harness-key', 'server_id': 'localhost'}}}
+
+
+lib._agent = FakeAgent
 
 
 def other_module(module_id, action, data):

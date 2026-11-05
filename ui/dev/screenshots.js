@@ -102,6 +102,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const h = await call("add-credential", { name: "Hetzner - shop", provider: "hetzner", fields: { api_token: "hz-token-0123456789" } });
     await call("add-zone", { zone: "example.org", credential: cf });
     await call("add-zone", { zone: "my-shop.net", credential: h.id });
+    // the zones of the cluster's ns8-powerdns primary (powerdns1, faked by the harness)
+    await call("sync-powerdns");
     await nav("Status"); await nav("Zones");
   });
   await shot("zones-page");
@@ -149,7 +151,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await run(async (root, findBy, call, sleep) => { findBy(root, "Access").isRuleShown = false; await sleep(300); });
 
   // ---- Records
-  await run(async (root, findBy, call, sleep, nav) => { await nav("Records"); await sleep(1200); });
+  await run(async (root, findBy, call, sleep, nav) => {
+    await nav("Records"); await sleep(1200);
+    const r = findBy(root, "Records"); r.zone = "example.com"; await r.loadRecords(); await sleep(800);
+  });
   await shot("records-page");
   await run(async (root, findBy, call, sleep) => {
     const r = findBy(root, "Records"); r.showAdd(); await sleep(800);
@@ -162,6 +167,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await shot("records-delete");
   await run(async (root, findBy, call, sleep) => { findBy(root, "Records").isRemoveShown = false; await sleep(300); });
+  // an adopted reverse zone, as the ns8-powerdns Records page opens it (?page=records&zone=...)
+  await run(async (root, findBy, call, sleep) => {
+    const r = findBy(root, "Records"); r.zone = "2.0.192.in-addr.arpa"; await r.loadRecords(); await sleep(800);
+  });
+  await shot("records-adopted");
 
   // ---- Status with data
   await run(async (root, findBy, call, sleep, nav) => { await nav("Status"); await sleep(800); });

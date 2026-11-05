@@ -37,13 +37,15 @@ if op != 'list-providers' and 'bad' in secret:
 caps = {'get_records': True, 'append_records': True, 'set_records': 'readonly' not in secret,
         'delete_records': True, 'list_zones': 'nolist' not in secret}
 
+ZONES = ['example.com', 'example.org', 'my-shop.net', 'unrelated.io', 'example.net', '2.0.192.in-addr.arpa']
+
 if op == 'list-zones':
     if not caps['list_zones']:
         fail('unsupported', 'no zone listing')
-    json.dump({'ok': True, 'records': [], 'zones': ['example.com', 'example.org', 'my-shop.net', 'unrelated.io']}, sys.stdout)
+    json.dump({'ok': True, 'records': [], 'zones': ZONES}, sys.stdout)
 elif op == 'validate':
     zone = req.get('zone', '')
-    if caps['list_zones'] and zone not in ('example.com', 'example.org', 'my-shop.net', 'unrelated.io'):
+    if caps['list_zones'] and zone not in ZONES:
         fail('zone_not_found', 'not served')
     json.dump({'ok': True, 'records': [], 'capabilities': caps,
                'validation': {'method': 'list-zones' if caps['list_zones'] else 'get-records', 'zone_found': True,
@@ -56,6 +58,13 @@ elif op in ('get-records', 'append-records', 'set-records', 'delete-records'):
             db = json.load(f)
     except (OSError, ValueError):
         db = {}
+    if zone not in db and zone.endswith('.in-addr.arpa'):
+        db[zone] = [
+            {'name': '@', 'type': 'NS', 'ttl': 86400, 'data': 'ns1.example.net.'},
+            {'name': '@', 'type': 'SOA', 'ttl': 3600, 'data': 'ns1.example.net. hostmaster.example.net. 2026110501 10800 3600 604800 3600'},
+            {'name': '10', 'type': 'PTR', 'ttl': 3600, 'data': 'www.example.net.'},
+            {'name': '20', 'type': 'PTR', 'ttl': 3600, 'data': 'mail.example.net.'},
+        ]
     if zone not in db:
         db[zone] = [
             {'name': '@', 'type': 'NS', 'ttl': 86400, 'data': 'ns1.example-dns.net.'},

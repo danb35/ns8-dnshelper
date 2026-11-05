@@ -23,6 +23,10 @@ What has been checked, and where:
   server (see [tests/integration](tests/integration/README.md); it needs a node and is not part of
   CI).
 - The admin UI has been used in the real NS8 admin shell.
+- Adoption of ns8-powerdns zones was tested on an NS8 test cluster with a live PowerDNS primary
+  (2026-11-05): zones adopted, followed when added and removed at the primary, a reverse zone,
+  record changes through dnshelper, the read-only refusals, and removal of the primary. Moves,
+  clones, restores and two primaries were only covered by unit tests.
 - The providers were tested live against real zones (see [Providers](#providers)).
 - CI builds and publishes the image with `build-images.sh`, runs the Go tests, and runs the
   module's Robot Framework tests on Rocky Linux 9 and Debian 13.
