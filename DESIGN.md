@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); see README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones implemented, not yet tested against a live primary; see README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -219,23 +219,25 @@ One function, `dnshelper_lib.sync_powerdns()`, run from every trigger. It is ide
 trusts an event's payload: it always looks at the cluster as it is.
 
 1. Read the `powerdns-api` service keys (`agent.list_service_providers(rdb, 'powerdns-api',
-   'tcp')`) from the **leader**. If the leader is unreachable, stop with an error and change
-   nothing: a stale replica must not make dnshelper drop zones.
+   'tcp')`) from the **leader**. If the leader is unreachable, stop with `leader_unreachable` and
+   change nothing: a stale replica must not make dnshelper drop zones.
 2. **More than one key (powerdns §8.4):** change nothing (no new zones, existing adopted zones
    and credentials left as they are), log an error naming the modules, and report
    `status: "multiple_primaries"` with their ids so the UI can show it.
 3. **No key: the primary is gone.** Remove every managed credential and the zones adopted
    through it (see "Removing an adopted zone").
 4. **One key:** call its `get-provider-config` with `agent.tasks.run()`. If the call fails or the
-   output is not a PowerDNS configuration, stop with an error and change nothing (the primary may
-   be restarting; the next event or Sync tries again).
+   output is not a PowerDNS configuration, stop with `primary_unreachable` and change nothing (the
+   primary may be restarting; the next event or Sync tries again). The response is never logged:
+   it holds the key.
 5. Create or update the managed credential (below). Its file is rewritten only when a field
-   changed, so a sync with nothing new writes nothing.
+   changed, so a sync with nothing new writes nothing. If a credential made by hand already has
+   that id (impossible with `add-credential`'s ids), stop with `credential_id_taken`.
 6. For each zone the primary lists (normalized like `add-zone`; a name `add-zone` would refuse is
    skipped and logged):
    - not configured in dnshelper: add it with the managed credential;
-   - already adopted (from this primary, or from an earlier one that is gone): point it at the
-     current managed credential;
+   - already adopted from an earlier primary: point it at the current managed credential
+     (reported as `moved`);
    - configured by hand (any provider, including a hand-made PowerDNS credential): leave it
      alone and report it as `skipped`. The administrator can remove it and press Sync to adopt
      it instead.
@@ -246,10 +248,10 @@ trusts an event's payload: it always looks at the cluster as it is.
 The whole run holds `state/sync.lock` (flock), so an event and a Sync click do not interleave;
 the file updates also take the existing configuration lock. The output is
 `{"status": "adopted" | "no_primary" | "multiple_primaries", "primary", "modules", "added",
-"removed", "skipped"}`.
+"moved", "removed", "skipped"}`.
 
 When the set of zones changed, the run writes one audit line (`action=sync-powerdns`, the
-primary, added and removed zones; never a field value) and publishes
+primary, added, moved and removed zones; never a field value) and publishes
 `service-dnshelper-changed`, like `add-zone` / `remove-zone`.
 
 ### Triggers
