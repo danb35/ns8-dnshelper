@@ -1,0 +1,15 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "sync-powerdns input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/sync-powerdns",
+    "description": "Adopt the zones of the ns8-powerdns primary now. Takes no arguments: the UI sends no payload at all.",
+    "examples": [
+        {}
+    ],
+    "type": [
+        "object",
+        "null"
+    ],
+    "additionalProperties": false,
+    "properties": {}
+}

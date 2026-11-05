@@ -21,6 +21,11 @@ change is decided by the policy table in state/policy.json, default deny.
 Human administrators are not restricted by it.
 
   state/policy.json           {"rules": [{"caller", "zone", "access", "names", "types"}]}
+
+A credential with "managed_by": "module/<id>" was created by sync_powerdns()
+from an ns8-powerdns primary; the zones that use it are "adopted". Neither can
+be changed by hand: the next sync would undo it (DESIGN.md, Adopting
+ns8-powerdns zones).
 """
 
 import fcntl
@@ -139,6 +144,23 @@ def _load_credential(cred_id):
     if cred is None:
         raise ActionError('credential', 'credential_not_found', cred_id)
     return cred
+
+
+def _managed_by(cred):
+    """The module that owns a credential created by sync_powerdns(), or ''."""
+    owner = cred.get('managed_by') if isinstance(cred, dict) else None
+    return owner if isinstance(owner, str) else ''
+
+
+def _refuse_managed_credential(field, cred_id, cred):
+    if _managed_by(cred):
+        raise ActionError(field, 'managed_credential', cred_id, _managed_by(cred))
+
+
+def _refuse_adopted_zone(zone, entry):
+    cred = _read_json(_cred_path(entry['credential']), None) if ID_RE.match(entry['credential']) else None
+    if _managed_by(cred):
+        raise ActionError('zone', 'managed_zone', zone, _managed_by(cred))
 
 
 def normalize_zone(zone):
@@ -332,6 +354,7 @@ def add_credential(data):
 def update_credential(data):
     with _ConfigLock():
         cred = _load_credential(data['id'])
+        _refuse_managed_credential('id', data['id'], cred)
         _, known = _check_fields(cred['provider'], data.get('fields', {}), creating=False)
         if 'name' in data:
             cred['name'] = data['name']
@@ -351,7 +374,7 @@ def update_credential(data):
 
 def remove_credential(data):
     with _ConfigLock():
-        _load_credential(data['id'])
+        _refuse_managed_credential('id', data['id'], _load_credential(data['id']))
         users = sorted(z for z, v in _load_zones().items() if v['credential'] == data['id'])
         if users:
             raise ActionError('id', 'credential_in_use', data['id'], ', '.join(users))
@@ -362,7 +385,7 @@ def remove_credential(data):
 def add_zone(data):
     zone = normalize_zone(data['zone'])
     with _ConfigLock():
-        _load_credential(data['credential'])
+        _refuse_managed_credential('credential', data['credential'], _load_credential(data['credential']))
         zones = _load_zones()
         if zone in zones:
             raise ActionError('zone', 'zone_already_configured', zone)
@@ -374,10 +397,11 @@ def add_zone(data):
 def update_zone(data):
     zone = normalize_zone(data['zone'])
     with _ConfigLock():
-        _load_credential(data['credential'])
+        _refuse_managed_credential('credential', data['credential'], _load_credential(data['credential']))
         zones = _load_zones()
         if zone not in zones:
             raise ActionError('zone', 'zone_not_found', zone)
+        _refuse_adopted_zone(zone, zones[zone])
         zones[zone] = {'credential': data['credential']}
         _save_zones(zones)
     return {}
@@ -389,6 +413,7 @@ def remove_zone(data):
         zones = _load_zones()
         if zone not in zones:
             raise ActionError('zone', 'zone_not_found', zone)
+        _refuse_adopted_zone(zone, zones[zone])
         del zones[zone]
         _save_zones(zones)
     return {}
@@ -412,8 +437,11 @@ def get_configuration(data):
                 'provider': cred['provider'],
                 'values': {k: v for k, v in cred['fields'].items() if k not in secret and k in known},
                 'secrets_set': sorted(k for k, v in cred['fields'].items() if k in secret and v),
+                'managed_by': _managed_by(cred),
             })
-    zones = [{'zone': z, 'credential': v['credential']} for z, v in sorted(_load_zones().items())]
+    owner = {c['id']: c['managed_by'] for c in creds}
+    zones = [{'zone': z, 'credential': v['credential'], 'managed_by': owner.get(v['credential'], '')}
+             for z, v in sorted(_load_zones().items())]
     return {'credentials': creds, 'zones': zones}
 
 
@@ -554,6 +582,195 @@ append_records = _change('append-records')
 set_records = _change('set-records')
 delete_records = _change('delete-records')
 
+
+# ---------------------------------------------------------------- ns8-powerdns adoption
+
+POWERDNS_SERVICE = 'powerdns-api'
+POWERDNS_FIELDS = ('api_url', 'api_key', 'server_id')
+
+
+def _agent():
+    import agent  # only present on a node
+    import agent.tasks  # a submodule: not loaded by "import agent"
+    return agent
+
+
+def _log(level, message):
+    print(getattr(_agent(), level) + 'dnshelper: ' + message, file=sys.stderr)
+
+
+class _SyncLock:
+    """One sync at a time: an event and a click on Sync must not interleave."""
+
+    def __enter__(self):
+        os.makedirs(_state_dir(), exist_ok=True)
+        self.f = open(os.path.join(_state_dir(), 'sync.lock'), 'w')
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        self.f.close()
+
+
+def _managed_credentials():
+    """{credential id: owner} of the credentials sync_powerdns() created."""
+    out = {}
+    if os.path.isdir(_cred_dir()):
+        for fn in os.listdir(_cred_dir()):
+            cid = fn[:-len('.json')]
+            if fn.endswith('.json') and ID_RE.match(cid):
+                owner = _managed_by(_read_json(os.path.join(_cred_dir(), fn), None))
+                if owner:
+                    out[cid] = owner
+    return out
+
+
+def managed_owners():
+    """The module ids (powerdns1) that own a managed credential."""
+    return sorted({o[len('module/'):] for o in _managed_credentials().values() if o.startswith('module/')})
+
+
+def _powerdns_primaries(agent):
+    """The modules that register the powerdns-api key, read from the leader.
+
+    A replica may lag: dropping zones because of it would be wrong, so an
+    unreachable leader is an error.
+    """
+    try:
+        rdb = agent.redis_connect()
+        rdb.ping()
+        providers = agent.list_service_providers(rdb, POWERDNS_SERVICE, 'tcp')
+    except Exception:
+        raise ActionError('primary', 'leader_unreachable',
+                          message='the cluster leader cannot be reached; nothing was changed')
+    return sorted({p['module_id'] for p in providers if p.get('module_id')})
+
+
+def _provider_config(agent, module_id):
+    """The PowerDNS fields and zones of the primary, from its get-provider-config."""
+    try:
+        response = agent.tasks.run('module/' + module_id, action='get-provider-config', data={},
+                                   extra={'isNotificationHidden': True})
+    except Exception:
+        response = {}
+    out = response.get('output') if isinstance(response, dict) and response.get('exit_code') == 0 else None
+    fields = out.get('fields') if isinstance(out, dict) else None
+    zones = out.get('zones') if isinstance(out, dict) else None
+    if (not isinstance(fields, dict) or out.get('provider') != 'powerdns' or not isinstance(zones, list)
+            or not all(isinstance(fields.get(k), str) and fields.get(k) for k in POWERDNS_FIELDS)):
+        # Never print the response: it holds the API key.
+        raise ActionError('primary', 'primary_unreachable', module_id,
+                          'get-provider-config of %s failed; nothing was changed' % module_id)
+    return {k: fields[k] for k in POWERDNS_FIELDS}, zones
+
+
+def _apply_sync(primary, fields, listed):
+    """Bring credentials and zones in line with the primary (None: there is none).
+
+    Returns {added, moved, removed, skipped}. Called with the configuration lock held.
+    """
+    managed = _managed_credentials()
+    zones = _load_zones()
+    out = {'added': [], 'moved': [], 'removed': [], 'skipped': []}
+    wanted = set()
+    if primary is not None:
+        cred_id = primary
+        cred = {'name': primary, 'provider': 'powerdns', 'fields': fields, 'managed_by': 'module/' + primary}
+        current = _read_json(_cred_path(cred_id), None)
+        if current is not None and not _managed_by(current):
+            # cannot happen with ids made by add-credential (c + hex), but never overwrite one
+            raise ActionError('primary', 'credential_id_taken', cred_id,
+                              'a credential made by hand has the id %s; nothing was changed' % cred_id)
+        if current != cred:
+            _write_private(_cred_path(cred_id), cred)
+        managed[cred_id] = cred['managed_by']
+        for name in listed:
+            try:
+                zone = normalize_zone(name if isinstance(name, str) else '')
+            except ActionError:
+                _log('SD_WARNING', 'sync-powerdns: skipping zone %s of %s: not a valid zone name'
+                     % (json.dumps(name), primary))
+                continue
+            wanted.add(zone)
+            entry = zones.get(zone)
+            if entry is None:
+                zones[zone] = {'credential': cred_id}
+                out['added'].append(zone)
+            elif entry['credential'] == cred_id:
+                pass
+            elif entry['credential'] in managed:
+                entry['credential'] = cred_id  # adopted from an earlier primary
+                out['moved'].append(zone)
+            else:
+                out['skipped'].append(zone)  # configured by hand: left alone
+    for zone, entry in list(zones.items()):
+        if entry['credential'] in managed and zone not in wanted:
+            del zones[zone]
+            out['removed'].append(zone)
+    if out['added'] or out['moved'] or out['removed']:
+        _save_zones(zones)
+    for cid in managed:
+        if cid != primary:
+            try:
+                os.unlink(_cred_path(cid))
+            except FileNotFoundError:
+                pass
+    return {k: sorted(set(v)) for k, v in out.items()}
+
+
+def sync_powerdns(data=None, agent=None):
+    """Adopt the zones of the ns8-powerdns primary (DESIGN.md, Adopting ns8-powerdns zones).
+
+    Raises ActionError, after changing nothing, when the cluster cannot be read.
+    """
+    agent = agent or _agent()
+    with _SyncLock():
+        primaries = _powerdns_primaries(agent)
+        result = {'status': 'adopted', 'primary': '', 'modules': primaries,
+                  'added': [], 'moved': [], 'removed': [], 'skipped': []}
+        if len(primaries) > 1:
+            _log('SD_ERR', 'sync-powerdns: more than one module registers %s (%s); nothing was changed'
+                 % (POWERDNS_SERVICE, ', '.join(primaries)))
+            result['status'] = 'multiple_primaries'
+            return result
+        if primaries:
+            primary = primaries[0]
+            fields, listed = _provider_config(agent, primary)
+            result['primary'] = primary
+        else:
+            primary, fields, listed = None, None, []
+            result['status'] = 'no_primary'
+        with _ConfigLock():
+            result.update(_apply_sync(primary, fields, listed))
+    for zone in result['skipped']:
+        _log('SD_INFO', 'sync-powerdns: %s is configured by hand; not adopted from %s' % (zone, primary))
+    if result['added'] or result['moved'] or result['removed']:
+        print(agent.SD_INFO + 'dnshelper audit: ' + ' '.join('%s=%s' % kv for kv in (
+            ('caller', json.dumps(caller() or '-')), ('action', json.dumps('sync-powerdns')),
+            ('result', json.dumps('ok')), ('primary', json.dumps(result['primary'] or '-')),
+            ('add', json.dumps(result['added'])), ('move', json.dumps(result['moved'])),
+            ('remove', json.dumps(result['removed'])))), file=sys.stderr)
+        _publish_change(agent)
+    return result
+
+
+def run_sync(context):
+    """sync_powerdns() for the triggers that must not fail (events, install,
+    update, restore): log the outcome, never raise."""
+    try:
+        result = sync_powerdns()
+    except ActionError as e:
+        _log('SD_WARNING', 'sync-powerdns (%s): %s' % (context, e.entry.get('message') or e.entry['error']))
+        return None
+    except Exception as e:
+        _log('SD_WARNING', 'sync-powerdns (%s) failed: %s' % (context, type(e).__name__))
+        return None
+    if result['status'] != 'multiple_primaries':
+        _log('SD_INFO', 'sync-powerdns (%s): primary %s, %d added, %d moved, %d removed, %d skipped' % (
+            context, result['primary'] or 'none', len(result['added']), len(result['moved']),
+            len(result['removed']), len(result['skipped'])))
+    return result
+
 HANDLERS = {
     'list-providers': list_providers,
     'add-credential': add_credential,
@@ -574,6 +791,7 @@ HANDLERS = {
     'append-records': append_records,
     'set-records': set_records,
     'delete-records': delete_records,
+    'sync-powerdns': sync_powerdns,
 }
 
 
@@ -647,7 +865,7 @@ def check_restored_state(module_exists=None):
         except (OSError, ValueError):
             raise StateError('credentials/%s is not valid JSON' % fn)
         if not (isinstance(cred, dict) and isinstance(cred.get('name'), str) and isinstance(cred.get('provider'), str)
-                and isinstance(cred.get('fields'), dict)):
+                and isinstance(cred.get('fields'), dict) and isinstance(cred.get('managed_by', ''), str)):
             raise StateError('credentials/%s has an unexpected structure' % fn)
         creds[fn[:-len('.json')]] = cred
         os.chmod(path, 0o600)

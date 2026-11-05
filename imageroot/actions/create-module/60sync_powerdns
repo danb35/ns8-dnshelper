@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# dnshelper installed after an ns8-powerdns primary: adopt its zones now. The
+# core grants this module's authorizations (powerdns@any:dnsprovider) before it
+# runs create-module. A failure is logged only: the install must not fail
+# because powerdns is down.
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'pypkg'))
+import dnshelper_lib
+
+dnshelper_lib.run_sync('create-module')

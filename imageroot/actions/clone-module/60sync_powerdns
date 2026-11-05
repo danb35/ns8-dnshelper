@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# As after a restore: reconcile the adopted zones with the ns8-powerdns primary.
+
+set -e
+exec 1>&2
+
+"${AGENT_INSTALL_DIR}/actions/restore-module/60sync_powerdns" </dev/null

@@ -102,7 +102,7 @@ class CredentialTests(Base):
         self.assertNotIn(SECRET, json.dumps(cfg))
         self.assertEqual(cfg['credentials'], [{
             'id': cid, 'name': 'CF', 'provider': 'cloudflare',
-            'values': {'account': 'acme'}, 'secrets_set': ['api_token']}])
+            'values': {'account': 'acme'}, 'secrets_set': ['api_token'], 'managed_by': ''}])
 
     def test_update_blank_secret_keeps_and_new_secret_replaces(self):
         cid = self.add_cred(fields={'api_token': SECRET, 'account': 'acme'})
@@ -600,6 +600,193 @@ class AuditAndEventTests(ActionRunner):
         self.assertEqual(len(lib.list_zones({})['zones']), 1)
 
 
+PDNS_KEY = 'PDNS-API-KEY-VALUE'
+
+
+class FakeAgent:
+    """What sync_powerdns() uses of the NS8 agent package."""
+    SD_ERR, SD_INFO, SD_WARNING = '<3>', '<6>', '<4>'
+
+    def __init__(self, primaries=('powerdns1',), zones=('example.com',), key=PDNS_KEY, leader_down=False,
+                 task_fails=False):
+        self.primaries, self.zones, self.key = list(primaries), list(zones), key
+        self.leader_down, self.task_fails = leader_down, task_fails
+        self.redis = mock.Mock()
+        if leader_down:
+            self.redis.ping.side_effect = ConnectionError('leader down')
+        self.calls = []
+        self.tasks = types.SimpleNamespace(run=self._run)
+
+    def redis_connect(self, **kw):
+        return self.redis
+
+    def list_service_providers(self, rdb, service, transport='*', filters={}):
+        assert (service, transport) == ('powerdns-api', 'tcp')
+        return [{'module_id': m, 'host': '10.5.4.1', 'port': '20004', 'role': 'primary'} for m in self.primaries]
+
+    def _run(self, agent_id, action, data={}, **kw):
+        self.calls.append((agent_id, action))
+        if self.task_fails:
+            return {'exit_code': 1, 'output': '', 'error': 'api key ' + self.key}
+        return {'exit_code': 0, 'output': {
+            'provider': 'powerdns', 'zones': list(self.zones),
+            'fields': {'api_url': 'http://10.5.4.1:20004', 'api_key': self.key, 'server_id': 'localhost'}}}
+
+
+class PowerDNSSyncTests(Base):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.dict(os.environ, {'MODULE_ID': 'dnshelper1', 'AGENT_ID': 'module/dnshelper1'})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def sync(self, agent):
+        err = io.StringIO()
+        with mock.patch.object(lib, '_agent', return_value=agent), mock.patch.object(sys, 'stderr', err):
+            result = lib.sync_powerdns({}, agent=agent)
+        self.log_text = err.getvalue()
+        self.assertNotIn(PDNS_KEY, self.log_text)
+        return result
+
+    def zones(self):
+        return {z['zone']: z for z in lib.get_configuration({})['zones']}
+
+    def test_adopts_the_primary_zones_with_a_private_managed_credential(self):
+        agent = FakeAgent(zones=['example.com', 'Example.ORG.', '1.168.192.in-addr.arpa'])
+        out = self.sync(agent)
+        self.assertEqual(out, {'status': 'adopted', 'primary': 'powerdns1', 'modules': ['powerdns1'],
+                               'added': ['1.168.192.in-addr.arpa', 'example.com', 'example.org'],
+                               'moved': [], 'removed': [], 'skipped': []})
+        self.assertEqual(agent.calls, [('module/powerdns1', 'get-provider-config')])
+        path = os.path.join(self.state, 'credentials', 'powerdns1.json')
+        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+        self.assertEqual(load(path), {'name': 'powerdns1', 'provider': 'powerdns', 'managed_by': 'module/powerdns1',
+                                      'fields': {'api_url': 'http://10.5.4.1:20004', 'api_key': PDNS_KEY,
+                                                 'server_id': 'localhost'}})
+        cfg = lib.get_configuration({})
+        self.assertNotIn(PDNS_KEY, json.dumps(cfg))
+        self.assertEqual([c['managed_by'] for c in cfg['credentials']], ['module/powerdns1'])
+        self.assertEqual({z['managed_by'] for z in cfg['zones']}, {'module/powerdns1'})
+        self.assertTrue(lib.has_zone({'name': 'www.example.org'})['managed'])
+        self.assertIn('action="sync-powerdns"', self.log_text)
+        self.assertIn('primary="powerdns1"', self.log_text)
+        channel, _ = agent.redis.publish.call_args[0]
+        self.assertEqual(channel, 'module/dnshelper1/event/service-dnshelper-changed')
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.state), 'environment')))
+
+    def test_a_second_run_changes_nothing(self):
+        self.sync(FakeAgent())
+        path = os.path.join(self.state, 'credentials', 'powerdns1.json')
+        zones_path = os.path.join(self.state, 'zones.json')
+        before = (os.stat(path).st_mtime_ns, os.stat(zones_path).st_mtime_ns)
+        agent = FakeAgent()
+        out = self.sync(agent)
+        self.assertEqual((out['added'], out['moved'], out['removed']), ([], [], []))
+        self.assertEqual((os.stat(path).st_mtime_ns, os.stat(zones_path).st_mtime_ns), before)
+        agent.redis.publish.assert_not_called()
+        self.assertNotIn('audit', self.log_text)
+
+    def test_follows_zone_changes_and_key_rotation(self):
+        self.sync(FakeAgent(zones=['example.com', 'example.org']))
+        out = self.sync(FakeAgent(zones=['example.org', 'example.net'], key='NEW-' + PDNS_KEY))
+        self.assertEqual((out['added'], out['removed']), (['example.net'], ['example.com']))
+        self.assertEqual(sorted(self.zones()), ['example.net', 'example.org'])
+        cred = load(os.path.join(self.state, 'credentials', 'powerdns1.json'))
+        self.assertEqual(cred['fields']['api_key'], 'NEW-' + PDNS_KEY)
+
+    def test_zones_configured_by_hand_are_left_alone(self):
+        cid = self.add_cred()
+        lib.add_zone({'zone': 'example.com', 'credential': cid})
+        out = self.sync(FakeAgent(zones=['example.com', 'example.org']))
+        self.assertEqual((out['added'], out['skipped']), (['example.org'], ['example.com']))
+        self.assertEqual(self.zones()['example.com']['credential'], cid)
+        out = self.sync(FakeAgent(primaries=[]))
+        self.assertEqual(out['removed'], ['example.org'])
+        self.assertEqual(list(self.zones()), ['example.com'])
+
+    def test_primary_gone_removes_its_credential_and_zones_but_not_policy_rules(self):
+        self.sync(FakeAgent(zones=['example.com']))
+        lib.set_policy({'rules': [{'caller': 'module/mail1', 'zones': ['example.com'], 'access': 'write'}]})
+        out = self.sync(FakeAgent(primaries=[]))
+        self.assertEqual(out['status'], 'no_primary')
+        self.assertEqual(out['removed'], ['example.com'])
+        self.assertEqual(self.zones(), {})
+        self.assertEqual(os.listdir(os.path.join(self.state, 'credentials')), [])
+        self.assertEqual(lib.get_policy({})['rules'][0]['zones'], ['example.com'])
+        self.assertFalse(lib.has_zone({'name': 'example.com'})['managed'])
+
+    def test_a_new_primary_takes_over_the_adopted_zones(self):
+        self.sync(FakeAgent(primaries=['powerdns1'], zones=['example.com', 'example.org']))
+        out = self.sync(FakeAgent(primaries=['powerdns2'], zones=['example.com']))
+        self.assertEqual((out['primary'], out['moved'], out['removed']), ('powerdns2', ['example.com'], ['example.org']))
+        self.assertEqual(self.zones()['example.com']['credential'], 'powerdns2')
+        self.assertEqual(os.listdir(os.path.join(self.state, 'credentials')), ['powerdns2.json'])
+
+    def test_more_than_one_primary_changes_nothing(self):
+        self.sync(FakeAgent(zones=['example.com']))
+        agent = FakeAgent(primaries=['powerdns1', 'powerdns3'], zones=['example.org'])
+        out = self.sync(agent)
+        self.assertEqual((out['status'], out['modules']), ('multiple_primaries', ['powerdns1', 'powerdns3']))
+        self.assertEqual(agent.calls, [])
+        self.assertEqual(list(self.zones()), ['example.com'])
+        self.assertIn('<3>', self.log_text)
+        self.assertIn('powerdns1, powerdns3', self.log_text)
+
+    def test_errors_change_nothing_and_never_show_the_key(self):
+        self.sync(FakeAgent(zones=['example.com']))
+        for agent, error in ((FakeAgent(leader_down=True, zones=[]), 'leader_unreachable'),
+                             (FakeAgent(task_fails=True, zones=[]), 'primary_unreachable')):
+            with self.assertRaises(lib.ActionError) as cm:
+                self.sync(agent)
+            self.assertEqual(cm.exception.entry['error'], error)
+            self.assertNotIn(PDNS_KEY, json.dumps(cm.exception.entry))
+            self.assertEqual(list(self.zones()), ['example.com'])
+        err = io.StringIO()
+        with mock.patch.object(lib, '_agent', return_value=FakeAgent(task_fails=True)), \
+                mock.patch.object(sys, 'stderr', err):
+            self.assertIsNone(lib.run_sync('test'))
+        self.assertIn('get-provider-config of powerdns1 failed', err.getvalue())
+        self.assertNotIn(PDNS_KEY, err.getvalue())
+
+    def test_invalid_zone_names_are_skipped(self):
+        out = self.sync(FakeAgent(zones=['example.com', 'localhost', 5]))
+        self.assertEqual(out['added'], ['example.com'])
+        self.assertIn('not a valid zone name', self.log_text)
+
+    def test_a_credential_made_by_hand_is_never_overwritten(self):
+        lib._write_private(os.path.join(self.state, 'credentials', 'powerdns1.json'),
+                           {'name': 'mine', 'provider': 'cloudflare', 'fields': {'api_token': SECRET}})
+        with self.assertRaises(lib.ActionError) as cm:
+            self.sync(FakeAgent())
+        self.assertEqual(cm.exception.entry['error'], 'credential_id_taken')
+        self.assertEqual(load(os.path.join(self.state, 'credentials', 'powerdns1.json'))['name'], 'mine')
+
+    def test_managed_objects_are_read_only(self):
+        self.sync(FakeAgent(zones=['example.com']))
+        cid = self.add_cred()
+        lib.add_zone({'zone': 'example.net', 'credential': cid})
+        self.assertRejects(lib.update_credential, {'id': 'powerdns1', 'name': 'x'}, 'managed_credential', 'id')
+        self.assertRejects(lib.remove_credential, {'id': 'powerdns1'}, 'managed_credential', 'id')
+        self.assertRejects(lib.remove_zone, {'zone': 'example.com'}, 'managed_zone', 'zone')
+        self.assertRejects(lib.update_zone, {'zone': 'example.com', 'credential': cid}, 'managed_zone', 'zone')
+        self.assertRejects(lib.add_zone, {'zone': 'example.org', 'credential': 'powerdns1'}, 'managed_credential')
+        self.assertRejects(lib.update_zone, {'zone': 'example.net', 'credential': 'powerdns1'}, 'managed_credential')
+        self.assertEqual(sorted(self.zones()), ['example.com', 'example.net'])
+
+    def test_managed_owners_and_restore_check(self):
+        self.assertEqual(lib.managed_owners(), [])
+        self.sync(FakeAgent(zones=['example.com']))
+        self.assertEqual(lib.managed_owners(), ['powerdns1'])
+        summary, warnings = lib.check_restored_state()
+        self.assertEqual((summary['zones'], summary['credentials']), (1, 1))
+        self.assertEqual([w for w in warnings if 'powerdns1' in w and 'missing' in w], [])
+
+    def test_sync_is_an_admin_action_in_no_role(self):
+        self.assertIs(lib.HANDLERS['sync-powerdns'], lib.sync_powerdns)
+        with open(os.path.join(HERE, '..', '..', 'imageroot', 'actions', 'create-module', '30grants')) as f:
+            self.assertNotIn('sync-powerdns', f.read())
+
+
 class InputSchemaTests(unittest.TestCase):
     def test_actions_without_arguments_accept_the_empty_payload_the_ui_sends(self):
         """The admin UI calls an argument-less action with no payload at all, which
@@ -660,6 +847,31 @@ class ModuleScriptTests(unittest.TestCase):
         self.assertEqual(sorted(called), ['30grants', '50register_service'])
         for name in called:
             self.assertTrue(os.access(os.path.join(self.root, name), os.X_OK), name)
+
+
+    def test_powerdns_sync_triggers(self):
+        """Every trigger of DESIGN.md, Adopting ns8-powerdns zones, exists, is
+        executable, parses and calls the one reconcile."""
+        import re
+        import subprocess
+        base = os.path.join(HERE, '..', '..', 'imageroot')
+        for rel in ('events/powerdns-zones-changed/10sync', 'events/powerdns-provider-changed/10sync',
+                    'events/module-removed/10sync', 'actions/create-module/60sync_powerdns',
+                    'actions/restore-module/60sync_powerdns', 'update-module.d/20sync_powerdns',
+                    'actions/sync-powerdns/10run'):
+            path = os.path.join(base, rel)
+            self.assertTrue(os.access(path, os.X_OK), rel)
+            with open(path) as f:
+                text = f.read()
+            compile(text, rel, 'exec')
+            self.assertTrue('run_sync(' in text or 'dnshelper_lib.run(' in text, rel)
+        clone = os.path.join(base, 'actions', 'clone-module', '60sync_powerdns')
+        subprocess.run(['bash', '-n', clone], check=True)
+        with open(clone) as f:
+            self.assertIn('restore-module/60sync_powerdns', f.read())
+        with open(os.path.join(base, '..', 'build-images.sh')) as f:
+            label = re.search(r'org\.nethserver\.authorizations=([^"]*)"', f.read()).group(1).split()
+        self.assertIn('powerdns@any:dnsprovider', label)
 
 
 @unittest.skipUnless(os.environ.get('DNSHELPER_REAL_BIN'), 'set DNSHELPER_REAL_BIN to the built helper')

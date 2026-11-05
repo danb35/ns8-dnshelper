@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# An instance updated from a version without ns8-powerdns adoption: adopt the
+# primary's zones now. The core grants the new image's authorizations before it
+# runs the update hooks. A failure is logged only.
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ['AGENT_INSTALL_DIR'], 'pypkg'))
+import dnshelper_lib
+
+dnshelper_lib.run_sync('update-module')
