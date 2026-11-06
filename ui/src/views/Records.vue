@@ -152,7 +152,24 @@
                     }}</span>
                   </cv-data-table-cell>
                   <cv-data-table-cell class="table-overflow-menu-cell">
-                    <cv-overflow-menu flip-menu class="table-overflow-menu">
+                    <NsTag
+                      v-if="isProtected(row)"
+                      :label="$t('records.read_only')"
+                      :title="$t('records.read_only_help')"
+                      kind="gray"
+                      class="read-only-tag"
+                    />
+                    <cv-overflow-menu
+                      v-else
+                      flip-menu
+                      class="table-overflow-menu"
+                    >
+                      <cv-overflow-menu-item @click="showEdit(row)">
+                        <NsMenuItem
+                          :icon="Edit20"
+                          :label="$t('records.edit')"
+                        />
+                      </cv-overflow-menu-item>
                       <cv-overflow-menu-item
                         danger
                         :disabled="isProtected(row)"
@@ -179,72 +196,60 @@
       @hide="isSnapshotsShown = false"
       @changed="loadRecords"
     />
-    <!-- add a record -->
+    <!-- add or edit a record -->
     <NsModal
       size="default"
-      :visible="isAddShown"
-      :primary-button-disabled="loading.add"
-      :isLoading="loading.add"
-      @modal-hidden="isAddShown = false"
-      @primary-click="addRecord"
+      :visible="isFormShown"
+      :primary-button-disabled="loading.save"
+      :isLoading="loading.save"
+      @modal-hidden="isFormShown = false"
+      @primary-click="saveRecord"
     >
-      <template slot="title">{{ $t("records.add_title", { zone }) }}</template>
+      <template slot="title">{{
+        current
+          ? $t("records.edit_title", { zone })
+          : $t("records.add_title", { zone })
+      }}</template>
       <template slot="content">
-        <cv-form @submit.prevent="addRecord">
-          <div class="mg-bottom-md">{{ $t("records.add_help") }}</div>
-          <NsTextInput
-            v-model.trim="form.name"
-            :label="$t('records.col_name')"
-            :helper-text="$t('records.name_help')"
-            placeholder="www"
-            :invalid-message="$t(error.name)"
-            :disabled="loading.add"
-            ref="name"
-            class="mg-bottom-md"
-          />
-          <cv-select
-            v-model="form.type"
-            :label="$t('records.col_type')"
-            :disabled="loading.add"
-            class="mg-bottom-md"
-          >
-            <cv-select-option v-for="t in types" :key="t" :value="t">{{
-              t
-            }}</cv-select-option>
-          </cv-select>
-          <NsTextInput
-            v-model.trim="form.data"
-            :label="$t('records.col_data')"
-            :helper-text="$t('records.data_help', { example: example })"
-            :placeholder="example"
-            :invalid-message="$t(error.data)"
-            :disabled="loading.add"
-            ref="data"
-            class="mg-bottom-md"
-          />
-          <NsTextInput
-            v-model.trim="form.ttl"
-            :label="$t('records.col_ttl') + ' (' + $t('wizard.optional') + ')'"
-            :helper-text="$t('records.ttl_help')"
-            placeholder="3600"
-            :invalid-message="$t(error.ttl)"
-            :disabled="loading.add"
-            ref="ttl"
-            class="mg-bottom-md"
+        <cv-form @submit.prevent="saveRecord">
+          <div class="mg-bottom-md">
+            {{ current ? $t("records.edit_help") : $t("records.add_help") }}
+          </div>
+          <RecordForm
+            v-if="isFormShown"
+            :key="formKey"
+            ref="form"
+            :types="types"
+            :existing="records"
+            :initial="current"
+            :disabled="loading.save"
           />
           <NsInlineNotification
-            v-if="error.add"
+            v-if="error.save"
             kind="error"
-            :title="$t('action.append-records')"
-            :description="error.add"
+            :title="
+              current ? $t('action.apply-changes') : $t('action.append-records')
+            "
+            :description="error.save"
             :showCloseButton="false"
           />
+          <NsButton
+            v-if="error.stale"
+            kind="tertiary"
+            size="small"
+            :icon="Renew20"
+            @click="reloadAfterStale"
+          >
+            {{ $t("records.reload") }}
+          </NsButton>
         </cv-form>
       </template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
-      <template slot="primary-button">{{ $t("records.add_record") }}</template>
+      <template slot="primary-button">{{
+        current ? $t("common.save") : $t("records.add_record")
+      }}</template>
     </NsModal>
     <!-- delete a record -->
     <NsModal
@@ -293,25 +298,14 @@ import {
 } from "@nethserver/ns8-ui-lib";
 import DnsHelperService from "../mixins/dnshelper";
 import ZoneSnapshots from "../components/ZoneSnapshots";
+import RecordForm from "../components/RecordForm";
 import Time20 from "@carbon/icons-vue/es/time/20";
 
-// what a value looks like, per record type, to show as the field's example
-const EXAMPLES = {
-  A: "192.0.2.10",
-  AAAA: "2001:db8::10",
-  CNAME: "target.example.net.",
-  MX: "10 mail.example.net.",
-  NS: "ns1.example.net.",
-  SRV: "10 5 5060 sip.example.net.",
-  TXT: "v=spf1 -all",
-  CAA: '0 issue "letsencrypt.org"',
-  PTR: "host.example.net.",
-};
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
 export default {
   name: "Records",
-  components: { ZoneSnapshots },
+  components: { ZoneSnapshots, RecordForm },
   mixins: [
     DnsHelperService,
     QueryParamService,
@@ -335,20 +329,18 @@ export default {
       records: [],
       page: [],
       current: null,
-      isAddShown: false,
+      isFormShown: false,
+      formKey: 0,
       isRemoveShown: false,
       isSnapshotsShown: false,
       Time20,
-      form: { name: "", type: "A", data: "", ttl: "" },
       notice: { title: "", text: "" },
-      loading: { zones: true, records: false, add: false, remove: false },
+      loading: { zones: true, records: false, save: false, remove: false },
       error: {
         load: "",
-        add: "",
+        save: "",
+        stale: false,
         remove: "",
-        name: "",
-        data: "",
-        ttl: "",
       },
     };
   },
@@ -371,9 +363,6 @@ export default {
       const supported = provider && provider.types.length ? provider.types : [];
       const ordered = COMMON_TYPES.filter((t) => supported.includes(t));
       return ordered.concat(supported.filter((t) => !COMMON_TYPES.includes(t)));
-    },
-    example() {
-      return EXAMPLES[this.form.type] || "";
     },
   },
   watch: {
@@ -476,61 +465,74 @@ export default {
       return row.type === "SOA" || (row.type === "NS" && row.name === "@");
     },
     showAdd() {
-      this.form = {
-        name: "",
-        type: this.types.includes("A") ? "A" : this.types[0] || "A",
-        data: "",
-        ttl: "",
-      };
-      this.clearErrors();
-      this.isAddShown = true;
+      this.openForm(null);
     },
-    clearErrors() {
-      this.error.add = "";
-      this.error.remove = "";
-      this.error.name = "";
-      this.error.data = "";
-      this.error.ttl = "";
+    showEdit(row) {
+      // the record as get-records reported it, without the table's index
+      this.openForm({ name: row.name, type: row.type, ttl: row.ttl, data: row.data });
     },
-    async addRecord() {
-      this.clearErrors();
-      const name = this.form.name.trim().toLowerCase();
-      if (!name || !/^[a-z0-9@_.*-]+$/.test(name)) {
-        this.error.name = "records.invalid_name";
-        this.focusElement("name");
+    openForm(record) {
+      this.current = record;
+      this.error.save = "";
+      this.error.stale = false;
+      this.formKey++;
+      this.isFormShown = true;
+    },
+    async saveRecord() {
+      this.error.save = "";
+      this.error.stale = false;
+      const record = this.$refs.form.build();
+      if (!record) {
         return;
       }
-      const data = this.form.data.trim();
-      if (!data) {
-        this.error.data = "wizard.required";
-        this.focusElement("data");
-        return;
-      }
-      const record = { name, type: this.form.type, data };
-      if (this.form.ttl !== "" && this.form.ttl !== null) {
-        const ttl = Number(this.form.ttl);
-        if (!Number.isInteger(ttl) || ttl < 1 || ttl > 2147483647) {
-          this.error.ttl = "records.invalid_ttl";
-          this.focusElement("ttl");
-          return;
-        }
-        record.ttl = ttl;
-      }
-      this.loading.add = true;
+      const old = this.current;
+      this.loading.save = true;
       try {
-        await this.callAction("append-records", {
-          data: { zone: this.zone, records: [record] },
-        });
-        this.isAddShown = false;
-        this.notice = {
-          title: this.$t("records.added_title"),
-          text: this.$t("records.added", { name, type: record.type }),
-        };
+        if (old) {
+          // one change: the old record must still be there, or nothing is
+          // done (error "stale"). No TTL: a DNS host may store a different
+          // one from the one asked for.
+          await this.callAction("apply-changes", {
+            data: {
+              zone: this.zone,
+              remove: [{ name: old.name, type: old.type, data: old.data }],
+              add: [record],
+            },
+          });
+        } else {
+          await this.callAction("append-records", {
+            data: { zone: this.zone, records: [record] },
+          });
+        }
+        this.isFormShown = false;
+        this.notice = old
+          ? {
+              title: this.$t("records.edited_title"),
+              text: this.$t("records.edited", {
+                name: record.name,
+                type: record.type,
+              }),
+            }
+          : {
+              title: this.$t("records.added_title"),
+              text: this.$t("records.added", {
+                name: record.name,
+                type: record.type,
+              }),
+            };
         await this.loadRecords();
       } catch (err) {
-        this.error.add = this.errorText(err);
+        this.error.save = this.errorText(err);
+        this.error.stale =
+          err &&
+          err.kind === "validation" &&
+          err.errors.some((e) => e.error === "stale");
       }
-      this.loading.add = false;
+      this.loading.save = false;
+    },
+    async reloadAfterStale() {
+      this.isFormShown = false;
+      await this.loadRecords();
     },
     showRemove(row) {
       this.current = row;
