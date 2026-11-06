@@ -22,9 +22,11 @@ Run action
     RETURN    ${parsed}
 
 Start a PowerDNS server with a zone
-    # PowerDNS on the node's loopback, so that the Records page shows a real zone
+    # PowerDNS on the node's loopback, so that the Records page shows a real zone.
+    # It runs as a non-root user and binds port 53 inside the container: Docker
+    # allows that by default, podman needs the sysctl.
     ${rc} =    Execute Command
-    ...    podman run -d --name dnshelper-ui-pdns -p 127.0.0.1:18081:8081 -e PDNS_AUTH_API_KEY=${PDNS_KEY} ${PDNS_IMAGE}
+    ...    podman run -d --name dnshelper-ui-pdns --sysctl net.ipv4.ip_unprivileged_port_start=53 -p 127.0.0.1:18081:8081 -e PDNS_AUTH_API_KEY=${PDNS_KEY} ${PDNS_IMAGE}
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
     ${rc} =    Execute Command
