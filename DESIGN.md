@@ -400,9 +400,10 @@ Now that dnshelper is the main frontend for ns8-powerdns zones, the Records page
 full records editor rather than a test tool. Today it can only append or delete one record at a
 time (`append-records`, `delete-records`); `set-records` replaces whole (name, type) RRsets and
 cannot express "turn this record into that one" when the name or type changes. Status: step 1
-(`apply-changes`) and step 2 (snapshots and revert, with the Records page's Snapshots dialog and a
-Settings page for retention) implemented, with unit tests; not yet tested against a live DNS host
-or on a node. Steps 3-6 are design only.
+(`apply-changes`), step 2 (snapshots and revert, with the Records page's Snapshots dialog and a
+Settings page for retention) and step 3 (editing with per-type forms) implemented. Steps 1-2 were
+tested on a node against Cloudflare (snapshot, write, diff, revert); step 3 only by checks of the
+form logic (`ui/src/lib/records.js`). Steps 4-6 are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -493,6 +494,12 @@ records, add these", previewed and then applied. Build that once:
   CNAME / NS / PTR. Fewer malformed values, and it matches the structured fields providers send
   (issue #19).
 - SOA and apex NS stay visible but read-only, with a tooltip explaining why.
+- As built: one `RecordForm` component serves the Add and Edit dialogs; the per-type parsing,
+  composing and checks live in `ui/src/lib/records.js` (host names with a dot are made absolute;
+  a TXT value pasted over several lines, such as a DKIM key, is joined; a value that does not fit
+  its type's form is kept in the form's last field rather than lost). Types without a form
+  (HTTPS, SVCB, ...) keep one free field. The edit sends the old record without its TTL, as the
+  delete did, since a DNS host may store a different TTL from the one asked for.
 
 ### Staged changes and bulk operations
 

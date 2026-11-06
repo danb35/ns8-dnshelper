@@ -683,14 +683,17 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   there, with an optional write test, before anything is saved. *Find zones used by my modules*
   suggests zones from the mail, web server and Traefik modules' host names; these are candidates
   only. Secrets are never shown again after saving: an empty secret field means "keep".
-- **Records**: pick a managed zone to list its records, add a record (name, type, value and an
-  optional TTL) or delete one. It calls the same `get-records`, `append-records` and
+- **Records**: pick a managed zone to list its records, add, edit or delete one. The value has
+  a form of its own for the common types (MX preference and server; SRV priority, weight, port
+  and target; CAA flags, tag and value; TXT with a byte count, SPF / DKIM / DMARC hints and a
+  warning about a second SPF record at one name); other types take the value in zone-file syntax.
+  An edit is one `apply-changes`: if the record was changed at the DNS host meanwhile, nothing is
+  changed and the page offers to reload. It calls the same `get-records`, `append-records` and
   `delete-records` actions a consumer module uses, as an administrator, so it is also a way to
   check that a credential really works. Apex NS and SOA records cannot be deleted. **Snapshots**
   lists the zone's snapshots and their change history, takes one, and compares one with the zone:
   the differences are listed (records another module changed since are marked), any can be
-  unticked, and the rest is applied in one `apply-changes`. There is no editing in place or bulk
-  change yet.
+  unticked, and the rest is applied in one `apply-changes`. There are no bulk changes yet.
 - **Settings**: snapshot retention.
 - **Access**: the policy table (which module may change which record names and types), with
   presets for a mail server, for mail auto-configuration (ns8-automx), for ACME DNS-01 and for a
