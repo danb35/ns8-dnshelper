@@ -24,6 +24,18 @@ function bare(r) {
   return { name: r.name, type: r.type, data: r.data };
 }
 
+/**
+ * The key of a record in the owner index (list-owners): as the backend's
+ * _rec_key, host names without case or final dot.
+ */
+export function ownerKey(r) {
+  let data = r.data || "";
+  if (["CNAME", "NS", "PTR", "MX", "SRV"].includes(r.type)) {
+    data = data.toLowerCase().replace(/\.$/, "");
+  }
+  return [(r.name || "").toLowerCase(), r.type, data].join("|");
+}
+
 /** The keys of the existing records a list of changes touches. */
 export function touchedKeys(changes) {
   const keys = {};

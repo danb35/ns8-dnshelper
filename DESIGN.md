@@ -407,8 +407,9 @@ TXT hints and the second-SPF warning, apex NS refused, in the browser). Step 4 (
 bulk operations) implemented and tried on a node against Cloudflare in the browser (pending add and
 undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is checked
 (`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Step 5 (zone file import and
-export) implemented, with unit tests and in the CI screenshots. Step 6 (the other additions) is
-design only.
+export) implemented and tried on a node (export, snapshot download, add-mode import applied,
+replace-mode preview). Step 6, the other additions, in progress: the managed-by marker is
+implemented; the grouped view, linked PTR records and the propagation check are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -557,6 +558,14 @@ records, add these", previewed and then applied. Build that once:
 - **Managed-by marker on records:** show which consumer module wrote a record (from the record
   ownership goal below, or the audit / snapshot metadata as a stopgap) and warn before an admin
   edits it ("written by mail1; it may rewrite this").
+  As built: an owner index, `state/owners/<zone>.json` (backed up; removed with the zone; an
+  unreadable one is dropped on restore), updated after every successful write: a module's
+  addition makes it the owner, any removal forgets the record, an administrator's addition has
+  no owner (so an administrator's edit of a module's record takes it over). Keys are name, type
+  and value, host names without case or final dot. Records written before this existed have no
+  owner. Admin action `list-owners`; the Records page shows a "by mail1" tag and a warning in the
+  Edit and Delete dialogs. This is also the first half of the record ownership goal: cleanup on
+  a consumer's removal is still to do.
 - **Grouped view:** group by name, then type; type filter chips; toggle relative / full names;
   IDNs shown in Unicode with the punycode form available.
 - **Linked PTR records:** when an A / AAAA is added and its reverse zone is also managed (common

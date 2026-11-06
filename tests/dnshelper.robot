@@ -169,7 +169,7 @@ Check if the state to back up is complete
     ${rc} =    Execute Command    runagent -m ${module_id} module-dump-state
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
-    FOR    ${path}    IN    zones.json    policy.json    credentials    settings.json    snapshots
+    FOR    ${path}    IN    zones.json    policy.json    credentials    settings.json    snapshots    owners
         ${rc} =    Execute Command    test -e /home/${module_id}/.config/state/${path}
         ...    return_rc=True  return_stdout=False
         Should Be Equal As Integers    ${rc}  0
@@ -186,6 +186,13 @@ Take screenshots of the pages
     Run action    create-snapshot    {"zone":"${UI_ZONE}","label":"Before the mail setup"}
     Run action    append-records    {"zone":"${UI_ZONE}","records":[{"name":"www","type":"A","data":"192.0.2.10"},{"name":"mail","type":"A","data":"192.0.2.25"},{"name":"@","type":"MX","data":"10 mail.${UI_ZONE}."},{"name":"@","type":"TXT","data":"v=spf1 mx -all"},{"name":"_dmarc","type":"TXT","data":"v=DMARC1; p=quarantine"},{"name":"_autodiscover._tcp","type":"SRV","data":"0 0 443 mail.${UI_ZONE}."}]}
     Run action    apply-changes    {"zone":"${UI_ZONE}","remove":[{"name":"www","type":"A","data":"192.0.2.10"}],"add":[{"name":"www","type":"CNAME","data":"web.example.net."}]}
+    # the MX as if the mail module had written it, for the "by mail1" tag and warning
+    ${rc} =    Execute Command
+    ...    runagent -m ${module_id} env AGENT_TASK_USER=module/mail1 python3 -c 'import os, sys; sys.path.insert(0, os.environ["AGENT_INSTALL_DIR"] + "/pypkg"); import dnshelper_lib as l; l.record_owners("${UI_ZONE}", {"add": [{"name": "@", "type": "MX", "data": "10 mail.${UI_ZONE}."}], "remove": []})'
+    ...    return_rc=True  return_stdout=False
+    Should Be Equal As Integers    ${rc}  0
+    ${owners} =    Run action    list-owners    {"zone":"${UI_ZONE}"}
+    Should Be Equal    ${owners}[owners][0][caller]    module/mail1
     Import Library    Browser
     New Browser    chromium    headless=True
     New Context    ignoreHTTPSErrors=True    viewport={'width': 1440, 'height': 900}

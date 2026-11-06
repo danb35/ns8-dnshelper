@@ -1,0 +1,49 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-owners output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/list-owners",
+    "description": "list-owners",
+    "type": "object",
+    "required": [
+        "zone",
+        "owners"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string"
+        },
+        "owners": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "data",
+                    "caller",
+                    "time"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "data": {
+                        "type": "string"
+                    },
+                    "caller": {
+                        "type": "string",
+                        "description": "module/<id>"
+                    },
+                    "time": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

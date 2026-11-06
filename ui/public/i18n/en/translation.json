@@ -66,7 +66,8 @@
     "delete-snapshot": "Delete snapshot",
     "diff-snapshot": "Compare with snapshot",
     "export-zone": "Export zone",
-    "import-zone": "Plan zone import"
+    "import-zone": "Plan zone import",
+    "list-owners": "List record owners"
   },
   "error": {
     "error": "Error",
@@ -452,5 +453,11 @@
     "part_remove": "To remove",
     "part_add": "To add",
     "skipped": "Left out ({count})"
+  },
+  "owners": {
+    "tag": "by {module}",
+    "tag_help": "Written by {module} through dnshelper",
+    "warning_title": "Written by {module}",
+    "warning": "{module} wrote this record through dnshelper and may rely on it. Changing or deleting it here can break {module}, and {module} may write it again."
   }
 }

@@ -93,6 +93,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
+| Record owners (admin) | `list-owners`: which module wrote which record |
 | UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
@@ -260,8 +261,8 @@ token is derived from the credential, is not part of the backup, and expires wit
 ## Backup and restore
 
 **What is backed up** (`imageroot/etc/state-include.conf`): `state/zones.json`,
-`state/policy.json`, `state/credentials/`, `state/settings.json` and the zone snapshots in
-`state/snapshots/`. Lock files are not. The core adds
+`state/policy.json`, `state/credentials/`, `state/settings.json`, the zone snapshots in
+`state/snapshots/` and the record owner index in `state/owners/`. Lock files are not. The core adds
 `state/environment` itself; dnshelper keeps nothing in it.
 
 **Decision: credentials are included.** Without them a restored module cannot manage any zone,

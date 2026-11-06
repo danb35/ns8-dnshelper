@@ -1,0 +1,24 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-owners input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/list-owners",
+    "description": "The records of a zone that a module wrote through dnshelper, and which module (administrators only)",
+    "examples": [
+        {
+            "zone": "example.com"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        }
+    }
+}
