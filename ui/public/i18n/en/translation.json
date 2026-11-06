@@ -66,7 +66,8 @@
     "delete-snapshot": "Delete snapshot",
     "diff-snapshot": "Compare with snapshot",
     "export-zone": "Export zone",
-    "import-zone": "Plan zone import"
+    "import-zone": "Plan zone import",
+    "list-owners": "List record owners"
   },
   "error": {
     "error": "Error",
@@ -432,7 +433,8 @@
     "match_case": "Match case",
     "only_selected": "Only the {count} selected records",
     "matches": "No records match | 1 record matches | {count} records match",
-    "stage": "Add to pending changes | Add 1 change to pending changes | Add {count} changes to pending changes"
+    "stage": "Add to pending changes | Add 1 change to pending changes | Add {count} changes to pending changes",
+    "to_pending": "Add to pending"
   },
   "import": {
     "button": "Import",
@@ -452,5 +454,11 @@
     "part_remove": "To remove",
     "part_add": "To add",
     "skipped": "Left out ({count})"
+  },
+  "owners": {
+    "tag": "by {module}",
+    "tag_help": "Written by {module} through dnshelper",
+    "warning_title": "Written by {module}",
+    "warning": "{module} wrote this record through dnshelper and may rely on it. Changing or deleting it here can break {module}, and {module} may write it again."
   }
 }

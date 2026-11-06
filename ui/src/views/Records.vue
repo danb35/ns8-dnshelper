@@ -237,6 +237,13 @@
                       shorten(row.data)
                     }}</span>
                     <NsTag
+                      v-if="ownerOf(row)"
+                      :label="$t('owners.tag', { module: ownerOf(row) })"
+                      :title="$t('owners.tag_help', { module: ownerOf(row) })"
+                      kind="teal"
+                      class="mg-left-sm"
+                    />
+                    <NsTag
                       v-if="pendingKeys[keyOf(row)]"
                       :label="$t('pending.row_' + pendingKeys[keyOf(row)])"
                       :kind="pendingKeys[keyOf(row)] === 'delete' ? 'red' : 'purple'"
@@ -369,6 +376,13 @@
           <div class="mg-bottom-md">
             {{ current ? $t("records.edit_help") : $t("records.add_help") }}
           </div>
+          <NsInlineNotification
+            v-if="ownerOf(current)"
+            kind="warning"
+            :title="$t('owners.warning_title', { module: ownerOf(current) })"
+            :description="$t('owners.warning', { module: ownerOf(current) })"
+            :showCloseButton="false"
+          />
           <RecordForm
             v-if="isFormShown"
             :key="formKey"
@@ -398,7 +412,7 @@
           </NsButton>
         </cv-form>
       </template>
-      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
+      <template slot="other-button">{{ $t("bulk.to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
@@ -429,6 +443,13 @@
         </p>
         <p class="mg-bottom-md">{{ $t("records.remove_explanation") }}</p>
         <NsInlineNotification
+          v-if="ownerOf(current)"
+          kind="warning"
+          :title="$t('owners.warning_title', { module: ownerOf(current) })"
+          :description="$t('owners.warning', { module: ownerOf(current) })"
+          :showCloseButton="false"
+        />
+        <NsInlineNotification
           v-if="error.remove"
           kind="error"
           :title="$t('action.delete-records')"
@@ -436,7 +457,7 @@
           :showCloseButton="false"
         />
       </template>
-      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
+      <template slot="other-button">{{ $t("bulk.to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
@@ -460,7 +481,13 @@ import PendingChanges from "../components/PendingChanges";
 import ReviewChanges from "../components/ReviewChanges";
 import FindReplace from "../components/FindReplace";
 import ImportZone from "../components/ImportZone";
-import { recordKey, setTtl, stage, touchedKeys } from "../lib/pending";
+import {
+  ownerKey,
+  recordKey,
+  setTtl,
+  stage,
+  touchedKeys,
+} from "../lib/pending";
 import Time20 from "@carbon/icons-vue/es/time/20";
 
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
@@ -496,6 +523,8 @@ export default {
       providers: [],
       zone: "",
       records: [],
+      // ownerKey -> "module/<id>", for records a module wrote
+      owners: {},
       page: [],
       current: null,
       isFormShown: false,
@@ -637,6 +666,7 @@ export default {
           data: { zone: this.zone },
         });
         this.records = out.records.slice().sort(this.compareRecords);
+        this.loadOwners();
         // a selected record may be gone
         const keys = new Set(this.records.map(recordKey));
         this.selected = this.selected.filter((k) => keys.has(k));
@@ -645,6 +675,25 @@ export default {
         this.error.load = this.errorText(err);
       }
       this.loading.records = false;
+    },
+    // which module wrote which record; the page works without it
+    async loadOwners() {
+      try {
+        const out = await this.callAction("list-owners", {
+          data: { zone: this.zone },
+        });
+        const owners = {};
+        for (const o of out.owners) {
+          owners[ownerKey(o)] = o.caller;
+        }
+        this.owners = owners;
+      } catch (err) {
+        this.owners = {};
+      }
+    },
+    ownerOf(r) {
+      const who = r ? this.owners[ownerKey(r)] : "";
+      return who ? who.replace(/^module\//, "") : "";
     },
     // the apex first, then by name and type
     compareRecords(a, b) {

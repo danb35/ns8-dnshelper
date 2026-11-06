@@ -433,6 +433,7 @@ def remove_zone(data):
         del zones[zone]
         _save_zones(zones)
         remove_snapshots(zone)
+        remove_owners(zone)
     return {}
 
 
@@ -598,6 +599,8 @@ def _write(op, zone, req, requested_add, requested_remove, label=''):
         if label:
             change['label'] = label
         save_snapshot(zone, resp['before'], 'auto', op, change=change)
+        if ok:
+            record_owners(zone, resp['changes'])
     return _helper_result(resp)
 
 
@@ -894,6 +897,67 @@ def diff_snapshot(data):
     return {'id': data['id'], 'remove': rows(changes['remove']), 'add': rows(changes['add'])}
 
 
+# ---------------------------------------------------------------- record owners
+
+# Which module wrote which record, in state/owners/<zone>.json, so that the
+# Records page can say so and warn before an administrator changes it. Kept
+# up to date by every successful write through dnshelper: a module's addition
+# makes it the owner; any removal (by anyone) forgets the record; an
+# administrator's addition has no owner. Records written before this existed,
+# or behind dnshelper's back, have none. See DESIGN.md, Records editor.
+
+def _owners_root():
+    return os.path.join(_state_dir(), 'owners')
+
+
+def _owners_path(zone):
+    return os.path.join(_owners_root(), zone + '.json')
+
+
+def _owner_key(r):
+    return '|'.join(_rec_key(r))
+
+
+def load_owners(zone):
+    data = _read_json_or_none(_owners_path(zone))
+    owners = data.get('records') if isinstance(data, dict) else None
+    return owners if isinstance(owners, dict) else {}
+
+
+def record_owners(zone, changes):
+    """Update the owners of zone after a successful write. Never raises."""
+    who = caller()
+    try:
+        with _SnapshotLock():
+            owners = load_owners(zone)
+            before = dict(owners)
+            for r in changes.get('remove', []):
+                owners.pop(_owner_key(r), None)
+            if who.startswith('module/'):
+                for r in changes.get('add', []):
+                    owners[_owner_key(r)] = {'name': r['name'], 'type': r['type'], 'data': r['data'],
+                                             'caller': who, 'time': _now().isoformat()}
+            if owners != before:
+                _write_private(_owners_path(zone), {'records': owners})
+    except OSError as e:
+        print('<4>dnshelper: cannot record the owners of %s: %s' % (zone, type(e).__name__), file=sys.stderr)
+
+
+def remove_owners(zone):
+    try:
+        os.unlink(_owners_path(zone))
+    except FileNotFoundError:
+        pass
+
+
+def list_owners(data):
+    """The records of a zone that a module wrote (administrators only)."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    owners = sorted(load_owners(zone).values(), key=lambda o: (o['name'], o['type'], o['data']))
+    return {'zone': zone, 'owners': owners}
+
+
 # ---------------------------------------------------------------- zone files
 
 def export_zone(data):
@@ -1151,6 +1215,7 @@ HANDLERS = {
     'delete-snapshot': delete_snapshot,
     'diff-snapshot': diff_snapshot,
     'export-zone': export_zone,
+    'list-owners': list_owners,
     'import-zone': import_zone,
     'sync-powerdns': sync_powerdns,
 }
@@ -1179,6 +1244,7 @@ def ensure_state():
         if not os.path.exists(_settings_path()):
             _write_private(_settings_path(), dict(DEFAULT_SETTINGS))
         os.makedirs(_snapshots_root(), mode=0o700, exist_ok=True)
+        os.makedirs(_owners_root(), mode=0o700, exist_ok=True)
 
 
 def _parse(path, kind):
@@ -1266,6 +1332,7 @@ def check_restored_state(module_exists=None):
         else:
             os.chmod(_settings_path(), 0o600)
     snapshots = _check_restored_snapshots(warnings)
+    _check_restored_owners(warnings)
 
     summary = {'zones': len(zones), 'credentials': len(creds), 'rules': len(rules), 'snapshots': snapshots}
     return summary, warnings
@@ -1277,6 +1344,25 @@ def _read_json_or_none(path):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+def _check_restored_owners(warnings):
+    """Like snapshots, the owner index is history: a bad file is dropped."""
+    root = _owners_root()
+    if not os.path.isdir(root):
+        return
+    os.chmod(root, 0o700)
+    for fn in sorted(os.listdir(root)):
+        path = os.path.join(root, fn)
+        if fn.endswith('.tmp'):
+            os.unlink(path)
+            continue
+        data = _read_json_or_none(path) if fn.endswith('.json') and ZONE_RE.match(fn[:-len('.json')]) else None
+        if not (isinstance(data, dict) and isinstance(data.get('records'), dict)):
+            warnings.append('removing unreadable record owners file owners/%s' % fn)
+            os.unlink(path)
+            continue
+        os.chmod(path, 0o600)
 
 
 def _check_restored_snapshots(warnings):
