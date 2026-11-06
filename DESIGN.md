@@ -401,9 +401,9 @@ full records editor rather than a test tool. Today it can only append or delete 
 time (`append-records`, `delete-records`); `set-records` replaces whole (name, type) RRsets and
 cannot express "turn this record into that one" when the name or type changes. Status: step 1
 (`apply-changes`), step 2 (snapshots and revert, with the Records page's Snapshots dialog and a
-Settings page for retention) and step 3 (editing with per-type forms) implemented. Steps 1-2 were
-tested on a node against Cloudflare (snapshot, write, diff, revert); step 3 only by checks of the
-form logic (`ui/src/lib/records.js`). Steps 4-6 are design only.
+Settings page for retention) and step 3 (editing with per-type forms) implemented. Steps 1-3 were
+tested on a node against Cloudflare (snapshot, write, diff, revert; add, edit, A to CNAME, delete,
+TXT hints and the second-SPF warning, apex NS refused, in the browser). Steps 4-6 are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -500,6 +500,12 @@ records, add these", previewed and then applied. Build that once:
   its type's form is kept in the form's last field rather than lost). Types without a form
   (HTTPS, SVCB, ...) keep one free field. The edit sends the old record without its TTL, as the
   delete did, since a DNS host may store a different TTL from the one asked for.
+- NS records: refused at `@` (by the backend, and by the form before saving); allowed at other
+  names, where they delegate the name, with help text saying so.
+- Found in that test (2026-11-06): `libdns/cloudflare`'s `DeleteRecords` returns the deleted
+  records without their type, which failed `validate-output.json` after a successful delete. Write
+  responses now report the planned records when a provider's answer lacks a name or type, and a
+  delete always reports the records verified removed.
 
 ### Staged changes and bulk operations
 

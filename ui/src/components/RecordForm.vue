@@ -295,7 +295,12 @@ export default {
     },
   },
   watch: {
+    // an error about the name (NS at @) may no longer hold
+    name() {
+      this.errors.name = "";
+    },
     type(next, prev) {
+      this.errors.name = "";
       // keep a host name across CNAME / NS / PTR; otherwise start over,
       // unless this is the type the record had
       if (HOST_TYPES.includes(prev) && HOST_TYPES.includes(next)) {
