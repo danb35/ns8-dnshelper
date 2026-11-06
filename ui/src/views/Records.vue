@@ -412,7 +412,7 @@
           </NsButton>
         </cv-form>
       </template>
-      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
+      <template slot="other-button">{{ $t("bulk.to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
@@ -457,7 +457,7 @@
           :showCloseButton="false"
         />
       </template>
-      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
+      <template slot="other-button">{{ $t("bulk.to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>

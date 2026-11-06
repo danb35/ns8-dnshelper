@@ -433,7 +433,8 @@
     "match_case": "Match case",
     "only_selected": "Only the {count} selected records",
     "matches": "No records match | 1 record matches | {count} records match",
-    "stage": "Add to pending changes | Add 1 change to pending changes | Add {count} changes to pending changes"
+    "stage": "Add to pending changes | Add 1 change to pending changes | Add {count} changes to pending changes",
+    "to_pending": "Add to pending"
   },
   "import": {
     "button": "Import",
