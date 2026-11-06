@@ -52,7 +52,7 @@ buildah add "${container}" ui/dist /ui
 
 buildah config --entrypoint=/ \
     --label="org.nethserver.rootfull=0" \
-    --label="org.nethserver.min-core=3.20.1" \
+    --label="org.nethserver.min-core=3.23.0" \
     --label="org.nethserver.max-per-node=1" \
     --label="org.nethserver.authorizations=powerdns@any:dnsprovider" \
     "${container}"
