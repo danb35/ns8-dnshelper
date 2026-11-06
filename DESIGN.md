@@ -350,7 +350,8 @@ leave them pointing at a dead API.
   libdns has no ownership marker, so track it in the module.
 - Safety rails: never touch apex NS/SOA; per-zone lock; dry-run for `set-records`.
 - Provider capability matrix in UI (e.g. warn when SRV unsupported).
-- Optional propagation check against authoritative nameservers.
+- Optional propagation check against authoritative nameservers (planned as part of the records
+  editor, below).
 - Later: dynamic-IP updater (A/AAAA); DNS-01 for wildcard certificates via Traefik (**VERIFY**
   how NS8 configures ACME).
 - Standard NS8 hygiene: Robot Framework tests, Weblate i18n, pinned images + Renovate.
@@ -392,10 +393,125 @@ core requirement.
 - libdns package docs (pkg.go.dev/github.com/libdns/libdns), v1.1.1 read on 2026-09-19
 - NethServer/agents module-conventions PR; ns8-odoo 1.1.0 release notes (secrets handling)
 
+## Records editor (planned)
+
+Now that dnshelper is the main frontend for ns8-powerdns zones, the Records page should become a
+full records editor rather than a test tool. Today it can only append or delete one record at a
+time (`append-records`, `delete-records`); `set-records` replaces whole (name, type) RRsets and
+cannot express "turn this record into that one" when the name or type changes. Status: design
+only, nothing implemented.
+
+### Foundation: one changeset operation
+
+Editing, bulk operations, zone import and snapshot revert all reduce to "remove these exact
+records, add these", previewed and then applied. Build that once:
+
+- New admin action `apply-changes` (admin only, in no role at first), input
+  `{zone, remove: [records], add: [records], dry_run}`, output the usual changes / records shape.
+  Helper operation of the same name in `dnsops`.
+- **Planned together.** One `Plan` with both lists; `CheckAfter` runs on the combined result, so an
+  A -> CNAME swap at one name passes, where delete-then-add as two calls would fail or leave the
+  zone briefly invalid. `checkForbidden` applies to both lists (no SOA, no apex NS).
+- **Strict removes (optimistic concurrency).** Every record in `remove` must exist exactly
+  (name, type, value; TTL ignored, as in the Records page's delete today), otherwise the whole
+  changeset is refused with a `stale` error code and nothing is written. Unlike `delete-records`,
+  where deleting something absent is success: in an editor that would let an edit of a value a
+  consumer has since rewritten (DKIM rotation, ACME) silently add a second record.
+- **Atomic where the host allows it.** The PowerDNS adapter already writes all its changes in one
+  PATCH, applied entirely or not at all (`registry/powerdns.go`, `apply`). Expose that through an
+  optional interface (e.g. `ChangeApplier`, type-asserted like the libdns ones) so adopted
+  PowerDNS zones get true atomicity; other providers use the existing delete -> verify -> append
+  path with best-effort `restore()`. Report in the capability matrix which providers are atomic.
+- **Limits.** Keep the 100-records-per-request schema limit; the UI splits larger bulk changes
+  into several changesets and says so in the preview. Per-zone lock as for every write.
+- **Audit.** One audit line per changeset, as for the other write actions.
+- The UI always runs `dry_run` first and shows a before / after diff; the apply button sends the
+  same changeset.
+
+### Snapshots and revert
+
+- **Automatic** snapshot of the zone (the `get-records` result, minus SOA) before every write
+  through dnshelper from any caller, not only the Records page: a consumer's bad `set-records` is
+  as worth undoing as an admin's mistake. Skipped when the content hash equals the latest
+  snapshot's.
+- **Manual** "Snapshot now", with an optional label.
+- Stored as `state/snapshots/<zone>/<timestamp>.json` with metadata (caller, action, label).
+- **Retention** is configurable (`configure-module`, not a secret): a maximum count per zone and a
+  maximum age, both applied, the newest snapshot always kept. Default: 50 per zone, 90 days.
+  Pruned after each new snapshot; snapshots of zones no longer managed (see below) are pruned on
+  every `sync-powerdns` run, since they get no new snapshots to trigger it.
+- **Backed up** (decision 2026-11-06): `state/snapshots` is listed in `state-include.conf`, so a
+  restore brings back the history with the zones.
+- **Revert** computes the difference between the snapshot and the zone as it is now and presents it
+  as a changeset preview whose rows can be unticked. A full revert also undoes consumer changes
+  made since (ACME challenges, DKIM, automx records), so the preview marks rows touched by other
+  callers since the snapshot.
+- The snapshot list, with caller and action per entry, doubles as a per-zone change history in the
+  UI, which journald audit lines alone cannot provide.
+- **Removing a zone deletes its snapshots** (decision 2026-11-06). The remove-zone dialog warns
+  that the zone's snapshots go with it and gives their count.
+- **Except when `sync-powerdns` removes an adopted zone** (decision 2026-11-06): there is no
+  dialog to warn in, and the removal is often temporary (a move or restore of the primary removes
+  the zone, then adopts it again). Its snapshots are kept and retention prunes them as usual, by
+  age, though the newest-snapshot exception does not apply to a zone that is no longer managed, so
+  a zone that never comes back loses its last snapshot at the maximum age too. A zone re-adopted
+  under the same name gets its history back.
+
+### Editing
+
+- "Edit" on a row builds a changeset of one remove plus one add (a TTL-only change stays in one
+  RRset). Stale edits fail with the `stale` error and the page offers to reload.
+- **Per-type forms** instead of one free-text Data field: MX (preference, target), SRV (priority,
+  weight, port, target), CAA (flags, tag, value), TXT as a multi-line field with a length counter
+  and hints for SPF / DKIM (warn on a second `v=spf1` at one name), host-name fields for
+  CNAME / NS / PTR. Fewer malformed values, and it matches the structured fields providers send
+  (issue #19).
+- SOA and apex NS stay visible but read-only, with a tooltip explaining why.
+
+### Staged changes and bulk operations
+
+- **Staged editing:** adds, edits and deletes accumulate as pending changes, shown in the table,
+  and go out through one "Review and apply" (the changeset preview). Discard all is one click.
+- **Multi-select delete.**
+- **Find and replace in values**, scoped by type and name pattern: bulk-retargeting CNAMEs, and the
+  more common case of changing an IP across A / AAAA records during a server move.
+- **Bulk TTL change** (lower TTLs ahead of a migration).
+
+### Zone file import and export
+
+- Export the zone as a BIND-format zone file (download).
+- Import by pasting or uploading a zone file: parsed (`github.com/miekg/dns` is already an indirect
+  dependency), SOA and apex NS dropped, then shown as a changeset preview against the current zone
+  (add only, or full replace). Also the practical way to move a zone between DNS hosts.
+
+### Other additions
+
+- **Managed-by marker on records:** show which consumer module wrote a record (from the record
+  ownership goal below, or the audit / snapshot metadata as a stopgap) and warn before an admin
+  edits it ("written by mail1; it may rewrite this").
+- **Grouped view:** group by name, then type; type filter chips; toggle relative / full names;
+  IDNs shown in Unicode with the punycode form available.
+- **Linked PTR records:** when an A / AAAA is added and its reverse zone is also managed (common
+  with adopted PowerDNS zones), offer the matching PTR in the same changeset.
+- **Propagation check** per record after an apply (moved here from Additional goals): query the
+  zone's authoritative nameservers.
+- Rewrite the page intro, which still describes a test tool.
+
+### Out of scope
+
+Creating and deleting zones, DNSSEC and other zone-level settings belong to the DNS host
+(ns8-powerdns for adopted zones); libdns does not cover them. The editor links out instead.
+
+### Order
+
+1. `apply-changes` with strict removes and the atomic PowerDNS path.
+2. Automatic snapshots and revert.
+3. Editing with per-type forms.
+4. Staged changes, multi-select and bulk operations.
+5. Zone file import and export.
+6. The rest, in any order.
+
 ## Future improvements
 
 - More DNS hosts
-- Consider a more full-fledged DNS record/zone editor.  Currently the records page lets you add or remove records, but it's designed as a test tool, not a full DNS manager.
-  - One useful feature would be a zone backup before editing, and allowing reverts to prior backups.
-  - Allow direct editing of records rather than delete/add.
-  - Bulk record operations (I'd expect deletions as the main one, but the ability to bulk-retarget CNAMEs could also be useful)
+- Records editor: see "Records editor (planned)" above.
