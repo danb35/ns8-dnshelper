@@ -104,7 +104,9 @@
         ref="target"
         class="mg-bottom-md"
       />
-      <p class="hint mg-bottom-md">{{ $t("record_form.srv_name_hint") }}</p>
+      <p class="record-hint mg-bottom-md">
+        {{ $t("record_form.srv_name_hint") }}
+      </p>
     </template>
     <template v-else-if="type === 'CAA'">
       <div class="field-row">
@@ -159,7 +161,7 @@
         :description="$t('record_form.second_spf', { name: name || '@' })"
         :showCloseButton="false"
       />
-      <p v-else-if="txtKind" class="hint mg-bottom-md">
+      <p v-else-if="txtKind" class="record-hint mg-bottom-md">
         {{ $t("record_form.hint_" + txtKind) }}
       </p>
     </template>
@@ -388,7 +390,7 @@ export default {
   flex: 1 1 16rem;
 }
 
-.hint {
+.record-hint {
   font-size: 0.875rem;
   max-width: 40rem;
 }

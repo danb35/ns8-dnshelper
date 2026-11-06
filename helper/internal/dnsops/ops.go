@@ -115,6 +115,19 @@ func libFor(existing []entry, recs []contract.Record) ([]libdns.Record, error) {
 	return out, nil
 }
 
+// reported is what a provider says it wrote, or, when its package returns
+// records without a name or type (some do), what was asked for: a response
+// must never hold a record that fails the action's output schema.
+func reported(done []libdns.Record, planned []contract.Record) []contract.Record {
+	out := fromLibdnsAll(done)
+	for _, r := range out {
+		if r.Name == "" || r.Type == "" {
+			return nonNil(planned)
+		}
+	}
+	return out
+}
+
 func nonNil(r []contract.Record) []contract.Record {
 	if r == nil {
 		return []contract.Record{}
@@ -187,7 +200,7 @@ func (o *Ops) AppendRecords(ctx context.Context, input []contract.Record, dryRun
 	if err != nil {
 		return contract.Response{}, ProviderError(err, o.Secrets)
 	}
-	resp.Records = fromLibdnsAll(done)
+	resp.Records = reported(done, plan.Add)
 	return resp, nil
 }
 
@@ -235,7 +248,7 @@ func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode stri
 		if err != nil {
 			return contract.Response{}, ProviderError(err, o.Secrets)
 		}
-		resp.Records = fromLibdnsAll(done)
+		resp.Records = reported(done, plan.Desired)
 		return resp, nil
 	}
 
@@ -273,7 +286,7 @@ func (o *Ops) applyPlan(ctx context.Context, es []entry, plan Plan, app libdns.R
 		if err == nil {
 			var done []libdns.Record
 			if done, err = app.AppendRecords(ctx, zone, libs); err == nil {
-				return fromLibdnsAll(done), nil
+				return reported(done, plan.Add), nil
 			}
 			err = ProviderError(err, o.Secrets)
 		}
@@ -346,7 +359,7 @@ func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, d
 		if err != nil {
 			return contract.Response{}, ProviderError(err, o.Secrets)
 		}
-		resp.Records = fromLibdnsAll(done)
+		resp.Records = reported(done, plan.Add)
 	case canApp && canDel:
 		done, err := o.applyPlan(ctx, es, plan, app)
 		if err != nil {
@@ -383,7 +396,7 @@ func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, d
 		if err != nil {
 			return contract.Response{}, ProviderError(err, o.Secrets)
 		}
-		resp.Records = fromLibdnsAll(done)
+		resp.Records = reported(done, desired)
 	}
 	return resp, nil
 }
@@ -496,14 +509,15 @@ func (o *Ops) DeleteRecords(ctx context.Context, input []contract.Record, dryRun
 			libs = append(libs, e.l)
 		}
 	}
-	done, err := del.DeleteRecords(ctx, ZoneFQDN(o.Zone), libs)
-	if err != nil {
+	if _, err := del.DeleteRecords(ctx, ZoneFQDN(o.Zone), libs); err != nil {
 		return contract.Response{}, ProviderError(err, o.Secrets)
 	}
 	if err := o.verifyRemoved(ctx, plan.Remove); err != nil {
 		return contract.Response{}, err
 	}
-	resp.Records = fromLibdnsAll(done)
+	// what was verified removed: provider packages differ in what
+	// DeleteRecords returns (Cloudflare's lack the type)
+	resp.Records = nonNil(plan.Remove)
 	return resp, nil
 }
 
