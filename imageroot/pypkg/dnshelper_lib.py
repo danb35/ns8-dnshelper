@@ -894,6 +894,43 @@ def diff_snapshot(data):
     return {'id': data['id'], 'remove': rows(changes['remove']), 'add': rows(changes['add'])}
 
 
+# ---------------------------------------------------------------- zone files
+
+def export_zone(data):
+    """The zone, or one of its snapshots, as a BIND zone file (administrators only)."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    if data.get('snapshot'):
+        snap = _load_snapshot(zone, data['snapshot'])
+        req = {'op': 'export-zone', 'zone': zone, 'records': snap.get('records', [])}
+        name = '%s-%s.zone' % (zone, data['snapshot'])
+    else:
+        req = _zone_request(zone)
+        req['op'] = 'export-zone'
+        name = '%s.zone' % zone
+    return {'zone': zone, 'filename': name, 'text': call_helper(req)['text']}
+
+
+def import_zone(data):
+    """Plan an import: what apply-changes would have to remove and add.
+
+    mode "add" only adds what the zone lacks; "replace" also removes what the
+    file lacks. Writes nothing: the Records page adds the result to its
+    pending changes. SOA, the zone's own NS records and names outside the
+    zone are left out and reported in skipped."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    # parsing needs no provider: no credentials in this request
+    parsed = call_helper({'op': 'parse-zone', 'zone': zone, 'text': data['text']})
+    req = _zone_request(zone)
+    req.update(op='diff-records', records=parsed['records'])
+    if data.get('mode', 'add') == 'add':
+        req['mode'] = 'add'
+    changes = call_helper(req)['changes']
+    return {'zone': zone, 'parsed': len(parsed['records']), 'skipped': parsed.get('skipped') or [],
+            'add': changes['add'], 'remove': changes['remove']}
+
+
 # ---------------------------------------------------------------- ns8-powerdns adoption
 
 POWERDNS_SERVICE = 'powerdns-api'
@@ -1113,6 +1150,8 @@ HANDLERS = {
     'create-snapshot': create_snapshot,
     'delete-snapshot': delete_snapshot,
     'diff-snapshot': diff_snapshot,
+    'export-zone': export_zone,
+    'import-zone': import_zone,
     'sync-powerdns': sync_powerdns,
 }
 

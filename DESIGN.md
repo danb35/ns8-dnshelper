@@ -406,7 +406,9 @@ tested on a node against Cloudflare (snapshot, write, diff, revert; add, edit, A
 TXT hints and the second-SPF warning, apex NS refused, in the browser). Step 4 (staged changes and
 bulk operations) implemented and tried on a node against Cloudflare in the browser (pending add and
 undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is checked
-(`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Steps 5-6 are design only.
+(`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Step 5 (zone file import and
+export) implemented, with unit tests and in the CI screenshots. Step 6 (the other additions) is
+design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -538,6 +540,17 @@ records, add these", previewed and then applied. Build that once:
 - Import by pasting or uploading a zone file: parsed (`github.com/miekg/dns` is already an indirect
   dependency), SOA and apex NS dropped, then shown as a changeset preview against the current zone
   (add only, or full replace). Also the practical way to move a zone between DNS hosts.
+- As built: helper operations `export-zone` (the zone, or given records: a snapshot, which needs no
+  provider) and `parse-zone` (needs no provider, and gets no credential), package
+  `helper/internal/zonefile` on `miekg/dns`, TXT quoting shared with the record-set providers
+  (`internal/txtfmt`). Export writes `$ORIGIN`, `$TTL 3600` for records of unknown TTL, SOA and NS
+  first; TXT as quoted 255-byte strings, non-ASCII as `\DDD`. Parse refuses `$INCLUDE` (it would
+  read files on the node), files over 2 MB or 10,000 records and records with no value; it skips,
+  with a reason, SOA, apex NS, other classes and names outside the zone. Admin actions
+  `export-zone` (optional `snapshot`) and `import-zone` (`mode` `add`: records the zone lacks,
+  compared without TTL, via `diff-records` mode `add`; `replace`: also removals) plan only; the
+  Records page adds the plan to its pending changes, so an import goes through the same review,
+  dry run and grouping as any other change. A Download button on each snapshot exports it.
 
 ### Other additions
 

@@ -92,6 +92,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 | Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns`, `apply-changes` |
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
+| Zone files (admin) | `export-zone`, `import-zone` (plans only) |
 | UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
@@ -533,7 +534,8 @@ echo '{"op":"list-providers"}' | helper/dnshelper
 ```
 
 Operations: `list-providers`, `capabilities`, `validate`, `list-zones`, `get-records`,
-`append-records`, `set-records`, `delete-records`, `apply-changes`, and `registrable-domains` (reduces host names to
+`append-records`, `set-records`, `delete-records`, `apply-changes`, `diff-records`, `export-zone`,
+`parse-zone`, and `registrable-domains` (reduces host names to
 the registrable domains containing them, with the public suffix list; needs no provider). Records are `{"name","type","ttl","data"}` with names relative
 to the zone (`@` for the apex) and TXT data as one plain, unquoted string of any length.
 
@@ -699,7 +701,11 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   actions always do: delete the selected records, give them a new TTL, or find and replace text in
   record values (narrowed by type and a name pattern, over the selection or the whole zone). Review
   and apply shows the backend's plan (a dry run) and sends everything as one `apply-changes`, in
-  groups of up to 100 when there are more.
+  groups of up to 100 when there are more. **Export** downloads the zone as a BIND-format zone
+  file (each snapshot has a Download button too). **Import** reads a pasted or chosen zone file
+  (`$INCLUDE` refused; SOA, the zone's own NS records and names outside the zone left out) and
+  adds what would change to the pending changes: only the records the zone lacks, or, to make the
+  zone match the file, removals too.
 - **Settings**: snapshot retention.
 - **Access**: the policy table (which module may change which record names and types), with
   presets for a mail server, for mail auto-configuration (ns8-automx), for ACME DNS-01 and for a

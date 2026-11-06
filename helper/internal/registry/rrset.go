@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/libdns/libdns"
+
+	"github.com/danb35/ns8-dnshelper/helper/internal/txtfmt"
 )
 
 // Helpers for providers whose API stores record sets (one name and type,
@@ -52,79 +52,11 @@ func qualifyTarget(t, zone string) string {
 	return t + "." + z
 }
 
-// txtUnquote joins the quoted strings of a TXT value and undoes the escapes
-// (\" \\ and \DDD). A value that is not quoted is returned as it is.
-func txtUnquote(v string) string {
-	v = strings.TrimSpace(v)
-	if !strings.HasPrefix(v, `"`) {
-		return v
-	}
-	var out []byte
-	in := false
-	for i := 0; i < len(v); i++ {
-		c := v[i]
-		switch {
-		case c == '"':
-			in = !in
-		case !in:
-			// the space between two strings
-		case c == '\\' && i+3 < len(v) && isDigits(v[i+1:i+4]):
-			n, _ := strconv.Atoi(v[i+1 : i+4])
-			out = append(out, byte(n))
-			i += 3
-		case c == '\\' && i+1 < len(v):
-			i++
-			out = append(out, v[i])
-		default:
-			out = append(out, c)
-		}
-	}
-	return string(out)
-}
-
-func isDigits(s string) bool {
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// txtQuote writes a TXT value as quoted strings of at most 255 bytes, split
-// between characters, with " and \ escaped.
-func txtQuote(v string) string {
-	var parts []string
-	for len(v) > 0 || len(parts) == 0 {
-		n := len(v)
-		if n > 255 {
-			n = 255
-			for n > 0 && !utf8.RuneStart(v[n]) {
-				n--
-			}
-		}
-		chunk := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v[:n])
-		parts = append(parts, `"`+chunk+`"`)
-		v = v[n:]
-	}
-	return strings.Join(parts, " ")
-}
-
-// escapeNonASCII writes the bytes of a quoted TXT value outside printable
-// ASCII as \DDD ("café" becomes "caf\195\169"), for hosts that refuse or
-// mangle them (Cloud DNS refuses them, IONOS turns é into e). txtUnquote
-// reads them back.
-func escapeNonASCII(v string) string {
-	var b strings.Builder
-	for i := 0; i < len(v); i++ {
-		if c := v[i]; c < 0x20 || c > 0x7e {
-			fmt.Fprintf(&b, "\\%03d", c)
-		} else {
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
+// txtUnquote, txtQuote and escapeNonASCII: see package txtfmt, shared with
+// the zone file import and export.
+func txtUnquote(v string) string     { return txtfmt.Unquote(v) }
+func txtQuote(v string) string       { return txtfmt.Quote(v) }
+func escapeNonASCII(v string) string { return txtfmt.EscapeNonASCII(v) }
 
 // toPresentation converts a libdns value to presentation format: TXT quoted,
 // targets given a final dot so that they are not read as relative to the zone.
