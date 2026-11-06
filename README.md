@@ -687,7 +687,8 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   there, with an optional write test, before anything is saved. *Find zones used by my modules*
   suggests zones from the mail, web server and Traefik modules' host names; these are candidates
   only. Secrets are never shown again after saving: an empty secret field means "keep".
-- **Records**: pick a managed zone to list its records, add, edit or delete one. The value has
+- **Records**: pick a managed zone to list its records (filter by type, relative or full names,
+  internationalised names in Unicode), add, edit or delete one. The value has
   a form of its own for the common types (MX preference and server; SRV priority, weight, port
   and target; CAA flags, tag and value; TXT with a byte count, SPF / DKIM / DMARC hints and a
   warning about a second SPF record at one name); other types take the value in zone-file syntax.

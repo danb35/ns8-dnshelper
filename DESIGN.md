@@ -408,8 +408,8 @@ bulk operations) implemented and tried on a node against Cloudflare in the brows
 undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is checked
 (`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Step 5 (zone file import and
 export) implemented and tried on a node (export, snapshot download, add-mode import applied,
-replace-mode preview). Step 6, the other additions, in progress: the managed-by marker is
-implemented; the grouped view, linked PTR records and the propagation check are design only.
+replace-mode preview). Step 6, the other additions, in progress: the managed-by marker and the
+grouped view are implemented; linked PTR records and the propagation check are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -568,6 +568,11 @@ records, add these", previewed and then applied. Build that once:
   a consumer's removal is still to do.
 - **Grouped view:** group by name, then type; type filter chips; toggle relative / full names;
   IDNs shown in Unicode with the punycode form available.
+  As built: a chip per record type present (none selected: all), a Relative / Full names
+  toggle, and a name dimmed when it repeats the row above, so each name's records read as a
+  group whatever the sort. `xn--` labels of names are shown in Unicode (a small RFC 3492
+  decoder in `ui/src/lib/records.js`; browsers have none) with the stored form on hover; values
+  are shown as stored, since that is what an edit changes.
 - **Linked PTR records:** when an A / AAAA is added and its reverse zone is also managed (common
   with adopted PowerDNS zones), offer the matching PTR in the same changeset.
 - **Propagation check** per record after an apply (moved here from Additional goals): query the
