@@ -190,7 +190,7 @@ Take screenshots of the pages
     Open page    records&zone=${UI_ZONE}    Records    3._Records
     # the MX row: its value is the only one starting "10 mail."
     Click    iframe >>> tr:has-text("10 mail.${UI_ZONE}.") >> css=.bx--overflow-menu
-    Click    iframe >>> .bx--overflow-menu-options >> text="Edit"
+    Click    iframe >>> .bx--overflow-menu-options--open >> text="Edit"
     Open a dialog    "Edit a record of ${UI_ZONE}"    4._Edit_an_MX_record
     Keyboard Key    press    Escape
     Click    iframe >>> button >> text="Snapshots"
