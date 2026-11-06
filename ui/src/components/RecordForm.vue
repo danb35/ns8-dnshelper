@@ -46,7 +46,11 @@
       <NsTextInput
         v-model.trim="fields.target"
         :label="$t('record_form.target_' + type.toLowerCase())"
-        :helper-text="$t('record_form.host_help')"
+        :helper-text="
+          type === 'NS'
+            ? $t('record_form.ns_help')
+            : $t('record_form.host_help')
+        "
         placeholder="host.example.net"
         :invalid-message="$t(errors.target)"
         :disabled="disabled"
@@ -341,6 +345,12 @@ export default {
       const name = this.name.trim().toLowerCase() || "";
       if (!name || !/^[a-z0-9@_.*-]+$/.test(name)) {
         this.errors.name = "records.invalid_name";
+        this.focusElement("name");
+        return null;
+      }
+      // the backend refuses this too (forbidden); say so before saving
+      if (this.type === "NS" && name === "@") {
+        this.errors.name = "record_form.apex_ns";
         this.focusElement("name");
         return null;
       }

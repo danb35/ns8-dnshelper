@@ -373,6 +373,8 @@
     "invalid_flags": "Use a whole number from 0 to 255",
     "invalid_tag": "Use letters and digits only",
     "invalid_caa_value": "Must not contain double quotes",
-    "txt_quoted": "Enter the plain value, without the surrounding quotes"
+    "txt_quoted": "Enter the plain value, without the surrounding quotes",
+    "ns_help": "Delegates this name to other name servers, such as ns1.example.net. The zone's own name servers (at @) can't be changed here.",
+    "apex_ns": "The zone's own NS records are managed by the DNS host and can't be changed here"
   }
 }
