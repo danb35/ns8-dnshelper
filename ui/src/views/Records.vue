@@ -57,7 +57,8 @@
             <cv-select
               v-model="zone"
               :label="$t('records.zone')"
-              :disabled="loading.zones || loading.records"
+              :disabled="loading.zones || loading.records || !!pending.length"
+              :helper-text="pending.length ? $t('pending.zone_locked') : ''"
               class="mg-bottom-md"
               @change="loadRecords"
             >
@@ -98,8 +99,62 @@
             </NsButton>
           </cv-column>
         </cv-row>
+        <cv-row v-if="pending.length">
+          <cv-column>
+            <PendingChanges
+              :changes="pending"
+              :disabled="isReviewShown"
+              @review="isReviewShown = true"
+              @discard="discardPending"
+              @undo="undo"
+            />
+          </cv-column>
+        </cv-row>
         <cv-row>
           <cv-column>
+            <div class="bulk-bar mg-bottom-sm">
+              <NsButton
+                kind="ghost"
+                size="small"
+                :disabled="loading.records || !page.length"
+                @click="selectPage"
+                >{{ $t("bulk.select_page") }}</NsButton
+              >
+              <NsButton
+                v-if="selected.length"
+                kind="ghost"
+                size="small"
+                @click="selected = []"
+                >{{
+                  $t("bulk.clear_selection", { count: selected.length })
+                }}</NsButton
+              >
+              <span class="bulk-spacer"></span>
+              <NsButton
+                kind="tertiary"
+                size="small"
+                :icon="TrashCan20"
+                :disabled="!selected.length"
+                @click="stageSelectedDelete"
+                >{{ $t("bulk.delete_selected") }}</NsButton
+              >
+              <NsButton
+                kind="tertiary"
+                size="small"
+                :icon="Time20"
+                :disabled="!selected.length"
+                @click="showTtl"
+                >{{ $t("bulk.set_ttl") }}</NsButton
+              >
+              <NsButton
+                kind="tertiary"
+                size="small"
+                :icon="Search20"
+                :disabled="loading.records || !changeable.length"
+                @click="isFindShown = true"
+                >{{ $t("bulk.find_replace") }}</NsButton
+              >
+            </div>
             <NsDataTable
               :allRows="rows"
               :columns="columns"
@@ -140,7 +195,19 @@
                   :value="String(i)"
                 >
                   <cv-data-table-cell>
-                    <strong>{{ row.name }}</strong>
+                    <div class="name-cell">
+                      <NsCheckbox
+                        v-if="isChangeable(row)"
+                        v-model="selected"
+                        :value="keyOf(row)"
+                        :label="row.name"
+                        hideLabel
+                        :formItem="false"
+                        class="row-check"
+                      />
+                      <span v-else class="row-check-space"></span>
+                      <strong>{{ row.name }}</strong>
+                    </div>
                   </cv-data-table-cell>
                   <cv-data-table-cell>
                     <NsTag :label="row.type" kind="blue" />
@@ -150,6 +217,12 @@
                     <span class="record-data" :title="row.data">{{
                       shorten(row.data)
                     }}</span>
+                    <NsTag
+                      v-if="pendingKeys[keyOf(row)]"
+                      :label="$t('pending.row_' + pendingKeys[keyOf(row)])"
+                      :kind="pendingKeys[keyOf(row)] === 'delete' ? 'red' : 'purple'"
+                      class="mg-left-sm"
+                    />
                   </cv-data-table-cell>
                   <cv-data-table-cell class="table-overflow-menu-cell">
                     <NsTag
@@ -159,6 +232,18 @@
                       kind="gray"
                       class="read-only-tag"
                     />
+                    <cv-overflow-menu
+                      v-else-if="pendingKeys[keyOf(row)]"
+                      flip-menu
+                      class="table-overflow-menu"
+                    >
+                      <cv-overflow-menu-item @click="undoRow(row)">
+                        <NsMenuItem
+                          :icon="Reset20"
+                          :label="$t('pending.undo_row')"
+                        />
+                      </cv-overflow-menu-item>
+                    </cv-overflow-menu>
                     <cv-overflow-menu
                       v-else
                       flip-menu
@@ -196,6 +281,49 @@
       @hide="isSnapshotsShown = false"
       @changed="loadRecords"
     />
+    <ReviewChanges
+      :isShown="isReviewShown"
+      :zone="zone"
+      :changes="pending"
+      @hide="isReviewShown = false"
+      @applied="onApplied"
+      @reload="reloadFromReview"
+    />
+    <FindReplace
+      :isShown="isFindShown"
+      :records="changeable"
+      :selected="selectedRecords"
+      @hide="isFindShown = false"
+      @stage="stageFromFind"
+    />
+    <!-- a new TTL for the selected records -->
+    <NsModal
+      size="xs"
+      :visible="isTtlShown"
+      @modal-hidden="isTtlShown = false"
+      @primary-click="stageTtl"
+    >
+      <template slot="title">{{ $t("bulk.ttl_title") }}</template>
+      <template slot="content">
+        <cv-form @submit.prevent="stageTtl">
+          <p class="mg-bottom-md">
+            {{ $t("bulk.ttl_intro", { count: selected.length }) }}
+          </p>
+          <NsTextInput
+            v-model.trim="ttlValue"
+            :label="$t('records.col_ttl')"
+            :helper-text="$t('records.ttl_help')"
+            placeholder="300"
+            :invalid-message="$t(error.ttl)"
+            ref="ttlValue"
+          />
+        </cv-form>
+      </template>
+      <template slot="secondary-button">{{
+        core.$t("common.cancel")
+      }}</template>
+      <template slot="primary-button">{{ $t("bulk.add_to_pending") }}</template>
+    </NsModal>
     <!-- add or edit a record -->
     <NsModal
       size="default"
@@ -204,6 +332,7 @@
       :isLoading="loading.save"
       @modal-hidden="isFormShown = false"
       @primary-click="saveRecord"
+      @other-btn-click="stageRecord"
     >
       <template slot="title">{{
         current
@@ -244,6 +373,7 @@
           </NsButton>
         </cv-form>
       </template>
+      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
@@ -260,6 +390,7 @@
       :isLoading="loading.remove"
       @modal-hidden="isRemoveShown = false"
       @primary-click="removeRecord"
+      @other-btn-click="stageDelete"
     >
       <template slot="title">{{ $t("records.remove_title") }}</template>
       <template slot="content">
@@ -280,6 +411,7 @@
           :showCloseButton="false"
         />
       </template>
+      <template slot="other-button">{{ $t("bulk.add_to_pending") }}</template>
       <template slot="secondary-button">{{
         core.$t("common.cancel")
       }}</template>
@@ -299,13 +431,23 @@ import {
 import DnsHelperService from "../mixins/dnshelper";
 import ZoneSnapshots from "../components/ZoneSnapshots";
 import RecordForm from "../components/RecordForm";
+import PendingChanges from "../components/PendingChanges";
+import ReviewChanges from "../components/ReviewChanges";
+import FindReplace from "../components/FindReplace";
+import { recordKey, setTtl, stage, touchedKeys } from "../lib/pending";
 import Time20 from "@carbon/icons-vue/es/time/20";
 
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
 export default {
   name: "Records",
-  components: { ZoneSnapshots, RecordForm },
+  components: {
+    ZoneSnapshots,
+    RecordForm,
+    PendingChanges,
+    ReviewChanges,
+    FindReplace,
+  },
   mixins: [
     DnsHelperService,
     QueryParamService,
@@ -333,6 +475,14 @@ export default {
       formKey: 0,
       isRemoveShown: false,
       isSnapshotsShown: false,
+      // changes collected for one apply-changes (see lib/pending.js)
+      pending: [],
+      // keys (recordKey) of the selected rows
+      selected: [],
+      isReviewShown: false,
+      isFindShown: false,
+      isTtlShown: false,
+      ttlValue: "",
       Time20,
       notice: { title: "", text: "" },
       loading: { zones: true, records: false, save: false, remove: false },
@@ -341,6 +491,7 @@ export default {
         save: "",
         stale: false,
         remove: "",
+        ttl: "",
       },
     };
   },
@@ -353,6 +504,17 @@ export default {
     },
     rows() {
       return this.records.map((r, index) => ({ ...r, index }));
+    },
+    pendingKeys() {
+      return touchedKeys(this.pending);
+    },
+    // records that may be changed: not read-only, no pending change yet
+    changeable() {
+      return this.records.filter((r) => this.isChangeable(r));
+    },
+    selectedRecords() {
+      const keys = new Set(this.selected);
+      return this.records.filter((r) => keys.has(recordKey(r)));
     },
     // the record types the DNS host of the selected zone can handle
     types() {
@@ -441,6 +603,9 @@ export default {
           data: { zone: this.zone },
         });
         this.records = out.records.slice().sort(this.compareRecords);
+        // a selected record may be gone
+        const keys = new Set(this.records.map(recordKey));
+        this.selected = this.selected.filter((k) => keys.has(k));
       } catch (err) {
         this.records = [];
         this.error.load = this.errorText(err);
@@ -464,12 +629,124 @@ export default {
     isProtected(row) {
       return row.type === "SOA" || (row.type === "NS" && row.name === "@");
     },
+    keyOf(row) {
+      return recordKey(row);
+    },
+    isChangeable(r) {
+      return !this.isProtected(r) && !this.pendingKeys[recordKey(r)];
+    },
+    // the record as get-records reported it, without the table's index
+    plain(row) {
+      return { name: row.name, type: row.type, ttl: row.ttl, data: row.data };
+    },
+    selectPage() {
+      const keys = new Set(this.selected);
+      for (const row of this.page) {
+        if (this.isChangeable(row)) {
+          keys.add(recordKey(row));
+        }
+      }
+      this.selected = [...keys];
+    },
+    /** Add changes to the pending list and say what happened. */
+    stageChanges(changes) {
+      const out = stage(this.pending, changes);
+      this.pending = out.pending;
+      const staged = new Set(changes.filter((c) => c.old).map((c) => recordKey(c.old)));
+      this.selected = this.selected.filter((k) => !staged.has(k));
+      this.notice = {
+        title: this.$t("pending.staged_title"),
+        text:
+          this.$tc("pending.staged", out.added, { count: out.added }) +
+          (out.skipped
+            ? " " + this.$tc("pending.skipped", out.skipped, { count: out.skipped })
+            : ""),
+      };
+    },
+    undo(change) {
+      this.pending = this.pending.filter((c) => c !== change);
+      this.clearPendingNotice();
+    },
+    undoRow(row) {
+      const key = recordKey(row);
+      this.pending = this.pending.filter((c) => !(c.old && recordKey(c.old) === key));
+      this.clearPendingNotice();
+    },
+    discardPending() {
+      this.pending = [];
+      this.clearPendingNotice();
+    },
+    // "n changes are pending" is wrong once the list changed
+    clearPendingNotice() {
+      if (this.notice.title === this.$t("pending.staged_title")) {
+        this.notice = { title: "", text: "" };
+      }
+    },
+    stageRecord() {
+      this.error.save = "";
+      const record = this.$refs.form.build();
+      if (!record) {
+        return;
+      }
+      const old = this.current;
+      this.stageChanges([
+        old ? { kind: "edit", old, new: record } : { kind: "add", new: record },
+      ]);
+      this.isFormShown = false;
+    },
+    stageDelete() {
+      this.stageChanges([{ kind: "delete", old: this.plain(this.current) }]);
+      this.isRemoveShown = false;
+    },
+    stageSelectedDelete() {
+      this.stageChanges(
+        this.selectedRecords.map((r) => ({ kind: "delete", old: this.plain(r) }))
+      );
+    },
+    showTtl() {
+      this.ttlValue = "";
+      this.error.ttl = "";
+      this.isTtlShown = true;
+    },
+    stageTtl() {
+      const ttl = Number(this.ttlValue);
+      if (!Number.isInteger(ttl) || ttl < 1 || ttl > 2147483647) {
+        this.error.ttl = "records.invalid_ttl";
+        this.focusElement("ttlValue");
+        return;
+      }
+      this.stageChanges(setTtl(this.selectedRecords.map(this.plain), ttl));
+      this.isTtlShown = false;
+    },
+    stageFromFind(changes) {
+      this.stageChanges(
+        changes.map((c) => ({ ...c, old: this.plain(c.old) }))
+      );
+      this.isFindShown = false;
+    },
+    onApplied({ applied, complete }) {
+      const done = new Set(applied);
+      this.pending = this.pending.filter((c) => !done.has(c));
+      if (complete) {
+        this.isReviewShown = false;
+        this.notice = {
+          title: this.$t("pending.applied_title"),
+          text: this.$tc("pending.applied", applied.length, {
+            count: applied.length,
+          }),
+        };
+      }
+      this.loadRecords();
+    },
+    async reloadFromReview() {
+      this.isReviewShown = false;
+      await this.loadRecords();
+    },
     showAdd() {
       this.openForm(null);
     },
     showEdit(row) {
-      // the record as get-records reported it, without the table's index
-      this.openForm({ name: row.name, type: row.type, ttl: row.ttl, data: row.data });
+      this.openForm(this.plain(row));
     },
     openForm(record) {
       this.current = record;
@@ -578,6 +855,32 @@ export default {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.bulk-spacer {
+  flex: 1;
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.row-check ::v-deep .bx--checkbox-label {
+  padding-left: 1rem;
+}
+
+.row-check-space {
+  display: inline-block;
+  width: 1rem;
 }
 
 .record-summary {
