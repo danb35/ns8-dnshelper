@@ -36,6 +36,13 @@ a native-speaker review, and the Basque (`eu`) locale still carries the template
 
 ## Install
 
+**Requires NS8 core 3.23.0 or later** (image label `org.nethserver.min-core=3.23.0`). It is the
+first core that enforces one instance per node on every path (see "One instance per node" below).
+The module itself works from core 2.4.0, the first to give actions the caller's identity
+(`AGENT_TASK_USER`), without which the policy table would not apply. On an older core the
+Software center neither installs nor offers updates to this version; an instance already installed
+keeps running. See DESIGN.md, "Minimum core version".
+
 ### From the Software center (recommended)
 
 dnshelper is published in [NethForge](https://github.com/NethServer/ns8-nethforge), the NethServer
@@ -271,9 +278,10 @@ the cluster has now (another module id, other zones, or none).
 
 **One instance per node.** The image sets `org.nethserver.max-per-node=1`, because two instances on
 a node would not share a lock for the zones they both manage, and modules use the cluster's default
-instance anyway. The Software center and `add-module` then refuse a second instance on a node, for
-an install, a clone or a restore. Another node is still allowed, and so are updates. For a test,
-`add-module --force` skips the check.
+instance anyway. The core then refuses a second instance on a node for an install (Software center
+or `add-module`), a clone, a move or a restore; that complete set of checks is why core 3.23.0 is
+required. Another node is still allowed, and so are updates. For a test, `add-module --force`
+skips the check.
 
 ## Zones adopted from ns8-powerdns
 

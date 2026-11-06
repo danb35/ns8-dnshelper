@@ -355,6 +355,25 @@ leave them pointing at a dead API.
   how NS8 configures ACME).
 - Standard NS8 hygiene: Robot Framework tests, Weblate i18n, pinned images + Renovate.
 
+## Minimum core version
+
+`org.nethserver.min-core=3.23.0`. The earlier 3.20.1 was inherited from the ns8-kickstart template,
+not derived. Checked 2026-11-06 against ns8-core history (first release containing each feature):
+
+| Feature dnshelper relies on | Core |
+|---|---|
+| `AGENT_TASK_USER` (caller identity; without it every caller is unrestricted by the policy table) | 2.4.0 |
+| `min-core` enforced (new installs and update candidates); `max-per-node` in the Software center install | 2.10.0 |
+| `max-per-node` for clone/move | 3.4.0 |
+| `max-per-node` for restore | 3.9.3 |
+| `max-per-node` in the `add-module` command (`--force` skips it) | 3.23.0 |
+| everything else: `agent.tasks.run` (incl. `extra=`), `list_service_providers(..., 'tcp')`, `*/event/*` subscription, `module-removed` `{module, node}` after key deletion, `update-module.d`, grants before `create-module` / update hooks, `refresh_permissions`, `@any`/`@cluster` scopes, `reader` `get-*`/`list-*`, `state-include.conf`, `module-dump-state`, `clone-module/10recvstate` | pre-1.0 (2021-2023) |
+
+Decision (2026-11-06): 3.23.0, so the one-instance-per-node rule (two instances on a node would not
+share the per-zone lock) is enforced on every path. The module would run from 2.4.0. Raise the
+label when a newer core feature is used. ns8-ui-lib and the Go helper are bundled, so they add no
+core requirement.
+
 ## Suggested build order
 
 1. Scaffold from the template, rename, get an empty module installing and passing the template CI.
