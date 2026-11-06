@@ -29,7 +29,8 @@ What has been checked, and where:
   clones, restores and two primaries were only covered by unit tests.
 - The providers were tested live against real zones (see [Providers](#providers)).
 - CI builds and publishes the image with `build-images.sh`, runs the Go tests, and runs the
-  module's Robot Framework tests on Rocky Linux 9 and Debian 13.
+  module's Robot Framework tests on Rocky Linux 9 and Debian 13 (NethServer's
+  `ns8-github-actions` QEMU workflow, which reports each leg as a status on the pull request).
 
 Known gaps: the French, German, Italian, Spanish and Portuguese translations were written without
 a native-speaker review, and the Basque (`eu`) locale still carries the template's placeholder text.
@@ -736,6 +737,14 @@ The Robot suite in `tests/` is the smoke test that CI runs (`test-module.sh`):
 
 Use a node without a dnshelper instance: its install step uses `add-module`, which refuses a second
 instance on a node once the repository lists a version with the `max-per-node` label.
+
+Its `ui`-tagged case takes screenshots of every page, the record Edit dialog and the Snapshots
+dialog with a comparison. For a Records page with real data it starts a throwaway PowerDNS
+container (`docker.io/powerdns/pdns-auth-49`) on the node's loopback and manages a zone there;
+it removes both afterwards. It runs when `ui/` or `build-images.sh` changes, which includes
+Renovate's pull requests, or on demand with the `ui_tests` input of the "Test module on QEMU"
+workflow. On a pull request the images go to the `ci-screenshots` branch and are linked from a
+comment; otherwise they are in the run's artifacts.
 
 ## Author
 [Dan Brown](https://community.nethserver.org/u/dan)
