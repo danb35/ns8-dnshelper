@@ -405,7 +405,7 @@
     "apply_failed": "Not all changes were applied",
     "partly_applied": "{done} of {parts} parts were applied.",
     "apply": "Apply",
-    "label": "Records page: {count} changes",
+    "label": "Records page: 1 change | Records page: {count} changes",
     "applied_title": "Changes applied",
     "applied": "1 change was applied. | {count} changes were applied."
   },

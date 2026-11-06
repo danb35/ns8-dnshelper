@@ -10,6 +10,7 @@
 -->
 <template>
   <NsModal
+    ref="modal"
     size="large"
     :visible="isShown"
     :primary-button-disabled="loading.check || loading.apply || !canApply"
@@ -149,13 +150,28 @@ export default {
         this.error.stale = this.isStale(err);
       }
       this.loading.check = false;
+      this.focusButton();
+    },
+    // The dialog's content is replaced when the dry run returns, and the
+    // focus with it; Escape only closes a dialog that holds the focus.
+    focusButton() {
+      this.$nextTick(() => {
+        const modal = this.$refs.modal;
+        const button =
+          modal && (this.canApply ? modal.$refs.primary : modal.$refs.secondary);
+        if (button && button.$el && button.$el.focus) {
+          button.$el.focus();
+        }
+      });
     },
     async apply() {
       this.loading.apply = true;
       this.error.apply = "";
       this.error.stale = false;
       const parts = this.parts;
-      const label = this.$t("pending.label", { count: this.changes.length });
+      const label = this.$tc("pending.label", this.changes.length, {
+        count: this.changes.length,
+      });
       let done = 0;
       try {
         for (const part of parts) {
