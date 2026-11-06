@@ -58,6 +58,11 @@ Open page
     Sleep    5s
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/${shot}.png
 
+Close the open dialog
+    # Cancel rather than Escape: Escape only reaches a dialog that holds the focus
+    Click    iframe >>> .bx--modal.is-visible >> button >> text="Cancel"
+    Wait For Elements State    iframe >>> .bx--modal.is-visible    hidden    timeout=10s
+
 Open a dialog
     [Arguments]    ${text}    ${shot}
     Wait For Elements State    iframe >>> text=${text}    visible    timeout=30s
@@ -203,13 +208,13 @@ Take screenshots of the pages
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/5._Pending_changes.png
     Click    iframe >>> button >> text="Review and apply"
     Open a dialog    "Review the changes to ${UI_ZONE}"    6._Review_and_apply
-    Keyboard Key    press    Escape
+    Close the open dialog
     Click    iframe >>> button >> text="Discard all"
     Click    iframe >>> button >> text="Find and replace"
     Fill Text    iframe >>> input[placeholder="old.example.net."]    mail.${UI_ZONE}.
     Fill Text    iframe >>> input[placeholder="new.example.net."]    mx.${UI_ZONE}.
     Open a dialog    "2 records match"    7._Find_and_replace
-    Keyboard Key    press    Escape
+    Close the open dialog
     Click    iframe >>> button >> text="Snapshots"
     Open a dialog    "Snapshots of ${UI_ZONE}"    8._Snapshots
     # the oldest snapshot, taken by hand before the records were added
