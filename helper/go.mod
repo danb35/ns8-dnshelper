@@ -10,7 +10,7 @@ require (
 	github.com/libdns/libdns v1.1.1
 	github.com/libdns/rfc2136 v1.0.1
 	github.com/libdns/route53 v1.6.2
-	github.com/miekg/dns v1.1.64
+	github.com/miekg/dns v1.1.73
 	golang.org/x/net v0.62.0
 )
 
