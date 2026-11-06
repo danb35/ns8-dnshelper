@@ -232,3 +232,90 @@ export function validate(type, v) {
 export function byteLength(s) {
   return new TextEncoder().encode(s || "").length;
 }
+
+// ---------------------------------------------------------------- names for display
+
+// Punycode (RFC 3492) decoding of one label, without the "xn--" prefix.
+// Returns null if the label is not valid punycode.
+function decodeLabel(input) {
+  const base = 36;
+  const tMin = 1;
+  const tMax = 26;
+  let n = 128;
+  let i = 0;
+  let bias = 72;
+  const out = [];
+  const d = input.lastIndexOf("-");
+  for (let j = 0; j < (d > 0 ? d : 0); j++) {
+    if (input.charCodeAt(j) >= 128) {
+      return null;
+    }
+    out.push(input.charCodeAt(j));
+  }
+  for (let k = d > 0 ? d + 1 : 0; k < input.length; ) {
+    const oldi = i;
+    let w = 1;
+    for (let t = base; ; t += base) {
+      if (k >= input.length) {
+        return null;
+      }
+      const c = input.charCodeAt(k++);
+      const digit =
+        c >= 48 && c <= 57
+          ? c - 22
+          : c >= 65 && c <= 90
+          ? c - 65
+          : c >= 97 && c <= 122
+          ? c - 97
+          : base;
+      if (digit >= base) {
+        return null;
+      }
+      i += digit * w;
+      const tt = t <= bias ? tMin : t >= bias + tMax ? tMax : t - bias;
+      if (digit < tt) {
+        break;
+      }
+      w *= base - tt;
+    }
+    const len = out.length + 1;
+    let delta = oldi === 0 ? Math.floor((i - oldi) / 700) : (i - oldi) >> 1;
+    delta += Math.floor(delta / len);
+    let kk = 0;
+    while (delta > ((base - tMin) * tMax) >> 1) {
+      delta = Math.floor(delta / (base - tMin));
+      kk += base;
+    }
+    bias = kk + Math.floor(((base - tMin + 1) * delta) / (delta + 38));
+    n += Math.floor(i / len);
+    i %= len;
+    if (n > 0x10ffff) {
+      return null;
+    }
+    out.splice(i, 0, n);
+    i++;
+  }
+  return String.fromCodePoint(...out);
+}
+
+/** A host name with its xn-- labels shown in Unicode; others unchanged. */
+export function toUnicode(name) {
+  return (name || "")
+    .split(".")
+    .map((label) => {
+      if (!/^xn--/i.test(label)) {
+        return label;
+      }
+      const u = decodeLabel(label.slice(4).toLowerCase());
+      return u === null ? label : u;
+    })
+    .join(".");
+}
+
+/** The record name as shown: relative ("@" for the apex) or in full. */
+export function displayName(name, zone, full) {
+  if (!full) {
+    return name;
+  }
+  return name === "@" ? zone : `${name}.${zone}`;
+}

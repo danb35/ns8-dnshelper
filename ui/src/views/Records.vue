@@ -131,6 +131,40 @@
         </cv-row>
         <cv-row>
           <cv-column>
+            <div class="view-bar mg-bottom-sm">
+              <span class="view-label">{{ $t("view.types") }}</span>
+              <NsButton
+                v-for="t in presentTypes"
+                :key="t"
+                :kind="typeFilter.includes(t) ? 'primary' : 'tertiary'"
+                size="small"
+                class="type-chip"
+                @click="toggleType(t)"
+                >{{ t }}</NsButton
+              >
+              <NsButton
+                v-if="typeFilter.length"
+                kind="ghost"
+                size="small"
+                @click="typeFilter = []"
+                >{{ $t("view.all_types") }}</NsButton
+              >
+              <span class="bulk-spacer"></span>
+              <NsToggle
+                v-model="fullNames"
+                value="fullNames"
+                :label="$t('view.full_names')"
+                hideLabel
+                :formItem="false"
+                small
+                class="names-toggle"
+              >
+                <template slot="text-left">{{
+                  $t("view.relative_names")
+                }}</template>
+                <template slot="text-right">{{ $t("view.full_names") }}</template>
+              </NsToggle>
+            </div>
             <div class="bulk-bar mg-bottom-sm">
               <NsButton
                 kind="ghost"
@@ -225,7 +259,11 @@
                         class="row-check"
                       />
                       <span v-else class="row-check-space"></span>
-                      <strong>{{ row.name }}</strong>
+                      <strong
+                        :class="{ 'same-name': sameAsPrevious(i) }"
+                        :title="nameTitle(row)"
+                        >{{ shownName(row) }}</strong
+                      >
                     </div>
                   </cv-data-table-cell>
                   <cv-data-table-cell>
@@ -489,6 +527,7 @@ import {
   touchedKeys,
 } from "../lib/pending";
 import Time20 from "@carbon/icons-vue/es/time/20";
+import { displayName, toUnicode } from "../lib/records";
 
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
@@ -535,6 +574,9 @@ export default {
       pending: [],
       // keys (recordKey) of the selected rows
       selected: [],
+      // view: only these types (none: all); names in full
+      typeFilter: [],
+      fullNames: false,
       isReviewShown: false,
       isFindShown: false,
       isImportShown: false,
@@ -566,7 +608,13 @@ export default {
       );
     },
     rows() {
-      return this.records.map((r, index) => ({ ...r, index }));
+      return this.records
+        .map((r, index) => ({ ...r, index }))
+        .filter((r) => !this.typeFilter.length || this.typeFilter.includes(r.type));
+    },
+    // the record types in the zone, for the type filter
+    presentTypes() {
+      return [...new Set(this.records.map((r) => r.type))].sort();
     },
     pendingKeys() {
       return touchedKeys(this.pending);
@@ -658,6 +706,9 @@ export default {
       if (!this.zone) {
         return;
       }
+      if (this.q.zone !== this.zone) {
+        this.typeFilter = [];
+      }
       this.q.zone = this.zone;
       this.loading.records = true;
       this.error.load = "";
@@ -711,6 +762,23 @@ export default {
     // dnshelper never changes apex NS or SOA records; do not offer to
     isProtected(row) {
       return row.type === "SOA" || (row.type === "NS" && row.name === "@");
+    },
+    toggleType(t) {
+      this.typeFilter = this.typeFilter.includes(t)
+        ? this.typeFilter.filter((x) => x !== t)
+        : this.typeFilter.concat([t]);
+    },
+    shownName(row) {
+      return toUnicode(displayName(row.name, this.zone, this.fullNames));
+    },
+    // the name as stored, when it is shown in Unicode
+    nameTitle(row) {
+      const raw = displayName(row.name, this.zone, this.fullNames);
+      return raw !== this.shownName(row) ? raw : "";
+    },
+    // rows of one name read as a group: the name is dimmed after the first
+    sameAsPrevious(i) {
+      return i > 0 && this.page[i - 1] && this.page[i - 1].name === this.page[i].name;
     },
     keyOf(row) {
       return recordKey(row);
@@ -957,6 +1025,28 @@ export default {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
+}
+
+.view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.view-label {
+  font-size: 0.875rem;
+  margin-right: $spacing-02;
+}
+
+.type-chip {
+  min-height: 2rem;
+  padding-right: $spacing-05;
+}
+
+.same-name {
+  opacity: 0.45;
+  font-weight: normal;
 }
 
 .bulk-bar {

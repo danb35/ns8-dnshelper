@@ -460,5 +460,11 @@
     "tag_help": "Written by {module} through dnshelper",
     "warning_title": "Written by {module}",
     "warning": "{module} wrote this record through dnshelper and may rely on it. Changing or deleting it here can break {module}, and {module} may write it again."
+  },
+  "view": {
+    "types": "Types",
+    "all_types": "All types",
+    "full_names": "Full names",
+    "relative_names": "Relative names"
   }
 }

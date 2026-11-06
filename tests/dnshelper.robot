@@ -200,6 +200,13 @@ Take screenshots of the pages
     Open page    status    Status    1._Status
     Open page    zones    Zones    2._Zones
     Open page    records&zone=${UI_ZONE}    Records    3._Records
+    # the view: only TXT records, names in full
+    Click    iframe >>> button.type-chip >> text="TXT"
+    Click    iframe >>> .bx--toggle__switch
+    Sleep    1s
+    Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/3b._Records_filtered.png
+    Click    iframe >>> button >> text="All types"
+    Click    iframe >>> .bx--toggle__switch
     # the MX row: its value is the only one starting "10 mail."
     Click    iframe >>> tr:has-text("10 mail.${UI_ZONE}.") >> css=.bx--overflow-menu
     Click    iframe >>> .bx--overflow-menu-options--open >> text="Edit"
