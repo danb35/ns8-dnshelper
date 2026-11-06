@@ -83,9 +83,18 @@
               :icon="Renew20"
               :disabled="loading.zones || loading.records || !zone"
               @click="loadRecords"
-              class="mg-bottom-md"
+              class="mg-bottom-md mg-right-sm"
             >
               {{ $t("records.refresh") }}
+            </NsButton>
+            <NsButton
+              kind="tertiary"
+              :icon="Time20"
+              :disabled="loading.zones || !zone"
+              @click="isSnapshotsShown = true"
+              class="mg-bottom-md"
+            >
+              {{ $t("snapshots.button") }}
             </NsButton>
           </cv-column>
         </cv-row>
@@ -164,6 +173,12 @@
       </template>
     </cv-grid>
 
+    <ZoneSnapshots
+      :isShown="isSnapshotsShown"
+      :zone="zone"
+      @hide="isSnapshotsShown = false"
+      @changed="loadRecords"
+    />
     <!-- add a record -->
     <NsModal
       size="default"
@@ -277,6 +292,8 @@ import {
   PageTitleService,
 } from "@nethserver/ns8-ui-lib";
 import DnsHelperService from "../mixins/dnshelper";
+import ZoneSnapshots from "../components/ZoneSnapshots";
+import Time20 from "@carbon/icons-vue/es/time/20";
 
 // what a value looks like, per record type, to show as the field's example
 const EXAMPLES = {
@@ -294,6 +311,7 @@ const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
 export default {
   name: "Records",
+  components: { ZoneSnapshots },
   mixins: [
     DnsHelperService,
     QueryParamService,
@@ -319,6 +337,8 @@ export default {
       current: null,
       isAddShown: false,
       isRemoveShown: false,
+      isSnapshotsShown: false,
+      Time20,
       form: { name: "", type: "A", data: "", ttl: "" },
       notice: { title: "", text: "" },
       loading: { zones: true, records: false, add: false, remove: false },

@@ -9,6 +9,7 @@ import Status from "../views/Status.vue";
 import Zones from "../views/Zones.vue";
 import Records from "../views/Records.vue";
 import Access from "../views/Access.vue";
+import Settings from "../views/Settings.vue";
 
 Vue.use(VueRouter);
 
@@ -33,6 +34,11 @@ const routes = [
     path: "/access",
     name: "Access",
     component: Access,
+  },
+  {
+    path: "/settings",
+    name: "Settings",
+    component: Settings,
   },
   {
     path: "/about",

@@ -36,6 +36,7 @@ Status: build order steps 1-7 done (scaffold, Go helper, actions + credential st
 
 | Group | Actions |
 |---|---|
+| Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | UI convention | `configure-module`, `get-configuration` |
 | Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns`, `apply-changes` |
 | Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
@@ -399,8 +400,9 @@ Now that dnshelper is the main frontend for ns8-powerdns zones, the Records page
 full records editor rather than a test tool. Today it can only append or delete one record at a
 time (`append-records`, `delete-records`); `set-records` replaces whole (name, type) RRsets and
 cannot express "turn this record into that one" when the name or type changes. Status: step 1
-(`apply-changes`) implemented, with unit tests (fake provider and fake PowerDNS API); not yet
-tested against a live DNS host, and the UI does not use it yet. The rest is design only.
+(`apply-changes`) and step 2 (snapshots and revert, with the Records page's Snapshots dialog and a
+Settings page for retention) implemented, with unit tests; not yet tested against a live DNS host
+or on a node. Steps 3-6 are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -440,20 +442,34 @@ records, add these", previewed and then applied. Build that once:
 
 ### Snapshots and revert
 
-- **Automatic** snapshot of the zone (the `get-records` result, minus SOA) before every write
-  through dnshelper from any caller, not only the Records page: a consumer's bad `set-records` is
-  as worth undoing as an admin's mistake. Skipped when the content hash equals the latest
-  snapshot's.
-- **Manual** "Snapshot now", with an optional label.
-- Stored as `state/snapshots/<zone>/<timestamp>.json` with metadata (caller, action, label).
+- **Automatic** snapshot of the zone before every write through dnshelper from any caller, not
+  only the Records page: a consumer's bad `set-records` is as worth undoing as an admin's mistake.
+  As built: the helper already reads the zone before planning a write, under the zone lock, so it
+  reports that read as `before` in its response (also when the write then fails, when a snapshot
+  matters most) and Python stores it. No extra provider call, and no window in which another write
+  could slip in. Nothing is stored for a dry run or a write that changes nothing.
+- Each snapshot carries `changes`: what was done to the zone after it (time, caller, action, result,
+  records added and removed; for a failed write, the records requested). When the content hash
+  equals the latest snapshot's (a manual snapshot followed by a write, or a write that failed and
+  was rolled back), no new snapshot is stored and the change is added to the latest one.
+- **Manual** "Take snapshot", with an optional label (`create-snapshot`, which reads the zone).
+- Stored as `state/snapshots/<zone>/<id>.json`, the id a UTC time stamp
+  (`20261106T101500.123456Z`), mode 0600, with metadata (kind, caller, action, label, hash).
+- Actions: `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`,
+  `diff-snapshot`. Admin only: in no role, and refused for module callers in code too (the
+  built-in `reader` role matches `list-*` and `get-*`).
 - **Retention** is configurable (`configure-module`, not a secret): a maximum count per zone and a
   maximum age, both applied, the newest snapshot always kept. Default: 50 per zone, 90 days.
   Pruned after each new snapshot; snapshots of zones no longer managed (see below) are pruned on
   every `sync-powerdns` run, since they get no new snapshots to trigger it.
-- **Backed up** (decision 2026-11-06): `state/snapshots` is listed in `state-include.conf`, so a
-  restore brings back the history with the zones.
-- **Revert** computes the difference between the snapshot and the zone as it is now and presents it
-  as a changeset preview whose rows can be unticked. A full revert also undoes consumer changes
+- **Backed up** (decision 2026-11-06): `state/snapshots` and `state/settings.json` are listed in
+  `state-include.conf`, so a restore brings back the history with the zones. `ensure_state`
+  creates both, and the restore check drops an unreadable snapshot with a warning instead of
+  failing the restore (snapshots are history, not configuration).
+- **Revert** computes the difference between the snapshot and the zone as it is now (helper
+  operation `diff-records`, so the comparison uses the same record normalization as every other
+  operation) and presents it as a changeset preview whose rows can be unticked; the selection goes
+  to `apply-changes` with a `label` ("revert to <time>") recorded in the history. A full revert also undoes consumer changes
   made since (ACME challenges, DKIM, automx records), so the preview marks rows touched by other
   callers since the snapshot.
 - The snapshot list, with caller and action per entry, doubles as a per-zone change history in the

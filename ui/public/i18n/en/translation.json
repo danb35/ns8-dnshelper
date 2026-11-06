@@ -58,7 +58,13 @@
     "get-records": "Get records",
     "append-records": "Add record",
     "delete-records": "Delete record",
-    "sync-powerdns": "Sync with PowerDNS"
+    "sync-powerdns": "Sync with PowerDNS",
+    "apply-changes": "Change records",
+    "list-snapshots": "List snapshots",
+    "get-snapshot": "Get snapshot",
+    "create-snapshot": "Take snapshot",
+    "delete-snapshot": "Delete snapshot",
+    "diff-snapshot": "Compare with snapshot"
   },
   "error": {
     "error": "Error",
@@ -111,11 +117,12 @@
     "sync_skipped": "Already configured here by hand, so not adopted: {zones}.",
     "sync_multiple_title": "More than one PowerDNS primary",
     "sync_multiple": "{modules} all claim to be the PowerDNS primary. Nothing was changed.",
-    "sync_failed": "Cannot sync with PowerDNS"
+    "sync_failed": "Cannot sync with PowerDNS",
+    "remove_zone_snapshots": "The zone's snapshot is deleted too. | The zone's {count} snapshots are deleted too."
   },
   "records": {
     "title": "Records",
-    "intro": "View the records of a managed zone, and add or remove a record, through dnshelper and the credential the zone uses. Changes are made at your DNS host at once. This page is for trying dnshelper on a zone and for the occasional change; it is not a full DNS editor.",
+    "intro": "View the records of a managed zone, and add or remove a record, through dnshelper and the credential the zone uses. Changes are made at your DNS host at once. Before each change dnshelper keeps a snapshot of the zone, which Snapshots can compare with the zone and revert.",
     "zone": "Zone",
     "add_record": "Add record",
     "refresh": "Refresh",
@@ -274,6 +281,50 @@
     "managed_zone": "This zone is adopted from PowerDNS and cannot be changed here",
     "leader_unreachable": "The cluster leader cannot be reached; nothing was changed",
     "primary_unreachable": "The PowerDNS primary did not answer; nothing was changed",
-    "credential_id_taken": "A credential with the id of the PowerDNS module already exists"
+    "credential_id_taken": "A credential with the id of the PowerDNS module already exists",
+    "stale": "The zone was changed since it was read; compare again",
+    "snapshot_not_found": "Snapshot not found",
+    "invalid_snapshot_id": "Invalid snapshot"
+  },
+  "snapshots": {
+    "button": "Snapshots",
+    "title": "Snapshots of {zone}",
+    "intro": "dnshelper keeps a snapshot of the zone before every change made through it, by this page or by another module, and when you take one here. Up to {count} snapshots per zone are kept, for {days} days; the latest is always kept. Retention is set on the Settings page.",
+    "label": "Label",
+    "label_placeholder": "before the server move",
+    "take": "Take snapshot",
+    "cannot_load": "Cannot load the snapshots",
+    "none": "No snapshots yet",
+    "none_description": "A snapshot is taken before the first change to this zone, or when you take one.",
+    "manual": "Taken by hand",
+    "before": "Before {action}",
+    "records": "{count} records",
+    "compare": "Compare and revert",
+    "change_line": "{time}: {caller}, {action}, {add} added, {remove} removed",
+    "failed": "Failed",
+    "error_title": "Snapshot error",
+    "revert_title": "Revert to {time}",
+    "same": "The zone is the same as this snapshot; there is nothing to revert. SOA and apex NS records are not compared.",
+    "revert_intro": "These changes make the zone as it was in the snapshot. Untick any you want to keep as they are now. SOA and apex NS records are never changed.",
+    "module_changes_title": "Changes made by other modules",
+    "module_changes": "Some of these records were written by another module after the snapshot (for example DKIM keys or certificate challenges). Reverting them may break that module until it writes them again.",
+    "part_remove": "Remove from the zone",
+    "part_add": "Put back",
+    "changed_by": "changed by {who}",
+    "revert": "Revert",
+    "apply": "Apply {count} changes",
+    "revert_label": "revert to {time}",
+    "back": "Back",
+    "close": "Close"
+  },
+  "settings": {
+    "title": "Settings",
+    "snapshots_title": "Zone snapshots",
+    "snapshots_intro": "dnshelper keeps a snapshot of a zone before every change made through it. Older snapshots are deleted when there are more than the maximum number, or when they are older than the maximum age; the latest snapshot of each zone is always kept. Snapshots are included in the module's backup.",
+    "max_count": "Snapshots kept per zone",
+    "max_count_help": "From 1 to 1000",
+    "max_age": "Maximum age in days",
+    "max_age_help": "From 1 to 3650",
+    "invalid_number": "Out of range"
   }
 }

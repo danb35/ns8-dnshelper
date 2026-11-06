@@ -33,6 +33,10 @@ type Ops struct {
 	Provider any
 	Zone     string   // as given by the caller, with or without trailing dot
 	Secrets  []string // credential values, scrubbed from provider error text
+	// Before is the zone as read just before a write was attempted (under
+	// the zone lock), nil when nothing was written. It is reported whether
+	// the write succeeded or not, for the zone snapshots.
+	Before []contract.Record
 }
 
 type entry struct {
@@ -174,6 +178,7 @@ func (o *Ops) AppendRecords(ctx context.Context, input []contract.Record, dryRun
 	if dryRun || len(plan.Add) == 0 {
 		return resp, nil
 	}
+	o.Before = plain(es)
 	libs, err := libFor(nil, plan.Add)
 	if err != nil {
 		return contract.Response{}, err
@@ -219,6 +224,7 @@ func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode stri
 	if dryRun || plan.Empty() {
 		return resp, nil
 	}
+	o.Before = plain(es)
 
 	if !(canApp && canDel) {
 		libs, err := libFor(es, plan.Desired)
@@ -322,6 +328,7 @@ func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, d
 	if dryRun || plan.Empty() {
 		return resp, nil
 	}
+	o.Before = plain(es)
 
 	switch {
 	case canAtomic:
@@ -379,6 +386,20 @@ func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, d
 		resp.Records = fromLibdnsAll(done)
 	}
 	return resp, nil
+}
+
+// DiffRecords reports, as Changes, what apply-changes would have to remove
+// and add to make the zone equal to target. It writes nothing.
+func (o *Ops) DiffRecords(ctx context.Context, target []contract.Record) (contract.Response, error) {
+	tg, err := NormalizeAll(o.Zone, target)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	es, err := o.read(ctx)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	return contract.Response{OK: true, Records: []contract.Record{}, Changes: changes(PlanDiff(plain(es), tg))}, nil
 }
 
 // verifyRemoved re-reads the zone and fails if any of removed is still there.
@@ -468,6 +489,7 @@ func (o *Ops) DeleteRecords(ctx context.Context, input []contract.Record, dryRun
 	if dryRun || len(plan.Remove) == 0 {
 		return resp, nil
 	}
+	o.Before = plain(es)
 	var libs []libdns.Record
 	for _, r := range plan.Remove {
 		if e, ok := lookup(es, r); ok {

@@ -6,7 +6,8 @@
     "type": "object",
     "required": [
         "credentials",
-        "zones"
+        "zones",
+        "settings"
     ],
     "additionalProperties": false,
     "properties": {
@@ -74,7 +75,31 @@
                     "managed_by": {
                         "type": "string",
                         "description": "'module/<id>' when the zone was adopted from that ns8-powerdns primary; '' otherwise"
+                    },
+                    "snapshots": {
+                        "type": "integer",
+                        "description": "Number of snapshots kept for the zone"
                     }
+                }
+            }
+        },
+        "settings": {
+            "type": "object",
+            "required": [
+                "snapshot_max_count",
+                "snapshot_max_age_days"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "snapshot_max_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                },
+                "snapshot_max_age_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
                 }
             }
         }

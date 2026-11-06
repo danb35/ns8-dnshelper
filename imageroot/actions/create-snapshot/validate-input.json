@@ -1,0 +1,29 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "create-snapshot input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/create-snapshot",
+    "description": "Take a snapshot of the zone now (administrators only)",
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "label": {
+            "type": "string",
+            "maxLength": 200
+        }
+    },
+    "examples": [
+        {
+            "zone": "example.com",
+            "label": "before the migration"
+        }
+    ]
+}

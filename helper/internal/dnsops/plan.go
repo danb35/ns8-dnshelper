@@ -173,6 +173,26 @@ func PlanChanges(existing, remove, add []contract.Record) (Plan, error) {
 	return p, nil
 }
 
+// PlanDiff computes what would make the zone equal to target (a snapshot):
+// existing records not in target are removed, target records not in the zone
+// are added. A record whose TTL differs is removed and added again. SOA and
+// apex NS records are left out on both sides: dnshelper never changes them.
+func PlanDiff(existing, target []contract.Record) Plan {
+	var p Plan
+	keep := func(r contract.Record) bool { return checkForbidden(r) == nil }
+	for _, e := range existing {
+		if keep(e) && !contains(target, e) && !contains(p.Remove, e) {
+			p.Remove = append(p.Remove, e)
+		}
+	}
+	for _, t := range target {
+		if keep(t) && !contains(existing, t) && !contains(p.Add, t) {
+			p.Add = append(p.Add, t)
+		}
+	}
+	return p
+}
+
 func hasAnyPrefix(s string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if p != "" && strings.HasPrefix(s, p) {

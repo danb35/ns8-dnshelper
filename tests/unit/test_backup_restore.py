@@ -79,7 +79,7 @@ class CheckRestoredStateTests(Base):
 
     def test_healthy_state_summary_and_no_warnings(self):
         summary, warnings = lib.check_restored_state(lambda m: True)
-        self.assertEqual(summary, {'zones': 1, 'credentials': 1, 'rules': 1})
+        self.assertEqual(summary, {'zones': 1, 'credentials': 1, 'rules': 1, 'snapshots': 0})
         self.assertEqual(warnings, [])
 
     def test_permissions_are_repaired(self):
@@ -193,7 +193,7 @@ class ResticRoundTripTests(Base):
         workdir, state = self.restore_into_new_module()
         with mock.patch.dict(os.environ, {'AGENT_STATE_DIR': state}):
             summary, warnings = lib.check_restored_state(lambda m: True)
-            self.assertEqual((summary, warnings), ({'zones': 1, 'credentials': 1, 'rules': 1}, []))
+            self.assertEqual((summary, warnings), ({'zones': 1, 'credentials': 1, 'rules': 1, 'snapshots': 0}, []))
             after = {'config': lib.get_configuration({}), 'policy': lib.get_policy({}), 'zones': lib.list_zones({})}
             self.assertEqual(after, before)
             cred = load(os.path.join(state, 'credentials', cid + '.json'))
@@ -211,7 +211,7 @@ class ResticRoundTripTests(Base):
         workdir, state = self.restore_into_new_module()
         with mock.patch.dict(os.environ, {'AGENT_STATE_DIR': state}):
             summary, warnings = lib.check_restored_state()
-            self.assertEqual((summary, warnings), ({'zones': 0, 'credentials': 0, 'rules': 0}, []))
+            self.assertEqual((summary, warnings), ({'zones': 0, 'credentials': 0, 'rules': 0, 'snapshots': 0}, []))
 
     def test_restore_replaces_what_the_new_module_started_with(self):
         cid = self.add_cred()

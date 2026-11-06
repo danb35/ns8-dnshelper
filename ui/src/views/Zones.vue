@@ -328,6 +328,13 @@
     >
       <template slot="explanation">
         <p class="mg-top-sm">{{ $t("zones.remove_zone_explanation") }}</p>
+        <p v-if="current && current.snapshots" class="mg-top-sm">
+          <strong>{{
+            $tc("zones.remove_zone_snapshots", current.snapshots, {
+              count: current.snapshots,
+            })
+          }}</strong>
+        </p>
       </template>
     </ConfirmDeleteModal>
     <!-- remove a credential -->
@@ -436,6 +443,7 @@ export default {
         return {
           zone: z.zone,
           credential: z.credential,
+          snapshots: z.snapshots || 0,
           managedBy: this.moduleOf(z.managed_by),
           credentialName: cred
             ? cred.name
