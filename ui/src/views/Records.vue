@@ -665,13 +665,22 @@ export default {
     },
     undo(change) {
       this.pending = this.pending.filter((c) => c !== change);
+      this.clearPendingNotice();
     },
     undoRow(row) {
       const key = recordKey(row);
       this.pending = this.pending.filter((c) => !(c.old && recordKey(c.old) === key));
+      this.clearPendingNotice();
     },
     discardPending() {
       this.pending = [];
+      this.clearPendingNotice();
+    },
+    // "n changes are pending" is wrong once the list changed
+    clearPendingNotice() {
+      if (this.notice.title === this.$t("pending.staged_title")) {
+        this.notice = { title: "", text: "" };
+      }
     },
     stageRecord() {
       this.error.save = "";
