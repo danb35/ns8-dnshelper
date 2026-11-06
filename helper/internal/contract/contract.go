@@ -14,6 +14,9 @@ const (
 	OpAppendRecords = "append-records"
 	OpSetRecords    = "set-records"
 	OpDeleteRecords = "delete-records"
+	// OpApplyChanges removes Request.Remove and adds Request.Add as one
+	// planned change. Every record to remove must exist, or nothing is done.
+	OpApplyChanges = "apply-changes"
 	// OpListZones lists the zones the credentials can see.
 	OpListZones = "list-zones"
 	// OpRegistrableDomains reduces host names to the registrable domains that
@@ -44,6 +47,9 @@ const (
 	CodeTimeout         = "timeout"
 	CodeProviderError   = "provider_error"
 	CodeLocked          = "locked"
+	// CodeStale: a record apply-changes was asked to remove is not in the
+	// zone (any more); the zone was changed since it was read.
+	CodeStale = "stale"
 )
 
 // Record is a DNS record as seen by API consumers. Name is relative to the
@@ -74,6 +80,9 @@ type Request struct {
 	// Mode and ReplacePrefixes apply to set-records only.
 	Mode            string   `json:"mode,omitempty"`
 	ReplacePrefixes []string `json:"replace_prefixes,omitempty"`
+	// Remove and Add apply to apply-changes only.
+	Remove []Record `json:"remove,omitempty"`
+	Add    []Record `json:"add,omitempty"`
 	// WriteTest makes validate create and delete a throwaway TXT record.
 	WriteTest bool `json:"write_test,omitempty"`
 	// Names are the host names for registrable-domains.
@@ -93,6 +102,9 @@ type Capabilities struct {
 	SetRecords    bool `json:"set_records"`
 	DeleteRecords bool `json:"delete_records"`
 	ListZones     bool `json:"list_zones"`
+	// AtomicChanges: apply-changes is written in one request that the DNS
+	// host applies entirely or not at all.
+	AtomicChanges bool `json:"atomic_changes"`
 }
 
 // Changes is what an operation did, or with dry_run would do.

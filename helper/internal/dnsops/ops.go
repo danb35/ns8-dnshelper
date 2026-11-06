@@ -24,7 +24,8 @@ func Capabilities(p any) contract.Capabilities {
 	_, set := p.(libdns.RecordSetter)
 	_, del := p.(libdns.RecordDeleter)
 	_, zl := p.(libdns.ZoneLister)
-	return contract.Capabilities{GetRecords: get, AppendRecords: app, SetRecords: set, DeleteRecords: del, ListZones: zl}
+	_, atomic := p.(ChangeApplier)
+	return contract.Capabilities{GetRecords: get, AppendRecords: app, SetRecords: set, DeleteRecords: del, ListZones: zl, AtomicChanges: atomic}
 }
 
 // Ops runs operations against one provider instance and one zone.
@@ -194,7 +195,7 @@ func (o *Ops) AppendRecords(ctx context.Context, input []contract.Record, dryRun
 // that cannot delete or append.
 func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode string, replacePrefixes []string, dryRun bool) (contract.Response, error) {
 	app, canApp := o.Provider.(libdns.RecordAppender)
-	del, canDel := o.Provider.(libdns.RecordDeleter)
+	_, canDel := o.Provider.(libdns.RecordDeleter)
 	set, canSet := o.Provider.(libdns.RecordSetter)
 	if !(canApp && canDel) && !canSet {
 		return contract.Response{}, unsupported("setting records")
@@ -232,6 +233,19 @@ func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode stri
 		return resp, nil
 	}
 
+	done, err := o.applyPlan(ctx, es, plan, app)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	resp.Records = done
+	return resp, nil
+}
+
+// applyPlan writes a plan as DeleteRecords, a check that the deletion took
+// effect, then AppendRecords. If a step fails after records were removed, the
+// removed records are put back.
+func (o *Ops) applyPlan(ctx context.Context, es []entry, plan Plan, app libdns.RecordAppender) ([]contract.Record, error) {
+	del := o.Provider.(libdns.RecordDeleter)
 	zone := ZoneFQDN(o.Zone)
 	if len(plan.Remove) > 0 {
 		var old []libdns.Record
@@ -241,11 +255,11 @@ func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode stri
 			}
 		}
 		if _, err := del.DeleteRecords(ctx, zone, old); err != nil {
-			return contract.Response{}, ProviderError(err, o.Secrets)
+			return nil, ProviderError(err, o.Secrets)
 		}
 		if err := o.verifyRemoved(ctx, plan.Remove); err != nil {
 			// Nothing has been added yet. Put back whatever did get removed.
-			return contract.Response{}, o.restoreMissing(ctx, app, plan.Remove, err)
+			return nil, o.restoreMissing(ctx, app, plan.Remove, err)
 		}
 	}
 	if len(plan.Add) > 0 {
@@ -253,12 +267,116 @@ func (o *Ops) SetRecords(ctx context.Context, input []contract.Record, mode stri
 		if err == nil {
 			var done []libdns.Record
 			if done, err = app.AppendRecords(ctx, zone, libs); err == nil {
-				resp.Records = fromLibdnsAll(done)
-				return resp, nil
+				return fromLibdnsAll(done), nil
 			}
 			err = ProviderError(err, o.Secrets)
 		}
-		return contract.Response{}, o.restore(ctx, app, plan.Remove, err)
+		return nil, o.restore(ctx, app, plan.Remove, err)
+	}
+	return []contract.Record{}, nil
+}
+
+// ChangeApplier is implemented by providers that can write a whole
+// apply-changes change in one request the DNS host applies entirely or not
+// at all. remove holds records as the provider returned them. It returns the
+// added records.
+type ChangeApplier interface {
+	ApplyChanges(ctx context.Context, zone string, remove, add []libdns.Record) ([]libdns.Record, error)
+}
+
+// ApplyChanges removes exact existing records and adds new ones as one
+// planned change (see PlanChanges). It works with every provider that can
+// read records and either append and delete, or set record sets; a provider
+// implementing ChangeApplier gets the change in one atomic write.
+func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, dryRun bool) (contract.Response, error) {
+	atomic, canAtomic := o.Provider.(ChangeApplier)
+	app, canApp := o.Provider.(libdns.RecordAppender)
+	_, canDel := o.Provider.(libdns.RecordDeleter)
+	set, canSet := o.Provider.(libdns.RecordSetter)
+	if !canAtomic && !(canApp && canDel) && !canSet {
+		return contract.Response{}, unsupported("changing records")
+	}
+	if len(remove) == 0 && len(add) == 0 {
+		return contract.Response{}, invalid("nothing to change: give records to remove or add")
+	}
+	rm, err := NormalizeAll(o.Zone, remove)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	ad, err := NormalizeAll(o.Zone, add)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	es, err := o.read(ctx)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	plan, err := PlanChanges(plain(es), rm, ad)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	if err := CheckAfter(o.Zone, plan); err != nil {
+		return contract.Response{}, err
+	}
+	resp := contract.Response{OK: true, DryRun: dryRun, Records: []contract.Record{}, Changes: changes(plan)}
+	if dryRun || plan.Empty() {
+		return resp, nil
+	}
+
+	switch {
+	case canAtomic:
+		var old []libdns.Record
+		for _, r := range plan.Remove {
+			if e, ok := lookup(es, r); ok {
+				old = append(old, e.l)
+			}
+		}
+		libs, err := libFor(nil, plan.Add)
+		if err != nil {
+			return contract.Response{}, err
+		}
+		done, err := atomic.ApplyChanges(ctx, ZoneFQDN(o.Zone), old, libs)
+		if err != nil {
+			return contract.Response{}, ProviderError(err, o.Secrets)
+		}
+		resp.Records = fromLibdnsAll(done)
+	case canApp && canDel:
+		done, err := o.applyPlan(ctx, es, plan, app)
+		if err != nil {
+			return contract.Response{}, err
+		}
+		resp.Records = done
+	default:
+		// Only SetRecords: rewrite every touched record set with its new
+		// members. An emptied set cannot be expressed that way.
+		touched := map[string]bool{}
+		for _, r := range append(append([]contract.Record{}, plan.Remove...), plan.Add...) {
+			touched[groupKey(r)] = true
+		}
+		var desired []contract.Record
+		for _, r := range plan.After {
+			if touched[groupKey(r)] {
+				desired = append(desired, r)
+			}
+		}
+		left := map[string]bool{}
+		for _, r := range desired {
+			left[groupKey(r)] = true
+		}
+		for k := range touched {
+			if !left[k] {
+				return contract.Response{}, unsupported("removing every record of a name and type")
+			}
+		}
+		libs, err := libFor(es, desired)
+		if err != nil {
+			return contract.Response{}, err
+		}
+		done, err := set.SetRecords(ctx, ZoneFQDN(o.Zone), libs)
+		if err != nil {
+			return contract.Response{}, ProviderError(err, o.Secrets)
+		}
+		resp.Records = fromLibdnsAll(done)
 	}
 	return resp, nil
 }

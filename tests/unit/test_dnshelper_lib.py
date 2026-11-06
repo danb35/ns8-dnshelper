@@ -217,6 +217,22 @@ class HelperCallTests(Base):
         self.assertTrue(out['dry_run'])
         self.assertEqual(out['changes']['add'][0]['data'], 'x')
 
+    def test_apply_changes_passes_both_lists(self):
+        self.respond({'apply-changes': CHANGES})
+        rm = [{'name': 'www', 'type': 'A', 'data': '192.0.2.1'}]
+        add = [{'name': 'www', 'type': 'CNAME', 'data': 'web.example.net.'}]
+        out = lib.apply_changes({'zone': 'Example.com', 'remove': rm, 'add': add, 'dry_run': True})
+        req = self.last()['req']
+        self.assertEqual((req['op'], req['zone'], req['remove'], req['add'], req['dry_run']),
+                         ('apply-changes', 'example.com', rm, add, True))
+        self.assertTrue(out['dry_run'])
+
+    def test_stale_change_is_a_validation_error(self):
+        self.respond({'apply-changes': {'ok': False, 'records': [], 'error': {'code': 'stale', 'message': 'm'}}})
+        with self.assertRaises(lib.ActionError) as cm:
+            lib.apply_changes({'zone': 'example.com', 'remove': [{'name': 'a', 'type': 'A', 'data': '192.0.2.1'}]})
+        self.assertEqual((cm.exception.entry['error'], cm.exception.entry['field']), ('stale', 'records'))
+
     def test_get_records_filter(self):
         self.respond({'get-records': {'ok': True, 'records': []}})
         lib.get_records({'zone': 'example.com', 'type': 'TXT'})
@@ -449,6 +465,19 @@ class PolicyTests(Base):
             self.assertRejects(lib.append_records, {'zone': 'other.org', 'records': [self.txt('@')]}, 'not_permitted', 'zone')
         self.assertEqual(len(self.calls()), 1)  # only the permitted request got through
 
+    def test_apply_changes_checks_removed_and_added_records(self):
+        self.respond({'apply-changes': CHANGES})
+        lib.set_policy({'rules': [self.rule()]})
+        dkim = self.txt('mail._domainkey')
+        with as_module('mail1'):
+            lib.apply_changes({'zone': 'example.com', 'remove': [dkim], 'add': [self.txt('@')]})
+            # removing a permitted record does not allow adding one elsewhere, nor the reverse
+            self.assertRejects(lib.apply_changes, {'zone': 'example.com', 'remove': [dkim], 'add': [self.txt('www')]},
+                               'not_permitted', 'records')
+            self.assertRejects(lib.apply_changes, {'zone': 'example.com', 'remove': [self.txt('www')], 'add': [dkim]},
+                               'not_permitted', 'records')
+        self.assertEqual(len(self.calls()), 1)
+
     def test_web_preset_allows_cname_with_any_name_and_nothing_else(self):
         # the "Web server or service" preset of the Access page
         lib.set_policy({'rules': [self.rule(caller='module/sogo1', names=['*'], types=['CNAME'])]})
@@ -548,6 +577,18 @@ class AuditAndEventTests(ActionRunner):
         for want in ('caller="module/mail1"', 'action="append-records"', 'result="ok"', 'zone="example.com"', '"@ TXT x"'):
             self.assertIn(want, err)
         self.assertNotIn(SECRET, err)
+
+    def test_audit_line_for_a_rejected_apply_changes(self):
+        self.respond({'apply-changes': {'ok': False, 'records': [], 'error': {'code': 'stale', 'message': 'm'}}})
+        cid = self.add_cred()
+        lib.add_zone({'zone': 'example.com', 'credential': cid})
+        code, out, err, _ = self.run_action('apply-changes', {
+            'zone': 'example.com', 'remove': [{'name': 'www', 'type': 'A', 'data': '192.0.2.1'}],
+            'add': [{'name': 'www', 'type': 'A', 'data': '192.0.2.2'}]})
+        self.assertEqual(code, 2)
+        for want in ('action="apply-changes"', 'result="rejected"', 'error="stale"',
+                     'requested_add=["www A 192.0.2.2"]', 'requested_remove=["www A 192.0.2.1"]'):
+            self.assertIn(want, err)
 
     def test_denials_and_module_reads_are_logged_and_reads_by_humans_are_not(self):
         with as_module('mail1'):

@@ -1,0 +1,125 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "apply-changes input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/apply-changes",
+    "description": "Remove exact existing records and add new ones as one change. Every record to remove must still be in the zone, otherwise nothing is changed (error 'stale').",
+    "examples": [
+        {
+            "zone": "example.com",
+            "remove": [
+                {
+                    "name": "www",
+                    "type": "A",
+                    "data": "192.0.2.1"
+                }
+            ],
+            "add": [
+                {
+                    "name": "www",
+                    "type": "CNAME",
+                    "data": "web.example.net."
+                }
+            ],
+            "dry_run": true
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "anyOf": [
+        {
+            "required": [
+                "remove"
+            ]
+        },
+        {
+            "required": [
+                "add"
+            ]
+        }
+    ],
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "remove": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Name relative to the zone, '@' for the apex"
+                    },
+                    "type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]+$",
+                        "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Seconds; 0 lets the provider choose"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                    }
+                }
+            },
+            "description": "Records to remove; each must match an existing record by name, type and data (and TTL, when given)"
+        },
+        "add": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Name relative to the zone, '@' for the apex"
+                    },
+                    "type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]+$",
+                        "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Seconds; 0 lets the provider choose"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                    }
+                }
+            },
+            "description": "Records to add"
+        },
+        "dry_run": {
+            "type": "boolean",
+            "description": "Report the changes without making them"
+        }
+    }
+}

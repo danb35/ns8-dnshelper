@@ -117,6 +117,62 @@ func PlanSet(existing, input []contract.Record, mode string, replacePrefixes []s
 	return p, nil
 }
 
+// PlanChanges computes an apply-changes change: remove exact existing
+// records, then add records, planned and checked as one. Every record in
+// remove must be in the zone (name, type and data; a TTL, when given, must
+// match too), otherwise the change is stale and refused as a whole. An added
+// record that is already present is not added again; one that matches a
+// removed record cancels that removal, so an unchanged "edit" changes nothing.
+func PlanChanges(existing, remove, add []contract.Record) (Plan, error) {
+	var p Plan
+	for _, r := range remove {
+		if err := checkForbidden(r); err != nil {
+			return p, err
+		}
+		found := false
+		for _, e := range existing {
+			if same(e, r) {
+				found = true
+				if !contains(p.Remove, e) {
+					p.Remove = append(p.Remove, e)
+				}
+				break
+			}
+		}
+		if !found {
+			return p, &contract.Error{Code: contract.CodeStale,
+				Message: fmt.Sprintf("%s %s %s is not in the zone; it may have been changed since it was read", r.Name, r.Type, r.Data)}
+		}
+	}
+	for _, r := range add {
+		if err := checkForbidden(r); err != nil {
+			return p, err
+		}
+		kept := false
+		for i, e := range p.Remove {
+			if same(e, r) {
+				p.Remove = append(p.Remove[:i:i], p.Remove[i+1:]...)
+				kept = true
+				break
+			}
+		}
+		if kept {
+			continue
+		}
+		if contains(existing, r) && !contains(p.Remove, r) || contains(p.Add, r) {
+			continue
+		}
+		p.Add = append(p.Add, r)
+	}
+	for _, e := range existing {
+		if !contains(p.Remove, e) {
+			p.After = append(p.After, e)
+		}
+	}
+	p.After = append(p.After, p.Add...)
+	return p, nil
+}
+
 func hasAnyPrefix(s string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if p != "" && strings.HasPrefix(s, p) {

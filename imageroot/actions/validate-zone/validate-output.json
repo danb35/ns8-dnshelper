@@ -31,6 +31,10 @@
                 },
                 "list_zones": {
                     "type": "boolean"
+                },
+                "atomic_changes": {
+                    "type": "boolean",
+                    "description": "apply-changes is written in one request the DNS host applies entirely or not at all"
                 }
             }
         },
