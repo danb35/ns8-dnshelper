@@ -404,8 +404,9 @@ cannot express "turn this record into that one" when the name or type changes. S
 Settings page for retention) and step 3 (editing with per-type forms) implemented. Steps 1-3 were
 tested on a node against Cloudflare (snapshot, write, diff, revert; add, edit, A to CNAME, delete,
 TXT hints and the second-SPF warning, apex NS refused, in the browser). Step 4 (staged changes and
-bulk operations) implemented; its logic is checked (`ui/src/lib/pending.js`) and its screens are in
-the CI screenshots, not yet tried on a node. Steps 5-6 are design only.
+bulk operations) implemented and tried on a node against Cloudflare in the browser (pending add and
+undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is checked
+(`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Steps 5-6 are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
