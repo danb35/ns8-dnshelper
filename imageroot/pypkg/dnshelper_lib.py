@@ -47,7 +47,7 @@ _CODE_FIELD = {
     'unsupported': 'provider',
 }
 _USER_FIXABLE = {'invalid_request', 'conflict', 'forbidden', 'zone_not_found',
-                 'auth_failed', 'unsupported', 'unknown_provider'}
+                 'auth_failed', 'unsupported', 'unknown_provider', 'stale'}
 
 
 class ActionError(Exception):
@@ -583,6 +583,19 @@ set_records = _change('set-records')
 delete_records = _change('delete-records')
 
 
+def apply_changes(data):
+    """Remove exact records and add others as one planned change (admin
+    only: in no role). A record to remove that is no longer in the zone fails
+    the whole change with 'stale'."""
+    zone = normalize_zone(data['zone'])
+    remove, add = data.get('remove', []), data.get('add', [])
+    _require_access(zone, remove + add)
+    req = _zone_request(zone)
+    req.update(op='apply-changes', remove=remove, add=add, dry_run=bool(data.get('dry_run')))
+    resp = call_helper(req)
+    return {'dry_run': bool(resp.get('dry_run')), 'changes': resp['changes'], 'records': resp['records']}
+
+
 # ---------------------------------------------------------------- ns8-powerdns adoption
 
 POWERDNS_SERVICE = 'powerdns-api'
@@ -791,6 +804,7 @@ HANDLERS = {
     'append-records': append_records,
     'set-records': set_records,
     'delete-records': delete_records,
+    'apply-changes': apply_changes,
     'sync-powerdns': sync_powerdns,
 }
 
@@ -902,13 +916,18 @@ def check_restored_state(module_exists=None):
 
 # Actions that change something. Every call by another module is logged too.
 MUTATING = {'add-credential', 'update-credential', 'remove-credential', 'add-zone', 'update-zone',
-            'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records'}
+            'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records',
+            'apply-changes'}
 ZONE_ACTIONS = {'add-zone', 'update-zone', 'remove-zone'}
 EVENT = 'service-dnshelper-changed'
 
 
 def _brief(rec):
     return '%s %s %s' % (rec['name'], rec['type'], rec['data'][:80])
+
+
+def _requested(r):
+    return _brief({'name': r['name'], 'type': r.get('type', '*'), 'data': r.get('data', '')})
 
 
 def audit_line(action, data, result, outcome, error=None):
@@ -931,8 +950,10 @@ def audit_line(action, data, result, outcome, error=None):
         f.append(('add', [_brief(r) for r in result['changes']['add']]))
         f.append(('remove', [_brief(r) for r in result['changes']['remove']]))
     elif action in ('append-records', 'set-records', 'delete-records'):
-        f.append(('requested', [_brief({'name': r['name'], 'type': r.get('type', '*'), 'data': r.get('data', '')})
-                                for r in data.get('records', [])]))
+        f.append(('requested', [_requested(r) for r in data.get('records', [])]))
+    elif action == 'apply-changes':
+        f.append(('requested_add', [_requested(r) for r in data.get('add', [])]))
+        f.append(('requested_remove', [_requested(r) for r in data.get('remove', [])]))
     return 'dnshelper audit: ' + ' '.join(
         '%s=%s' % (k, v if isinstance(v, (int, bool)) else json.dumps(v)) for k, v in f)
 

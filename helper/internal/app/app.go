@@ -36,7 +36,7 @@ func fail(err error) contract.Response {
 
 func mutates(req contract.Request) bool {
 	switch req.Op {
-	case contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords:
+	case contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges:
 		return !req.DryRun
 	case contract.OpValidate:
 		return req.WriteTest
@@ -78,7 +78,7 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 	}
 
 	switch req.Op {
-	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords:
+	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges:
 	default:
 		return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "unknown op " + quote(req.Op)})
 	}
@@ -92,8 +92,12 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		return fail(err)
 	}
 
-	if req.Op == contract.OpAppendRecords || req.Op == contract.OpSetRecords {
-		for _, r := range req.Records {
+	if req.Op == contract.OpAppendRecords || req.Op == contract.OpSetRecords || req.Op == contract.OpApplyChanges {
+		written := req.Records
+		if req.Op == contract.OpApplyChanges {
+			written = req.Add
+		}
+		for _, r := range written {
 			if strings.EqualFold(r.Type, "TXT") && def.TXTForbidden != "" && strings.ContainsAny(r.Data, def.TXTForbidden) {
 				return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "provider " +
 					def.Name + " cannot store TXT values containing " + forbiddenChars(def.TXTForbidden) + " (record " + quote(r.Name) + ")"})
@@ -131,6 +135,8 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		resp, err = o.SetRecords(ctx, req.Records, req.Mode, req.ReplacePrefixes, req.DryRun)
 	case contract.OpDeleteRecords:
 		resp, err = o.DeleteRecords(ctx, req.Records, req.DryRun)
+	case contract.OpApplyChanges:
+		resp, err = o.ApplyChanges(ctx, req.Remove, req.Add, req.DryRun)
 	}
 	if err != nil {
 		return fail(err)

@@ -247,3 +247,57 @@ func TestPowerDNSZonesAndErrors(t *testing.T) {
 		t.Fatalf("bad URL: %v", err)
 	}
 }
+
+func TestPowerDNSApplyChangesInOnePatch(t *testing.T) {
+	f, p := newFakePowerDNS(t)
+	ctx := context.Background()
+	f.sets["www.example.com./A"] = pdRRset{Name: "www.example.com.", Type: "A", TTL: 600, Records: []pdRecord{{Content: "192.0.2.1"}}}
+	f.sets["mail.example.com./A"] = pdRRset{Name: "mail.example.com.", Type: "A", TTL: 300, Records: []pdRecord{
+		{Content: "192.0.2.2"}, {Content: "192.0.2.3"}}}
+	// An A record turned into a CNAME, and one member of a set replaced.
+	done, err := p.ApplyChanges(ctx, "example.com.",
+		[]libdns.Record{
+			libdns.RR{Name: "www", Type: "A", Data: "192.0.2.1", TTL: 600e9},
+			libdns.RR{Name: "mail", Type: "A", Data: "192.0.2.3", TTL: 300e9},
+		},
+		[]libdns.Record{
+			libdns.RR{Name: "www", Type: "CNAME", Data: "web.example.net."},
+			libdns.RR{Name: "mail", Type: "A", Data: "192.0.2.4"},
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(done) != 2 {
+		t.Errorf("added records returned: %v", done)
+	}
+	if len(f.patches) != 1 {
+		t.Fatalf("one PATCH expected, got %d", len(f.patches))
+	}
+	if _, ok := f.sets["www.example.com./A"]; ok {
+		t.Error("the A set must be deleted")
+	}
+	if c := f.sets["www.example.com./CNAME"]; len(c.Records) != 1 || c.Records[0].Content != "web.example.net." {
+		t.Errorf("CNAME: %+v", c)
+	}
+	m := f.sets["mail.example.com./A"]
+	if m.TTL != 300 || len(m.Records) != 2 || m.Records[0].Content != "192.0.2.2" || m.Records[1].Content != "192.0.2.4" {
+		t.Errorf("mail A: %+v", m)
+	}
+	// The PATCH holds exactly one change per set: no DELETE and REPLACE of the
+	// same set, which PowerDNS would apply in order.
+	var in struct {
+		RRsets []pdRRset `json:"rrsets"`
+	}
+	_ = json.Unmarshal(f.patches[0], &in)
+	seen := map[string]bool{}
+	for _, s := range in.RRsets {
+		k := s.Name + "/" + s.Type
+		if seen[k] {
+			t.Errorf("set %s changed twice in one PATCH", k)
+		}
+		seen[k] = true
+	}
+	if len(in.RRsets) != 3 {
+		t.Errorf("three sets expected (www A, www CNAME, mail A): %s", f.patches[0])
+	}
+}

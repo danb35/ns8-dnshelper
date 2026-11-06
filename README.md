@@ -77,7 +77,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 
 | Group | Actions |
 |---|---|
-| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
+| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns`, `apply-changes` |
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 | UI convention | `configure-module` (no settings yet), `get-configuration` |
 
@@ -85,6 +85,15 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 zone containing it. `validate-zone` checks a saved zone, a zone with a saved credential, or a
 zone with inline provider fields, so a wizard can validate before saving anything.
 `validate-zone` is read-only unless `write_test` is set.
+
+`apply-changes` (admin only, in no role) takes `zone`, `remove` and `add` record lists and an
+optional `dry_run`, and applies them as one planned change: the CNAME and target checks run on the
+zone as it will be afterwards, so an A record can be turned into a CNAME in one step. Every record
+in `remove` must still be in the zone (name, type and value; TTL too when given), otherwise nothing
+is changed and the error is `stale`. It works with every provider; on PowerDNS the change is sent
+in one request that PowerDNS applies entirely or not at all (`atomic_changes` in `validate-zone`'s
+capabilities), elsewhere as delete, check, append, with the removed records put back if the append
+fails.
 
 ## Using dnshelper from another module
 
@@ -495,7 +504,7 @@ echo '{"op":"list-providers"}' | helper/dnshelper
 ```
 
 Operations: `list-providers`, `capabilities`, `validate`, `list-zones`, `get-records`,
-`append-records`, `set-records`, `delete-records`, and `registrable-domains` (reduces host names to
+`append-records`, `set-records`, `delete-records`, `apply-changes`, and `registrable-domains` (reduces host names to
 the registrable domains containing them, with the public suffix list; needs no provider). Records are `{"name","type","ttl","data"}` with names relative
 to the zone (`@` for the apex) and TXT data as one plain, unquoted string of any length.
 

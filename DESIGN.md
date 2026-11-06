@@ -37,7 +37,7 @@ Status: build order steps 1-7 done (scaffold, Go helper, actions + credential st
 | Group | Actions |
 |---|---|
 | UI convention | `configure-module`, `get-configuration` |
-| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns` |
+| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns`, `apply-changes` |
 | Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 
 Each action: `validate-input.json` and `validate-output.json` (NS8 validation framework).
@@ -379,8 +379,16 @@ leave them pointing at a dead API.
 Now that dnshelper is the main frontend for ns8-powerdns zones, the Records page should become a
 full records editor rather than a test tool. Today it can only append or delete one record at a
 time (`append-records`, `delete-records`); `set-records` replaces whole (name, type) RRsets and
-cannot express "turn this record into that one" when the name or type changes. Status: design
-only, nothing implemented.
+cannot express "turn this record into that one" when the name or type changes. Status: step 1
+(`apply-changes`) implemented, with unit tests (fake provider and fake PowerDNS API); not yet
+tested against a live DNS host, and the UI does not use it yet. The rest is design only.
+
+**Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
+snapshots, bulk operations and import are built on the generic libdns operations and work on any
+zone dnshelper manages, whatever its provider. Provider-specific code is limited to optional fast
+paths (the atomic PowerDNS write below); a provider without one gets the generic path, never a
+missing feature. Where a provider lacks a record type, the per-type forms follow its declared
+`Types`, as the Add dialog does today.
 
 ### Foundation: one changeset operation
 
@@ -400,9 +408,11 @@ records, add these", previewed and then applied. Build that once:
   consumer has since rewritten (DKIM rotation, ACME) silently add a second record.
 - **Atomic where the host allows it.** The PowerDNS adapter already writes all its changes in one
   PATCH, applied entirely or not at all (`registry/powerdns.go`, `apply`). Expose that through an
-  optional interface (e.g. `ChangeApplier`, type-asserted like the libdns ones) so adopted
-  PowerDNS zones get true atomicity; other providers use the existing delete -> verify -> append
-  path with best-effort `restore()`. Report in the capability matrix which providers are atomic.
+  optional interface (e.g. `ChangeApplier`, type-asserted like the libdns ones) so PowerDNS zones
+  (adopted or not) get true atomicity. Every other provider uses the existing delete -> verify ->
+  append path with best-effort `restore()` (and the `SetRecords` fallback for a provider that can
+  only set RRsets), so the same changeset works everywhere. Report in the capability matrix which
+  providers are atomic.
 - **Limits.** Keep the 100-records-per-request schema limit; the UI splits larger bulk changes
   into several changesets and says so in the preview. Per-zone lock as for every write.
 - **Audit.** One audit line per changeset, as for the other write actions.

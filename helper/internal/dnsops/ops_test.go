@@ -598,3 +598,148 @@ func TestHTTPSAndSVCBCompareWithoutParameterQuotes(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyChangesEditAcrossTypes(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	o := newOps(f)
+	ctx := context.Background()
+	// Appending a CNAME next to the A record is refused...
+	if _, err := o.AppendRecords(ctx, []contract.Record{rec("www", "CNAME", "web.example.net.")}, false); err == nil {
+		t.Fatal("append of a CNAME next to an A record must fail")
+	}
+	// ...but replacing the A record with it in one change is fine.
+	r := ok(t)(o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1")},
+		[]contract.Record{rec("www", "CNAME", "web.example.net.")}, false))
+	if len(r.Changes.Add) != 1 || len(r.Changes.Remove) != 1 {
+		t.Fatalf("changes: %+v", r.Changes)
+	}
+	got := dataOf(ok(t)(o.GetRecords(ctx, nil)).Records)
+	if len(got) != 1 || got[0] != "www CNAME web.example.net." {
+		t.Fatalf("zone after: %v", got)
+	}
+}
+
+func TestApplyChangesStaleRemoveChangesNothing(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(txt("_dmarc", "v=DMARC1; p=none"))
+	o := newOps(f)
+	ctx := context.Background()
+	_, err := o.ApplyChanges(ctx, []contract.Record{rec("_dmarc", "TXT", "v=DMARC1; p=quarantine")},
+		[]contract.Record{rec("_dmarc", "TXT", "v=DMARC1; p=reject")}, false)
+	wantCode(t, err, contract.CodeStale)
+	for _, op := range f.Ops() {
+		if op != "get" {
+			t.Fatalf("a stale change must write nothing, saw %v", f.Ops())
+		}
+	}
+	// A TTL that no longer matches is stale too.
+	r := rec("_dmarc", "TXT", "v=DMARC1; p=none")
+	r.TTL = 3600
+	_, err = o.ApplyChanges(ctx, []contract.Record{r}, nil, false)
+	wantCode(t, err, contract.CodeStale)
+}
+
+func TestApplyChangesTTLAndNoOpEdits(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	o := newOps(f)
+	ctx := context.Background()
+	// Saving an edit without changing anything (no TTL given) changes nothing.
+	r := ok(t)(o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1")},
+		[]contract.Record{rec("www", "A", "192.0.2.1")}, false))
+	if len(r.Changes.Add)+len(r.Changes.Remove) != 0 {
+		t.Fatalf("unchanged edit: %+v", r.Changes)
+	}
+	// A TTL change replaces the record.
+	n := rec("www", "A", "192.0.2.1")
+	n.TTL = 600
+	r = ok(t)(o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1")}, []contract.Record{n}, false))
+	if len(r.Changes.Add) != 1 || len(r.Changes.Remove) != 1 {
+		t.Fatalf("TTL edit: %+v", r.Changes)
+	}
+	got := ok(t)(o.GetRecords(ctx, nil)).Records
+	if len(got) != 1 || got[0].TTL != 600 {
+		t.Fatalf("zone after: %+v", got)
+	}
+}
+
+func TestApplyChangesDryRunAndForbidden(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	o := newOps(f)
+	ctx := context.Background()
+	r := ok(t)(o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1")},
+		[]contract.Record{rec("www", "A", "192.0.2.2")}, true))
+	if !r.DryRun || len(r.Changes.Add) != 1 || len(r.Changes.Remove) != 1 {
+		t.Fatalf("dry run: %+v", r)
+	}
+	if got := dataOf(ok(t)(o.GetRecords(ctx, nil)).Records); got[0] != "www A 192.0.2.1" {
+		t.Fatalf("dry run must not write: %v", got)
+	}
+	_, err := o.ApplyChanges(ctx, nil, []contract.Record{rec("@", "NS", "ns1.example.net.")}, false)
+	wantCode(t, err, contract.CodeForbidden)
+	_, err = o.ApplyChanges(ctx, nil, nil, false)
+	wantCode(t, err, contract.CodeInvalidRequest)
+}
+
+func TestApplyChangesRestoresWhenAppendFails(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	ctx := context.Background()
+	o := &Ops{Provider: &failOnce{Fake: f, op: "append"}, Zone: zone}
+	_, err := o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1")},
+		[]contract.Record{rec("www", "A", "192.0.2.2")}, false)
+	if err == nil || !strings.Contains(err.Error(), "left unchanged") {
+		t.Fatalf("want an error saying the zone was restored: %v", err)
+	}
+	if got := dataOf(ok(t)(newOps(f).GetRecords(ctx, nil)).Records); len(got) != 1 || got[0] != "www A 192.0.2.1" {
+		t.Fatalf("removed record must be put back: %v", got)
+	}
+}
+
+func TestApplyChangesSetOnlyProvider(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"},
+		libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.2"})
+	o := &Ops{Provider: fakedns.SetOnly{F: f}, Zone: zone}
+	ctx := context.Background()
+	ok(t)(o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.2")},
+		[]contract.Record{rec("www", "A", "192.0.2.3")}, false))
+	got := dataOf(ok(t)(o.GetRecords(ctx, nil)).Records)
+	if strings.Join(got, ",") != "www A 192.0.2.1,www A 192.0.2.3" {
+		t.Fatalf("zone after: %v", got)
+	}
+	// Emptying a set cannot be done with SetRecords alone.
+	_, err := o.ApplyChanges(ctx, []contract.Record{rec("www", "A", "192.0.2.1"), rec("www", "A", "192.0.2.3")}, nil, false)
+	wantCode(t, err, contract.CodeUnsupported)
+}
+
+// atomicFake records whether ApplyChanges was used instead of delete + append.
+type atomicFake struct {
+	*fakedns.Fake
+	calls int
+}
+
+func (a *atomicFake) ApplyChanges(ctx context.Context, zone string, remove, add []libdns.Record) ([]libdns.Record, error) {
+	a.calls++
+	if _, err := a.Fake.DeleteRecords(ctx, zone, remove); err != nil {
+		return nil, err
+	}
+	return a.Fake.AppendRecords(ctx, zone, add)
+}
+
+func TestApplyChangesUsesChangeApplier(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	a := &atomicFake{Fake: f}
+	o := &Ops{Provider: a, Zone: zone}
+	if !Capabilities(a).AtomicChanges || Capabilities(f).AtomicChanges {
+		t.Fatal("AtomicChanges capability")
+	}
+	ok(t)(o.ApplyChanges(context.Background(), []contract.Record{rec("www", "A", "192.0.2.1")},
+		[]contract.Record{rec("www", "A", "192.0.2.2")}, false))
+	if a.calls != 1 {
+		t.Fatalf("ChangeApplier not used: %d calls", a.calls)
+	}
+}

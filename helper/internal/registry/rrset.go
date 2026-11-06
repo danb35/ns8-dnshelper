@@ -328,3 +328,43 @@ func planDelete(zone string, have []rrsetState, recs []libdns.Record) ([]rrsetCh
 	}
 	return changes, deleted
 }
+
+// planChanges removes the given records (as planDelete) and then adds the
+// others (as planAppend) to the sets as they are after the removal, merging
+// the two into one change per set, so that the whole change can be written in
+// one request.
+func planChanges(zone string, have []rrsetState, remove, add []libdns.Record) ([]rrsetChange, []libdns.Record, error) {
+	dels, _ := planDelete(zone, have, remove)
+	after := make([]rrsetState, 0, len(have))
+	byKey := map[rrsetKey]rrsetChange{}
+	for _, c := range dels {
+		byKey[keyOf(c.Type, c.Name)] = c
+	}
+	for _, s := range have {
+		if c, ok := byKey[keyOf(s.Type, s.Name)]; ok {
+			if len(c.Values) == 0 {
+				continue
+			}
+			s.Values = c.Values
+		}
+		after = append(after, s)
+	}
+	adds, done, err := planAppend(zone, after, add)
+	if err != nil {
+		return nil, nil, err
+	}
+	var order []rrsetKey
+	merged := map[rrsetKey]rrsetChange{}
+	for _, c := range append(dels, adds...) {
+		k := keyOf(c.Type, c.Name)
+		if _, ok := merged[k]; !ok {
+			order = append(order, k)
+		}
+		merged[k] = c // an append to a set replaces its deletion: it starts from the set after it
+	}
+	out := make([]rrsetChange, 0, len(order))
+	for _, k := range order {
+		out = append(out, merged[k])
+	}
+	return out, done, nil
+}

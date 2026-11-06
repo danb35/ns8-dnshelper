@@ -313,3 +313,20 @@ func (p *powerDNSProvider) DeleteRecords(ctx context.Context, zone string, recs 
 	}
 	return deleted, nil
 }
+
+// ApplyChanges removes and adds records in one PATCH, which PowerDNS applies
+// entirely or not at all (dnsops.ChangeApplier).
+func (p *powerDNSProvider) ApplyChanges(ctx context.Context, zone string, remove, add []libdns.Record) ([]libdns.Record, error) {
+	st, err := p.read(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+	changes, done, err := planChanges(zone, st.sets, remove, add)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.apply(ctx, zone, st, changes); err != nil {
+		return nil, err
+	}
+	return done, nil
+}
