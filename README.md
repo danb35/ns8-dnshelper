@@ -694,7 +694,12 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   check that a credential really works. Apex NS and SOA records cannot be deleted. **Snapshots**
   lists the zone's snapshots and their change history, takes one, and compares one with the zone:
   the differences are listed (records another module changed since are marked), any can be
-  unticked, and the rest is applied in one `apply-changes`. There are no bulk changes yet.
+  unticked, and the rest is applied in one `apply-changes`. **Pending changes:** the Add, Edit and
+  Delete dialogs can also add their change to a pending list instead of applying it, and the bulk
+  actions always do: delete the selected records, give them a new TTL, or find and replace text in
+  record values (narrowed by type and a name pattern, over the selection or the whole zone). Review
+  and apply shows the backend's plan (a dry run) and sends everything as one `apply-changes`, in
+  groups of up to 100 when there are more.
 - **Settings**: snapshot retention.
 - **Access**: the policy table (which module may change which record names and types), with
   presets for a mail server, for mail auto-configuration (ns8-automx), for ACME DNS-01 and for a

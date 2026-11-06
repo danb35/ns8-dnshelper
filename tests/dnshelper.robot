@@ -193,15 +193,32 @@ Take screenshots of the pages
     Click    iframe >>> .bx--overflow-menu-options--open >> text="Edit"
     Open a dialog    "Edit a record of ${UI_ZONE}"    4._Edit_an_MX_record
     Keyboard Key    press    Escape
+    # bulk: a new TTL for every record on the page, collected as pending changes
+    Click    iframe >>> button >> text="Select all on this page"
+    Click    iframe >>> button >> text="Set TTL"
+    Fill Text    iframe >>> input[placeholder="300"]    300
+    Click    iframe >>> .bx--modal.is-visible >> button >> text="Add to pending changes"
+    Wait For Elements State    iframe >>> text="Review and apply"    visible    timeout=30s
+    Sleep    2s
+    Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/5._Pending_changes.png
+    Click    iframe >>> button >> text="Review and apply"
+    Open a dialog    "Review the changes to ${UI_ZONE}"    6._Review_and_apply
+    Keyboard Key    press    Escape
+    Click    iframe >>> button >> text="Discard all"
+    Click    iframe >>> button >> text="Find and replace"
+    Fill Text    iframe >>> input[placeholder="old.example.net."]    mail.${UI_ZONE}.
+    Fill Text    iframe >>> input[placeholder="new.example.net."]    mx.${UI_ZONE}.
+    Open a dialog    "2 records match"    7._Find_and_replace
+    Keyboard Key    press    Escape
     Click    iframe >>> button >> text="Snapshots"
-    Open a dialog    "Snapshots of ${UI_ZONE}"    5._Snapshots
+    Open a dialog    "Snapshots of ${UI_ZONE}"    8._Snapshots
     # the oldest snapshot, taken by hand before the records were added
     Click    iframe >>> button >> text="Compare and revert" >> nth=-1
-    Open a dialog    "Remove from the zone"    6._Compare_with_a_snapshot
+    Open a dialog    "Remove from the zone"    9._Compare_with_a_snapshot
     Keyboard Key    press    Escape
-    Open page    access    Access    7._Access
-    Open page    settings    Settings    8._Settings
-    Open page    about    About    9._About
+    Open page    access    Access    10._Access
+    Open page    settings    Settings    11._Settings
+    Open page    about    About    12._About
     Close Browser
     [Teardown]    Remove the screenshot zone
 

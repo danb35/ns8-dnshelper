@@ -403,7 +403,9 @@ cannot express "turn this record into that one" when the name or type changes. S
 (`apply-changes`), step 2 (snapshots and revert, with the Records page's Snapshots dialog and a
 Settings page for retention) and step 3 (editing with per-type forms) implemented. Steps 1-3 were
 tested on a node against Cloudflare (snapshot, write, diff, revert; add, edit, A to CNAME, delete,
-TXT hints and the second-SPF warning, apex NS refused, in the browser). Steps 4-6 are design only.
+TXT hints and the second-SPF warning, apex NS refused, in the browser). Step 4 (staged changes and
+bulk operations) implemented; its logic is checked (`ui/src/lib/pending.js`) and its screens are in
+the CI screenshots, not yet tried on a node. Steps 5-6 are design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -515,6 +517,19 @@ records, add these", previewed and then applied. Build that once:
 - **Find and replace in values**, scoped by type and name pattern: bulk-retargeting CNAMEs, and the
   more common case of changing an IP across A / AAAA records during a server move.
 - **Bulk TTL change** (lower TTLs ahead of a migration).
+- As built (decision 2026-11-06: both ways per dialog): the Add, Edit and Delete dialogs keep
+  applying at once and gain "Add to pending changes"; bulk actions always go to the pending list.
+  The list is a panel above the table (each change with Undo; Review and apply; Discard all);
+  rows with a pending change get a tag and only an "Undo pending change" menu, and are not
+  selectable again. The zone can't be switched while changes are pending. Review runs
+  `apply-changes` with `dry_run` and shows the backend's plan (so a no-op, a CNAME conflict or a
+  stale record shows before anything is written), then applies with the label "Records page: n
+  changes". More than 100 removals or additions are split into groups (an edit is never split),
+  applied one after the other without a dry run; if one fails, the groups before it stay applied
+  and leave the pending list. Selection: a checkbox per changeable row and "Select all on this
+  page". Find and replace: plain text (not a regular expression), case-insensitive unless asked,
+  narrowed by type and a `*`/`?` name pattern, over the selection or the whole zone, with a
+  preview. Logic in `ui/src/lib/pending.js`.
 
 ### Zone file import and export
 
