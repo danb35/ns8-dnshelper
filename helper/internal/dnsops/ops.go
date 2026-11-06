@@ -15,6 +15,7 @@ import (
 	"github.com/libdns/libdns"
 
 	"github.com/danb35/ns8-dnshelper/helper/internal/contract"
+	"github.com/danb35/ns8-dnshelper/helper/internal/zonefile"
 )
 
 // Capabilities reports which optional libdns interfaces a provider implements.
@@ -403,7 +404,7 @@ func (o *Ops) ApplyChanges(ctx context.Context, remove, add []contract.Record, d
 
 // DiffRecords reports, as Changes, what apply-changes would have to remove
 // and add to make the zone equal to target. It writes nothing.
-func (o *Ops) DiffRecords(ctx context.Context, target []contract.Record) (contract.Response, error) {
+func (o *Ops) DiffRecords(ctx context.Context, target []contract.Record, mode string) (contract.Response, error) {
 	tg, err := NormalizeAll(o.Zone, target)
 	if err != nil {
 		return contract.Response{}, err
@@ -412,7 +413,20 @@ func (o *Ops) DiffRecords(ctx context.Context, target []contract.Record) (contra
 	if err != nil {
 		return contract.Response{}, err
 	}
-	return contract.Response{OK: true, Records: []contract.Record{}, Changes: changes(PlanDiff(plain(es), tg))}, nil
+	plan := PlanDiff(plain(es), tg)
+	if mode == contract.ModeAdd {
+		plan = PlanDiffAdd(plain(es), tg)
+	}
+	return contract.Response{OK: true, Records: []contract.Record{}, Changes: changes(plan)}, nil
+}
+
+// ExportZone writes the zone as a zone file.
+func (o *Ops) ExportZone(ctx context.Context) (contract.Response, error) {
+	es, err := o.read(ctx)
+	if err != nil {
+		return contract.Response{}, err
+	}
+	return contract.Response{OK: true, Records: []contract.Record{}, Text: zonefile.Export(o.Zone, plain(es))}, nil
 }
 
 // verifyRemoved re-reads the zone and fails if any of removed is still there.

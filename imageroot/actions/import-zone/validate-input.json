@@ -1,0 +1,39 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "import-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/import-zone",
+    "description": "Plan the import of a BIND-format zone file: the records apply-changes would have to remove and add (administrators only). Writes nothing. $INCLUDE is refused; SOA, the zone's own NS records and names outside the zone are left out.",
+    "type": "object",
+    "required": [
+        "zone",
+        "text"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "text": {
+            "type": "string",
+            "maxLength": 2097152,
+            "description": "The zone file"
+        },
+        "mode": {
+            "enum": [
+                "add",
+                "replace"
+            ],
+            "description": "add (default): only add what the zone lacks; replace: also remove what the file lacks"
+        }
+    },
+    "examples": [
+        {
+            "zone": "example.com",
+            "text": "www 300 IN A 192.0.2.10\n",
+            "mode": "add"
+        }
+    ]
+}

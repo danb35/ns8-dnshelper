@@ -22,6 +22,13 @@ const (
 	// make the zone equal to it. SOA and apex NS records are left out. It
 	// writes nothing.
 	OpDiffRecords = "diff-records"
+	// OpExportZone writes the zone (or Request.Records, a snapshot, when
+	// given) as a BIND-format zone file in Response.Text.
+	OpExportZone = "export-zone"
+	// OpParseZone reads the zone file in Request.Text into Response.Records,
+	// for Request.Zone; what it leaves out is in Response.Skipped. It needs
+	// no provider.
+	OpParseZone = "parse-zone"
 	// OpListZones lists the zones the credentials can see.
 	OpListZones = "list-zones"
 	// OpRegistrableDomains reduces host names to the registrable domains that
@@ -38,6 +45,9 @@ const (
 	// ModeRRset is the raw libdns SetRecords semantics: the input records
 	// become the ONLY members of each (name, type) RRset they touch.
 	ModeRRset = "rrset"
+	// ModeAdd, for diff-records: only add the records the zone lacks
+	// (compared without TTL), remove nothing.
+	ModeAdd = "add"
 )
 
 // Error codes reported in Error.Code.
@@ -90,8 +100,17 @@ type Request struct {
 	Add    []Record `json:"add,omitempty"`
 	// WriteTest makes validate create and delete a throwaway TXT record.
 	WriteTest bool `json:"write_test,omitempty"`
+	// Text is the zone file for parse-zone.
+	Text string `json:"text,omitempty"`
 	// Names are the host names for registrable-domains.
 	Names []string `json:"names,omitempty"`
+}
+
+// Skipped is a record of a zone file that parse-zone left out, and why.
+type Skipped struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Reason string `json:"reason"`
 }
 
 // Candidate is a registrable domain and the host names that led to it.
@@ -166,6 +185,10 @@ type Response struct {
 	Capabilities *Capabilities  `json:"capabilities,omitempty"`
 	Validation   *Validation    `json:"validation,omitempty"`
 	Providers    []ProviderInfo `json:"providers,omitempty"`
+	// Text is the zone file written by export-zone.
+	Text string `json:"text,omitempty"`
+	// Skipped lists what parse-zone left out.
+	Skipped []Skipped `json:"skipped,omitempty"`
 	// Zones is the result of list-zones: bare zone names, sorted.
 	Zones []string `json:"zones,omitempty"`
 	// Candidates is the result of registrable-domains.

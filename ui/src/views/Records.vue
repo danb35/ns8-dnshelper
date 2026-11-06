@@ -93,9 +93,28 @@
               :icon="Time20"
               :disabled="loading.zones || !zone"
               @click="isSnapshotsShown = true"
-              class="mg-bottom-md"
+              class="mg-bottom-md mg-right-sm"
             >
               {{ $t("snapshots.button") }}
+            </NsButton>
+            <NsButton
+              kind="tertiary"
+              :icon="Download20"
+              :disabled="loading.zones || !zone"
+              :loading="loading.export"
+              @click="exportZone"
+              class="mg-bottom-md mg-right-sm"
+            >
+              {{ $t("import.export") }}
+            </NsButton>
+            <NsButton
+              kind="tertiary"
+              :icon="CloudUpload20"
+              :disabled="loading.zones || loading.records || !zone"
+              @click="isImportShown = true"
+              class="mg-bottom-md"
+            >
+              {{ $t("import.button") }}
             </NsButton>
           </cv-column>
         </cv-row>
@@ -289,6 +308,12 @@
       @applied="onApplied"
       @reload="reloadFromReview"
     />
+    <ImportZone
+      :isShown="isImportShown"
+      :zone="zone"
+      @hide="isImportShown = false"
+      @stage="stageFromImport"
+    />
     <FindReplace
       :isShown="isFindShown"
       :records="changeable"
@@ -434,6 +459,7 @@ import RecordForm from "../components/RecordForm";
 import PendingChanges from "../components/PendingChanges";
 import ReviewChanges from "../components/ReviewChanges";
 import FindReplace from "../components/FindReplace";
+import ImportZone from "../components/ImportZone";
 import { recordKey, setTtl, stage, touchedKeys } from "../lib/pending";
 import Time20 from "@carbon/icons-vue/es/time/20";
 
@@ -447,6 +473,7 @@ export default {
     PendingChanges,
     ReviewChanges,
     FindReplace,
+    ImportZone,
   },
   mixins: [
     DnsHelperService,
@@ -481,11 +508,18 @@ export default {
       selected: [],
       isReviewShown: false,
       isFindShown: false,
+      isImportShown: false,
       isTtlShown: false,
       ttlValue: "",
       Time20,
       notice: { title: "", text: "" },
-      loading: { zones: true, records: false, save: false, remove: false },
+      loading: {
+        zones: true,
+        records: false,
+        save: false,
+        remove: false,
+        export: false,
+      },
       error: {
         load: "",
         save: "",
@@ -717,6 +751,25 @@ export default {
       }
       this.stageChanges(setTtl(this.selectedRecords.map(this.plain), ttl));
       this.isTtlShown = false;
+    },
+    stageFromImport(changes) {
+      this.stageChanges(
+        changes.map((c) => (c.old ? { ...c, old: this.plain(c.old) } : c))
+      );
+      this.isImportShown = false;
+    },
+    async exportZone() {
+      this.loading.export = true;
+      this.error.load = "";
+      try {
+        const out = await this.callAction("export-zone", {
+          data: { zone: this.zone },
+        });
+        this.downloadText(out.filename, out.text);
+      } catch (err) {
+        this.error.load = this.errorText(err);
+      }
+      this.loading.export = false;
     },
     stageFromFind(changes) {
       this.stageChanges(

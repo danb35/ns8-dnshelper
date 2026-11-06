@@ -64,7 +64,9 @@
     "get-snapshot": "Get snapshot",
     "create-snapshot": "Take snapshot",
     "delete-snapshot": "Delete snapshot",
-    "diff-snapshot": "Compare with snapshot"
+    "diff-snapshot": "Compare with snapshot",
+    "export-zone": "Export zone",
+    "import-zone": "Plan zone import"
   },
   "error": {
     "error": "Error",
@@ -323,7 +325,8 @@
     "apply": "Apply {count} changes",
     "revert_label": "revert to {time}",
     "back": "Back",
-    "close": "Close"
+    "close": "Close",
+    "download": "Download"
   },
   "settings": {
     "title": "Settings",
@@ -430,5 +433,24 @@
     "only_selected": "Only the {count} selected records",
     "matches": "No records match | 1 record matches | {count} records match",
     "stage": "Add to pending changes | Add 1 change to pending changes | Add {count} changes to pending changes"
+  },
+  "import": {
+    "button": "Import",
+    "export": "Export",
+    "title": "Import a zone file into {zone}",
+    "intro": "Paste a zone file in BIND format, or choose one, for example one exported from another DNS host. Nothing is changed yet: the preview shows what would change, and its changes go to the pending changes, to review and apply there. SOA records, the zone's own NS records and names outside the zone are left out. $INCLUDE is not allowed.",
+    "choose_file": "Choose a file",
+    "text": "Zone file",
+    "mode": "What to do with the records",
+    "mode_add": "Add the records the zone does not have yet; keep the others",
+    "mode_replace": "Make the zone match the file: also remove records the file does not have",
+    "replace_title": "Records will be removed",
+    "replace_warning": "Every record of the zone that is not in the file is removed, including records other modules wrote (mail, certificates). Check the preview, and the pending changes, before you apply them.",
+    "cannot_read": "The zone file cannot be imported",
+    "preview": "Preview",
+    "summary": "{parsed} records read: {add} to add, {remove} to remove",
+    "part_remove": "To remove",
+    "part_add": "To add",
+    "skipped": "Left out ({count})"
   }
 }

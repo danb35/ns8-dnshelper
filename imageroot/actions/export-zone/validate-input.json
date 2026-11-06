@@ -1,0 +1,33 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "export-zone input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/export-zone",
+    "description": "The zone, or one of its snapshots, as a BIND-format zone file (administrators only). Writes nothing.",
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "snapshot": {
+            "type": "string",
+            "pattern": "^\\d{8}T\\d{6}\\.\\d{6}Z$",
+            "description": "Export this snapshot instead of the zone as it is now"
+        }
+    },
+    "examples": [
+        {
+            "zone": "example.com"
+        },
+        {
+            "zone": "example.com",
+            "snapshot": "20261106T101500.000000Z"
+        }
+    ]
+}

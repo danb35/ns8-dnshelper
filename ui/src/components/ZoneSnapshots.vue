@@ -104,6 +104,15 @@
                 <NsButton
                   kind="ghost"
                   size="small"
+                  :icon="Download20"
+                  :disabled="busy"
+                  :loading="loading.download === s.id"
+                  @click="download(s)"
+                  >{{ $t("snapshots.download") }}</NsButton
+                >
+                <NsButton
+                  kind="ghost"
+                  size="small"
                   :icon="TrashCan20"
                   :disabled="busy"
                   :loading="loading.delete === s.id"
@@ -236,6 +245,7 @@ export default {
         list: false,
         create: false,
         delete: "",
+        download: "",
         diff: false,
         apply: false,
       },
@@ -348,6 +358,19 @@ export default {
         this.error.action = this.errorText(err);
       }
       this.loading.delete = "";
+    },
+    async download(s) {
+      this.loading.download = s.id;
+      this.error.action = "";
+      try {
+        const out = await this.callAction("export-zone", {
+          data: { zone: this.zone, snapshot: s.id },
+        });
+        this.downloadText(out.filename, out.text);
+      } catch (err) {
+        this.error.action = this.errorText(err);
+      }
+      this.loading.download = "";
     },
     async compare(s) {
       this.view = "diff";

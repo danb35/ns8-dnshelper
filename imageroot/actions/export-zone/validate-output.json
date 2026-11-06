@@ -1,0 +1,25 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "export-zone output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/export-zone",
+    "description": "export-zone",
+    "type": "object",
+    "required": [
+        "zone",
+        "filename",
+        "text"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string"
+        },
+        "filename": {
+            "type": "string"
+        },
+        "text": {
+            "type": "string",
+            "description": "The zone file"
+        }
+    }
+}

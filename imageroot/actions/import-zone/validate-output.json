@@ -1,0 +1,115 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "import-zone output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/import-zone",
+    "description": "import-zone",
+    "type": "object",
+    "required": [
+        "zone",
+        "parsed",
+        "skipped",
+        "add",
+        "remove"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string"
+        },
+        "parsed": {
+            "type": "integer",
+            "description": "Records read from the file"
+        },
+        "skipped": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "reason"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "add": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "ttl",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Name relative to the zone, '@' for the apex"
+                    },
+                    "type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]+$",
+                        "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Seconds; 0 lets the provider choose"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                    }
+                }
+            }
+        },
+        "remove": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "ttl",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Name relative to the zone, '@' for the apex"
+                    },
+                    "type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]+$",
+                        "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Seconds; 0 lets the provider choose"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                    }
+                }
+            }
+        }
+    }
+}

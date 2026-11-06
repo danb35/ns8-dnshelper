@@ -215,15 +215,21 @@ Take screenshots of the pages
     Fill Text    iframe >>> input[placeholder="new.example.net."]    mx.${UI_ZONE}.
     Open a dialog    "2 records match"    7._Find_and_replace
     Close the open dialog
+    # import: www is in the zone already, ftp is new, the SOA is left out
+    Click    iframe >>> button >> text="Import"
+    Fill Text    iframe >>> .bx--modal.is-visible textarea    $ORIGIN ${UI_ZONE}.\n$TTL 300\n@ IN SOA ns1 hostmaster 1 2 3 4 5\nwww IN CNAME web.example.net.\nftp IN CNAME www\n
+    Click    iframe >>> .bx--modal.is-visible >> button >> text="Preview"
+    Open a dialog    "2 records read: 1 to add, 0 to remove"    8._Import_a_zone_file
+    Close the open dialog
     Click    iframe >>> button >> text="Snapshots"
-    Open a dialog    "Snapshots of ${UI_ZONE}"    8._Snapshots
+    Open a dialog    "Snapshots of ${UI_ZONE}"    9._Snapshots
     # the oldest snapshot, taken by hand before the records were added
     Click    iframe >>> button >> text="Compare and revert" >> nth=-1
-    Open a dialog    "Remove from the zone"    9._Compare_with_a_snapshot
+    Open a dialog    "Remove from the zone"    10._Compare_with_a_snapshot
     Keyboard Key    press    Escape
-    Open page    access    Access    10._Access
-    Open page    settings    Settings    11._Settings
-    Open page    about    About    12._About
+    Open page    access    Access    11._Access
+    Open page    settings    Settings    12._Settings
+    Open page    about    About    13._About
     Close Browser
     [Teardown]    Remove the screenshot zone
 

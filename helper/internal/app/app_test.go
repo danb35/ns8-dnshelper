@@ -188,3 +188,24 @@ func TestForbiddenCharsNamed(t *testing.T) {
 		}
 	}
 }
+
+func TestZoneFilesNeedNoProvider(t *testing.T) {
+	ctx := context.Background()
+	r := Run(ctx, contract.Request{Op: contract.OpParseZone, Zone: "example.com", Text: "www 60 IN A 192.0.2.1\n@ IN SOA a. b. 1 2 3 4 5\n"}, Options{})
+	if !r.OK || len(r.Records) != 1 || r.Records[0].Name != "www" || len(r.Skipped) != 1 {
+		t.Fatalf("parse-zone: %+v", r)
+	}
+	r = Run(ctx, contract.Request{Op: contract.OpExportZone, Zone: "example.com", Records: []contract.Record{{Name: "www", Type: "A", TTL: 60, Data: "192.0.2.1"}}}, Options{})
+	if !r.OK || !strings.Contains(r.Text, "www\t60\tIN\tA\t192.0.2.1") {
+		t.Fatalf("export-zone from records: %+v", r)
+	}
+	r = Run(ctx, contract.Request{Op: contract.OpParseZone, Zone: "bad zone", Text: ""}, Options{})
+	if r.OK || r.Error.Code != contract.CodeInvalidRequest {
+		t.Fatalf("invalid zone: %+v", r)
+	}
+	// without records, export-zone reads the zone through the provider
+	r = Run(ctx, contract.Request{Op: contract.OpExportZone, Zone: "example.com"}, Options{})
+	if r.OK || r.Error.Code != contract.CodeUnknownProvider {
+		t.Fatalf("export-zone without a provider: %+v", r)
+	}
+}

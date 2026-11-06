@@ -12,6 +12,7 @@ import (
 	"github.com/danb35/ns8-dnshelper/helper/internal/dnsops"
 	"github.com/danb35/ns8-dnshelper/helper/internal/psl"
 	"github.com/danb35/ns8-dnshelper/helper/internal/registry"
+	"github.com/danb35/ns8-dnshelper/helper/internal/zonefile"
 	"github.com/danb35/ns8-dnshelper/helper/internal/zonelock"
 )
 
@@ -67,6 +68,23 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		return contract.Response{OK: true, Records: []contract.Record{}, Candidates: psl.Candidates(req.Names)}
 	}
 
+	// Zone files: reading one, or writing given records (a snapshot), needs
+	// no provider.
+	if req.Op == contract.OpParseZone || (req.Op == contract.OpExportZone && req.Records != nil) {
+		zone := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(req.Zone)), ".")
+		if !zonelock.ValidZone(zone) {
+			return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "invalid zone name"})
+		}
+		if req.Op == contract.OpExportZone {
+			return contract.Response{OK: true, Records: []contract.Record{}, Text: zonefile.Export(zone, req.Records)}
+		}
+		recs, skipped, err := zonefile.Parse(zone, req.Text)
+		if err != nil {
+			return fail(err)
+		}
+		return contract.Response{OK: true, Records: recs, Skipped: skipped}
+	}
+
 	def, ok := registry.Get(req.Provider)
 	if !ok {
 		return fail(&contract.Error{Code: contract.CodeUnknownProvider, Message: "unknown provider " + quote(req.Provider)})
@@ -78,7 +96,7 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 	}
 
 	switch req.Op {
-	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges, contract.OpDiffRecords:
+	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges, contract.OpDiffRecords, contract.OpExportZone:
 	default:
 		return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "unknown op " + quote(req.Op)})
 	}
@@ -138,7 +156,9 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 	case contract.OpApplyChanges:
 		resp, err = o.ApplyChanges(ctx, req.Remove, req.Add, req.DryRun)
 	case contract.OpDiffRecords:
-		resp, err = o.DiffRecords(ctx, req.Records)
+		resp, err = o.DiffRecords(ctx, req.Records, req.Mode)
+	case contract.OpExportZone:
+		resp, err = o.ExportZone(ctx)
 	}
 	if err != nil {
 		resp = fail(err)

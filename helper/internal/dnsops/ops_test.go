@@ -787,7 +787,7 @@ func TestDiffRecords(t *testing.T) {
 		{Name: "old", Type: "TXT", TTL: 300, Data: "gone"},
 		{Name: "ttl", Type: "A", TTL: 300, Data: "192.0.2.5"},
 	}
-	r := ok(t)(o.DiffRecords(ctx, snap))
+	r := ok(t)(o.DiffRecords(ctx, snap, ""))
 	if got := strings.Join(dataOf(r.Changes.Remove), ","); got != "new A 192.0.2.9,ttl A 192.0.2.5" {
 		t.Errorf("remove: %s", got)
 	}
@@ -799,12 +799,28 @@ func TestDiffRecords(t *testing.T) {
 	}
 	// Applying the diff makes the zone equal to the snapshot.
 	ok(t)(o.ApplyChanges(ctx, r.Changes.Remove, r.Changes.Add, false))
-	if r := ok(t)(o.DiffRecords(ctx, snap)); len(r.Changes.Add)+len(r.Changes.Remove) != 0 {
+	if r := ok(t)(o.DiffRecords(ctx, snap, "")); len(r.Changes.Add)+len(r.Changes.Remove) != 0 {
 		t.Fatalf("still different: %+v", r.Changes)
 	}
 	for _, c := range f.Calls {
 		if c.Op != "get" && c.Op != "delete" && c.Op != "append" {
 			t.Fatalf("unexpected call %s", c.Op)
 		}
+	}
+}
+
+func TestDiffRecordsAddOnly(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"},
+		libdns.RR{Name: "old", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.9"})
+	o := newOps(f)
+	target := []contract.Record{
+		{Name: "www", Type: "A", TTL: 600, Data: "192.0.2.1"}, // present, other TTL: left alone
+		{Name: "new", Type: "TXT", TTL: 300, Data: "x"},
+		{Name: "@", Type: "NS", TTL: 300, Data: "ns9.example.net."}, // apex NS: never
+	}
+	r := ok(t)(o.DiffRecords(context.Background(), target, contract.ModeAdd))
+	if len(r.Changes.Remove) != 0 || strings.Join(dataOf(r.Changes.Add), ",") != "new TXT x" {
+		t.Fatalf("add-only diff: %+v", r.Changes)
 	}
 }

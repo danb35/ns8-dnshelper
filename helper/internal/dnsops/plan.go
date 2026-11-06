@@ -193,6 +193,23 @@ func PlanDiff(existing, target []contract.Record) Plan {
 	return p
 }
 
+// PlanDiffAdd is PlanDiff for an import that only adds: the target records
+// the zone does not have (by name, type and value, whatever the TTL); nothing
+// is removed.
+func PlanDiffAdd(existing, target []contract.Record) Plan {
+	var p Plan
+	have := map[string]bool{}
+	for _, e := range existing {
+		have[key(e)] = true
+	}
+	for _, t := range target {
+		if checkForbidden(t) == nil && !have[key(t)] && !contains(p.Add, t) {
+			p.Add = append(p.Add, t)
+		}
+	}
+	return p
+}
+
 func hasAnyPrefix(s string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if p != "" && strings.HasPrefix(s, p) {
