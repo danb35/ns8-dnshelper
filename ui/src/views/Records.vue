@@ -150,20 +150,13 @@
                 >{{ $t("view.all_types") }}</NsButton
               >
               <span class="bulk-spacer"></span>
-              <NsToggle
+              <NsCheckbox
                 v-model="fullNames"
                 value="fullNames"
                 :label="$t('view.full_names')"
-                hideLabel
                 :formItem="false"
-                small
-                class="names-toggle"
-              >
-                <template slot="text-left">{{
-                  $t("view.relative_names")
-                }}</template>
-                <template slot="text-right">{{ $t("view.full_names") }}</template>
-              </NsToggle>
+                class="names-check"
+              />
             </div>
             <div class="bulk-bar mg-bottom-sm">
               <NsButton
