@@ -28,12 +28,15 @@ be changed by hand: the next sync would undo it (DESIGN.md, Adopting
 ns8-powerdns zones).
 """
 
+import datetime
 import fcntl
 import fnmatch
+import hashlib
 import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 
@@ -178,7 +181,14 @@ def _helper_path():
 
 
 def call_helper(request):
-    """Run the Go helper. Credentials go on stdin only, never argv or env."""
+    """Run the Go helper and return its response; raise on failure."""
+    return _helper_result(_helper_response(request))
+
+
+def _helper_response(request):
+    """Run the Go helper. Credentials go on stdin only, never argv or env.
+
+    Returns the parsed response, successful or not."""
     lock_dir = os.path.join(_state_dir(), 'locks')
     # session tokens of providers that limit logins; not in state-include.conf, so not backed up
     cache_dir = os.path.join(_state_dir(), 'cache')
@@ -190,6 +200,12 @@ def call_helper(request):
     except (OSError, subprocess.TimeoutExpired, ValueError):
         # Say nothing about the cause: the request holds credentials.
         raise HelperFailure('the dnshelper binary could not be run')
+    if not isinstance(resp, dict):
+        raise HelperFailure('the dnshelper binary could not be run')
+    return resp
+
+
+def _helper_result(resp):
     if resp.get('ok'):
         return resp
     err = resp.get('error') or {}
@@ -416,6 +432,7 @@ def remove_zone(data):
         _refuse_adopted_zone(zone, zones[zone])
         del zones[zone]
         _save_zones(zones)
+        remove_snapshots(zone)
     return {}
 
 
@@ -440,9 +457,10 @@ def get_configuration(data):
                 'managed_by': _managed_by(cred),
             })
     owner = {c['id']: c['managed_by'] for c in creds}
-    zones = [{'zone': z, 'credential': v['credential'], 'managed_by': owner.get(v['credential'], '')}
+    zones = [{'zone': z, 'credential': v['credential'], 'managed_by': owner.get(v['credential'], ''),
+              'snapshots': len(_snapshot_ids(z))}
              for z, v in sorted(_load_zones().items())]
-    return {'credentials': creds, 'zones': zones}
+    return {'credentials': creds, 'zones': zones, 'settings': load_settings()}
 
 
 def list_zones(data):
@@ -565,15 +583,35 @@ def get_records(data):
     return {'records': records}
 
 
+def _write(op, zone, req, requested_add, requested_remove, label=''):
+    """Run a record-changing helper request and keep a snapshot of the zone
+    as the helper read it just before writing, whether the write worked."""
+    resp = _helper_response(req)
+    if 'before' in resp:
+        ok = bool(resp.get('ok'))
+        change = {'time': _now().isoformat(), 'caller': caller() or '-', 'action': op,
+                  'result': 'ok' if ok else 'failed'}
+        if ok:
+            change.update(add=resp['changes']['add'], remove=resp['changes']['remove'])
+        else:
+            change.update(add=requested_add, remove=requested_remove)
+        if label:
+            change['label'] = label
+        save_snapshot(zone, resp['before'], 'auto', op, change=change)
+    return _helper_result(resp)
+
+
 def _change(op):
     def handler(data):
-        _require_access(normalize_zone(data['zone']), data['records'])
-        req = _zone_request(data['zone'])
+        zone = normalize_zone(data['zone'])
+        _require_access(zone, data['records'])
+        req = _zone_request(zone)
         req.update(op=op, records=data['records'], dry_run=bool(data.get('dry_run')))
         for k in ('mode', 'replace_prefixes'):
             if k in data:
                 req[k] = data[k]
-        resp = call_helper(req)
+        removing = op == 'delete-records'
+        resp = _write(op, zone, req, [] if removing else data['records'], data['records'] if removing else [])
         return {'dry_run': bool(resp.get('dry_run')), 'changes': resp['changes'], 'records': resp['records']}
     return handler
 
@@ -592,8 +630,268 @@ def apply_changes(data):
     _require_access(zone, remove + add)
     req = _zone_request(zone)
     req.update(op='apply-changes', remove=remove, add=add, dry_run=bool(data.get('dry_run')))
-    resp = call_helper(req)
+    resp = _write('apply-changes', zone, req, add, remove, data.get('label', ''))
     return {'dry_run': bool(resp.get('dry_run')), 'changes': resp['changes'], 'records': resp['records']}
+
+
+# ---------------------------------------------------------------- settings
+
+DEFAULT_SETTINGS = {'snapshot_max_count': 50, 'snapshot_max_age_days': 90}
+
+
+def _settings_path():
+    return os.path.join(_state_dir(), 'settings.json')
+
+
+def load_settings():
+    stored = _read_json(_settings_path(), {})
+    out = dict(DEFAULT_SETTINGS)
+    if isinstance(stored, dict):
+        for k in DEFAULT_SETTINGS:
+            v = stored.get(k)
+            if isinstance(v, int) and not isinstance(v, bool) and v >= 1:
+                out[k] = v
+    return out
+
+
+def configure_module(data):
+    """Module-wide settings: snapshot retention. Missing keys keep their value."""
+    data = data or {}
+    with _ConfigLock():
+        settings = load_settings()
+        for k in DEFAULT_SETTINGS:
+            if k in data:
+                settings[k] = data[k]
+        _write_private(_settings_path(), settings)
+    for zone in _snapshot_zones():
+        prune_snapshots(zone, managed=zone in _load_zones())
+    return {}
+
+
+# ---------------------------------------------------------------- zone snapshots
+
+# A snapshot is the zone as it was before a change (or when the administrator
+# asked), in state/snapshots/<zone>/<id>.json, id a UTC time stamp. Its
+# "changes" are what was done to the zone after it, until the next snapshot.
+# See DESIGN.md, Records editor: Snapshots and revert.
+
+SNAPSHOT_ID_RE = re.compile(r'^\d{8}T\d{6}\.\d{6}Z$')
+
+
+def _now():
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _snapshots_root():
+    return os.path.join(_state_dir(), 'snapshots')
+
+
+def _snapshot_dir(zone):
+    return os.path.join(_snapshots_root(), zone)
+
+
+class _SnapshotLock(_ConfigLock):
+    def __enter__(self):
+        os.makedirs(_state_dir(), exist_ok=True)
+        self.f = open(os.path.join(_state_dir(), 'snapshots.lock'), 'w')
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+
+def _snapshot_ids(zone):
+    try:
+        names = os.listdir(_snapshot_dir(zone))
+    except FileNotFoundError:
+        return []
+    return sorted(n[:-len('.json')] for n in names if n.endswith('.json') and SNAPSHOT_ID_RE.match(n[:-len('.json')]))
+
+
+def _snapshot_zones():
+    try:
+        return sorted(d for d in os.listdir(_snapshots_root()) if ZONE_RE.match(d))
+    except FileNotFoundError:
+        return []
+
+
+def _snapshot_path(zone, sid):
+    if not isinstance(sid, str) or not SNAPSHOT_ID_RE.match(sid):
+        raise ActionError('id', 'invalid_snapshot_id', sid)
+    return os.path.join(_snapshot_dir(zone), sid + '.json')
+
+
+def _load_snapshot(zone, sid):
+    snap = _read_json(_snapshot_path(zone, sid), None)
+    if not isinstance(snap, dict):
+        raise ActionError('id', 'snapshot_not_found', sid)
+    return snap
+
+
+def _records_hash(records):
+    rows = sorted([r['name'], r['type'], r.get('ttl', 0), r['data']] for r in records)
+    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+
+
+def _sid_time(sid):
+    return datetime.datetime.strptime(sid, '%Y%m%dT%H%M%S.%fZ').replace(tzinfo=datetime.timezone.utc)
+
+
+def save_snapshot(zone, records, kind, action, label='', change=None):
+    """Store a snapshot of zone; returns its id. An automatic snapshot equal to
+    the latest one is not stored again: the change is added to that one.
+    Never raises for a storage problem: a write must not fail because of it."""
+    try:
+        with _SnapshotLock():
+            digest = _records_hash(records)
+            ids = _snapshot_ids(zone)
+            if kind == 'auto' and ids:
+                latest = _read_json(_snapshot_path(zone, ids[-1]), None)
+                if isinstance(latest, dict) and latest.get('hash') == digest:
+                    if change:
+                        latest.setdefault('changes', []).append(change)
+                        _write_private(_snapshot_path(zone, ids[-1]), latest)
+                    return ids[-1]
+            now = _now()
+            sid = now.strftime('%Y%m%dT%H%M%S.%fZ')
+            while sid in ids or (ids and sid < ids[-1]):
+                now += datetime.timedelta(microseconds=1)
+                sid = now.strftime('%Y%m%dT%H%M%S.%fZ')
+            snap = {'id': sid, 'zone': zone, 'time': now.isoformat(), 'kind': kind, 'action': action,
+                    'caller': caller() or '-', 'label': label, 'hash': digest, 'records': records,
+                    'changes': [change] if change else []}
+            _write_private(_snapshot_path(zone, sid), snap)
+            os.chmod(_snapshots_root(), 0o700)
+            _prune_locked(zone, managed=True)
+            return sid
+    except OSError as e:
+        print('<4>dnshelper: cannot save a snapshot of %s: %s' % (zone, type(e).__name__), file=sys.stderr)
+        return None
+
+
+def _prune_locked(zone, managed):
+    settings = load_settings()
+    ids = _snapshot_ids(zone)
+    oldest = _now() - datetime.timedelta(days=settings['snapshot_max_age_days'])
+    drop = set(ids[:-settings['snapshot_max_count']]) if len(ids) > settings['snapshot_max_count'] else set()
+    drop |= {i for i in ids if _sid_time(i) < oldest}
+    if managed and ids:
+        drop.discard(ids[-1])  # a managed zone keeps its latest snapshot whatever its age
+    for i in drop:
+        try:
+            os.unlink(_snapshot_path(zone, i))
+        except FileNotFoundError:
+            pass
+    if not _snapshot_ids(zone):
+        shutil.rmtree(_snapshot_dir(zone), ignore_errors=True)
+
+
+def prune_snapshots(zone, managed):
+    with _SnapshotLock():
+        _prune_locked(zone, managed)
+
+
+def prune_orphan_snapshots():
+    """Age out the snapshots of zones no longer managed (removed by
+    sync-powerdns, which keeps them in case the zone is adopted again)."""
+    managed = _load_zones()
+    for zone in _snapshot_zones():
+        if zone not in managed:
+            prune_snapshots(zone, managed=False)
+
+
+def remove_snapshots(zone):
+    with _SnapshotLock():
+        shutil.rmtree(_snapshot_dir(zone), ignore_errors=True)
+
+
+def _refuse_modules():
+    if _restricted():
+        raise ActionError('zone', 'not_permitted', '', 'snapshots are for administrators only')
+
+
+def _managed_zone(data):
+    zone = normalize_zone(data['zone'])
+    if zone not in _load_zones():
+        raise ActionError('zone', 'zone_not_found', zone)
+    return zone
+
+
+def list_snapshots(data):
+    _refuse_modules()
+    zone = _managed_zone(data)
+    out = []
+    for sid in reversed(_snapshot_ids(zone)):
+        snap = _read_json(_snapshot_path(zone, sid), None)
+        if not isinstance(snap, dict):
+            continue
+        out.append({k: snap.get(k, d) for k, d in (('id', sid), ('time', ''), ('kind', 'auto'), ('action', ''),
+                                                  ('caller', '-'), ('label', ''), ('changes', []))})
+        out[-1]['records'] = len(snap.get('records', []))
+    return {'zone': zone, 'snapshots': out, 'settings': load_settings()}
+
+
+def get_snapshot(data):
+    _refuse_modules()
+    zone = _managed_zone(data)
+    snap = _load_snapshot(zone, data['id'])
+    return {'snapshot': {k: snap.get(k) for k in ('id', 'zone', 'time', 'kind', 'action', 'caller', 'label',
+                                                  'records', 'changes')}}
+
+
+def create_snapshot(data):
+    _refuse_modules()
+    zone = _managed_zone(data)
+    req = _zone_request(zone)
+    req['op'] = 'get-records'
+    records = call_helper(req)['records']
+    sid = save_snapshot(zone, records, 'manual', 'create-snapshot', label=data.get('label', ''))
+    if sid is None:
+        raise HelperFailure('the snapshot could not be stored')
+    return {'id': sid}
+
+
+def delete_snapshot(data):
+    _refuse_modules()
+    zone = _managed_zone(data)
+    path = _snapshot_path(zone, data['id'])
+    with _SnapshotLock():
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            raise ActionError('id', 'snapshot_not_found', data['id'])
+        if not _snapshot_ids(zone):
+            shutil.rmtree(_snapshot_dir(zone), ignore_errors=True)
+    return {}
+
+
+def _rec_key(r):
+    data = r.get('data', '')
+    if r.get('type') in ('CNAME', 'NS', 'PTR', 'MX', 'SRV'):
+        data = data.lower().rstrip('.')
+    return (r.get('name', '').lower(), r.get('type'), data)
+
+
+def diff_snapshot(data):
+    """What apply-changes would need to make the zone equal to a snapshot.
+
+    Each row says which callers changed that record since the snapshot was
+    taken (from the change history), so the UI can point out records another
+    module wrote and that a revert would undo."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    snap = _load_snapshot(zone, data['id'])
+    req = _zone_request(zone)
+    req.update(op='diff-records', records=snap.get('records', []))
+    changes = call_helper(req)['changes']
+    touched = {}
+    for sid in _snapshot_ids(zone):
+        if sid < data['id']:
+            continue
+        later = _read_json(_snapshot_path(zone, sid), None) or {}
+        for c in later.get('changes', []):
+            for r in c.get('add', []) + c.get('remove', []):
+                touched.setdefault(_rec_key(r), set()).add(c.get('caller', '-'))
+    rows = lambda recs: [{'record': r, 'changed_by': sorted(touched.get(_rec_key(r), ()))} for r in recs]
+    return {'id': data['id'], 'remove': rows(changes['remove']), 'add': rows(changes['add'])}
 
 
 # ---------------------------------------------------------------- ns8-powerdns adoption
@@ -755,6 +1053,10 @@ def sync_powerdns(data=None, agent=None):
             result['status'] = 'no_primary'
         with _ConfigLock():
             result.update(_apply_sync(primary, fields, listed))
+        try:
+            prune_orphan_snapshots()
+        except OSError:
+            _log('SD_WARNING', 'sync-powerdns: could not prune snapshots of zones no longer managed')
     for zone in result['skipped']:
         _log('SD_INFO', 'sync-powerdns: %s is configured by hand; not adopted from %s' % (zone, primary))
     if result['added'] or result['moved'] or result['removed']:
@@ -805,6 +1107,12 @@ HANDLERS = {
     'set-records': set_records,
     'delete-records': delete_records,
     'apply-changes': apply_changes,
+    'configure-module': configure_module,
+    'list-snapshots': list_snapshots,
+    'get-snapshot': get_snapshot,
+    'create-snapshot': create_snapshot,
+    'delete-snapshot': delete_snapshot,
+    'diff-snapshot': diff_snapshot,
     'sync-powerdns': sync_powerdns,
 }
 
@@ -829,6 +1137,9 @@ def ensure_state():
             _save_zones({})
         if not os.path.exists(_policy_path()):
             _write_private(_policy_path(), {'rules': []})
+        if not os.path.exists(_settings_path()):
+            _write_private(_settings_path(), dict(DEFAULT_SETTINGS))
+        os.makedirs(_snapshots_root(), mode=0o700, exist_ok=True)
 
 
 def _parse(path, kind):
@@ -908,8 +1219,55 @@ def check_restored_state(module_exists=None):
             if who.startswith('module/') and not re.search(r'[*?]', who) and module_exists(who[len('module/'):]) is False:
                 warnings.append('policy refers to %s, which does not exist in this cluster' % who)
 
-    summary = {'zones': len(zones), 'credentials': len(creds), 'rules': len(rules)}
+    if os.path.exists(_settings_path()):
+        stored = _read_json_or_none(_settings_path())
+        if not isinstance(stored, dict):
+            warnings.append('settings.json is not valid; using the default settings')
+            _write_private(_settings_path(), dict(DEFAULT_SETTINGS))
+        else:
+            os.chmod(_settings_path(), 0o600)
+    snapshots = _check_restored_snapshots(warnings)
+
+    summary = {'zones': len(zones), 'credentials': len(creds), 'rules': len(rules), 'snapshots': snapshots}
     return summary, warnings
+
+
+def _read_json_or_none(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _check_restored_snapshots(warnings):
+    """Snapshots are history, not configuration: a bad one is dropped with a
+    warning, never a reason to fail the restore."""
+    root = _snapshots_root()
+    if not os.path.isdir(root):
+        return 0
+    os.chmod(root, 0o700)
+    count = 0
+    for zone in sorted(os.listdir(root)):
+        d = os.path.join(root, zone)
+        if not (ZONE_RE.match(zone) and os.path.isdir(d)):
+            warnings.append('ignoring unexpected entry snapshots/%s' % zone)
+            continue
+        os.chmod(d, 0o700)
+        for fn in sorted(os.listdir(d)):
+            path = os.path.join(d, fn)
+            sid = fn[:-len('.json')] if fn.endswith('.json') else ''
+            if fn.endswith('.tmp'):
+                os.unlink(path)
+                continue
+            snap = _read_json_or_none(path) if SNAPSHOT_ID_RE.match(sid) else None
+            if not (isinstance(snap, dict) and isinstance(snap.get('records'), list)):
+                warnings.append('removing unreadable snapshot snapshots/%s/%s' % (zone, fn))
+                os.unlink(path)
+                continue
+            os.chmod(path, 0o600)
+            count += 1
+    return count
 
 
 # ---------------------------------------------------------------- audit, events
@@ -917,7 +1275,7 @@ def check_restored_state(module_exists=None):
 # Actions that change something. Every call by another module is logged too.
 MUTATING = {'add-credential', 'update-credential', 'remove-credential', 'add-zone', 'update-zone',
             'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records',
-            'apply-changes'}
+            'apply-changes', 'configure-module', 'create-snapshot', 'delete-snapshot'}
 ZONE_ACTIONS = {'add-zone', 'update-zone', 'remove-zone'}
 EVENT = 'service-dnshelper-changed'
 
@@ -980,6 +1338,8 @@ def run(action):
     import agent  # only present on a node
 
     data = json.load(sys.stdin)
+    if data is None:  # configure-module may be sent with no payload
+        data = {}
     try:
         result = HANDLERS[action](data)
     except ActionError as e:

@@ -1,0 +1,120 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "get-snapshot output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/get-snapshot",
+    "description": "get-snapshot",
+    "type": "object",
+    "required": [
+        "snapshot"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^\\d{8}T\\d{6}\\.\\d{6}Z$",
+                    "description": "Snapshot id: its UTC time stamp"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ]
+                },
+                "action": {
+                    "type": "string"
+                },
+                "caller": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "changes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "description": "A change made after the snapshot, until the next one",
+                        "properties": {
+                            "time": {
+                                "type": "string"
+                            },
+                            "caller": {
+                                "type": "string"
+                            },
+                            "action": {
+                                "type": "string"
+                            },
+                            "result": {
+                                "enum": [
+                                    "ok",
+                                    "failed"
+                                ]
+                            },
+                            "label": {
+                                "type": "string"
+                            },
+                            "add": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                },
+                                "description": "Records changed; for a failed change, the records requested"
+                            },
+                            "remove": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                },
+                                "description": "Records changed; for a failed change, the records requested"
+                            }
+                        }
+                    }
+                },
+                "zone": {
+                    "type": "string"
+                },
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "type",
+                            "ttl",
+                            "data"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Name relative to the zone, '@' for the apex"
+                            },
+                            "type": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9]+$",
+                                "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                            },
+                            "ttl": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Seconds; 0 lets the provider choose"
+                            },
+                            "data": {
+                                "type": "string",
+                                "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

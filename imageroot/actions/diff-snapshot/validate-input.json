@@ -1,0 +1,31 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "diff-snapshot input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/diff-snapshot",
+    "description": "What apply-changes would need to remove and add to make the zone equal to the snapshot (administrators only). Writes nothing.",
+    "type": "object",
+    "required": [
+        "zone",
+        "id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "id": {
+            "type": "string",
+            "pattern": "^\\d{8}T\\d{6}\\.\\d{6}Z$",
+            "description": "Snapshot id: its UTC time stamp"
+        }
+    },
+    "examples": [
+        {
+            "zone": "example.com",
+            "id": "20261106T101500.000000Z"
+        }
+    ]
+}

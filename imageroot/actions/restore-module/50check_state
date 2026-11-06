@@ -34,6 +34,6 @@ except lib.StateError as e:
 
 for w in warnings:
     print(agent.SD_WARNING + 'dnshelper: ' + w, file=sys.stderr)
-print(agent.SD_INFO + 'dnshelper: restored %(zones)d zone(s), %(credentials)d credential(s), %(rules)d policy rule(s)' % summary,
+print(agent.SD_INFO + 'dnshelper: restored %(zones)d zone(s), %(credentials)d credential(s), %(rules)d policy rule(s), %(snapshots)d snapshot(s)' % summary,
       file=sys.stderr)
 lib._publish_change(agent)

@@ -105,6 +105,7 @@ export default {
           "credential_in_use",
           "managed_credential",
           "managed_zone",
+          "stale",
         ].includes(e.error)
       ) {
         return `${text} (${e.message})`;

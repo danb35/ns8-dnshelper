@@ -1,0 +1,24 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-snapshots input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/list-snapshots",
+    "description": "List a zone's snapshots, newest first (administrators only)",
+    "type": "object",
+    "required": [
+        "zone"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        }
+    },
+    "examples": [
+        {
+            "zone": "example.com"
+        }
+    ]
+}

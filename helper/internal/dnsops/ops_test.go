@@ -743,3 +743,68 @@ func TestApplyChangesUsesChangeApplier(t *testing.T) {
 		t.Fatalf("ChangeApplier not used: %d calls", a.calls)
 	}
 }
+
+func TestBeforeIsTheZoneReadBeforeAWrite(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"})
+	ctx := context.Background()
+	o := newOps(f)
+	ok(t)(o.AppendRecords(ctx, []contract.Record{rec("www", "A", "192.0.2.1")}, false))
+	if o.Before != nil {
+		t.Fatal("no write, no Before")
+	}
+	ok(t)(o.AppendRecords(ctx, []contract.Record{rec("x", "TXT", "a")}, true))
+	if o.Before != nil {
+		t.Fatal("dry run, no Before")
+	}
+	ok(t)(o.AppendRecords(ctx, []contract.Record{rec("x", "TXT", "a")}, false))
+	if got := dataOf(o.Before); len(got) != 1 || got[0] != "www A 192.0.2.1" {
+		t.Fatalf("Before: %v", got)
+	}
+	// A failed write still reports what the zone held.
+	f.FailOps = map[string]error{"delete": errors.New("boom")}
+	o = newOps(f)
+	if _, err := o.DeleteRecords(ctx, []contract.Record{rec("x", "TXT", "a")}, false); err == nil {
+		t.Fatal("want an error")
+	}
+	f.FailOps = nil
+	if len(o.Before) != 2 {
+		t.Fatalf("Before after a failed write: %v", dataOf(o.Before))
+	}
+}
+
+func TestDiffRecords(t *testing.T) {
+	f := fakedns.New(zone)
+	f.Seed(libdns.RR{Name: "@", Type: "NS", TTL: 3600 * time.Second, Data: "ns1.example.net."},
+		libdns.RR{Name: "www", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.1"},
+		libdns.RR{Name: "new", Type: "A", TTL: 300 * time.Second, Data: "192.0.2.9"},
+		libdns.RR{Name: "ttl", Type: "A", TTL: 600 * time.Second, Data: "192.0.2.5"})
+	o := newOps(f)
+	ctx := context.Background()
+	snap := []contract.Record{
+		{Name: "@", Type: "NS", TTL: 3600, Data: "ns2.example.net."}, // apex NS: ignored
+		{Name: "www", Type: "A", TTL: 300, Data: "192.0.2.1"},
+		{Name: "old", Type: "TXT", TTL: 300, Data: "gone"},
+		{Name: "ttl", Type: "A", TTL: 300, Data: "192.0.2.5"},
+	}
+	r := ok(t)(o.DiffRecords(ctx, snap))
+	if got := strings.Join(dataOf(r.Changes.Remove), ","); got != "new A 192.0.2.9,ttl A 192.0.2.5" {
+		t.Errorf("remove: %s", got)
+	}
+	if got := strings.Join(dataOf(r.Changes.Add), ","); got != "old TXT gone,ttl A 192.0.2.5" {
+		t.Errorf("add: %s", got)
+	}
+	if r.Changes.Add[1].TTL != 300 {
+		t.Errorf("the snapshot's TTL must be restored: %+v", r.Changes.Add[1])
+	}
+	// Applying the diff makes the zone equal to the snapshot.
+	ok(t)(o.ApplyChanges(ctx, r.Changes.Remove, r.Changes.Add, false))
+	if r := ok(t)(o.DiffRecords(ctx, snap)); len(r.Changes.Add)+len(r.Changes.Remove) != 0 {
+		t.Fatalf("still different: %+v", r.Changes)
+	}
+	for _, c := range f.Calls {
+		if c.Op != "get" && c.Op != "delete" && c.Op != "append" {
+			t.Fatalf("unexpected call %s", c.Op)
+		}
+	}
+}

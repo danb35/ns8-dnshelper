@@ -78,7 +78,7 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 	}
 
 	switch req.Op {
-	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges:
+	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges, contract.OpDiffRecords:
 	default:
 		return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "unknown op " + quote(req.Op)})
 	}
@@ -137,10 +137,15 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		resp, err = o.DeleteRecords(ctx, req.Records, req.DryRun)
 	case contract.OpApplyChanges:
 		resp, err = o.ApplyChanges(ctx, req.Remove, req.Add, req.DryRun)
+	case contract.OpDiffRecords:
+		resp, err = o.DiffRecords(ctx, req.Records)
 	}
 	if err != nil {
-		return fail(err)
+		resp = fail(err)
 	}
+	// What the zone held before a write, also when the write failed: the
+	// snapshot is most useful then.
+	resp.Before = o.Before
 	return resp
 }
 

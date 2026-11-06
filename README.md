@@ -90,7 +90,8 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 |---|---|
 | Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns`, `apply-changes` |
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
-| UI convention | `configure-module` (no settings yet), `get-configuration` |
+| Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
+| UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
 zone containing it. `validate-zone` checks a saved zone, a zone with a saved credential, or a
@@ -105,6 +106,20 @@ is changed and the error is `stale`. It works with every provider; on PowerDNS t
 in one request that PowerDNS applies entirely or not at all (`atomic_changes` in `validate-zone`'s
 capabilities), elsewhere as delete, check, append, with the removed records put back if the append
 fails.
+
+**Zone snapshots.** Before every write through dnshelper (`append-records`, `set-records`,
+`delete-records`, `apply-changes`, by any caller), the helper reports the zone as it read it under
+the zone lock, and dnshelper keeps it as a snapshot in `state/snapshots/<zone>/`, with the change
+that followed (caller, action, records added and removed, or "failed"). A snapshot is kept even when
+the write failed. If the zone did not change since the latest snapshot, the change is added to that
+one instead. `create-snapshot` takes one by hand, with an optional label. `diff-snapshot` reports
+what `apply-changes` would need to make the zone equal to a snapshot (SOA and apex NS left out),
+and for each record which callers changed it since; the Records page uses that to revert all or
+part of it. Retention (`configure-module`: `snapshot_max_count`, default 50 per zone, and
+`snapshot_max_age_days`, default 90) is applied after each new snapshot; the latest snapshot of a
+managed zone is always kept. `remove-zone` deletes the zone's snapshots. A zone that
+`sync-powerdns` removes keeps them, in case it is adopted again, and they age out on later syncs.
+Snapshot actions refuse module callers.
 
 ## Using dnshelper from another module
 
@@ -243,7 +258,8 @@ token is derived from the credential, is not part of the backup, and expires wit
 ## Backup and restore
 
 **What is backed up** (`imageroot/etc/state-include.conf`): `state/zones.json`,
-`state/policy.json` and `state/credentials/`. Lock files are not. The core adds
+`state/policy.json`, `state/credentials/`, `state/settings.json` and the zone snapshots in
+`state/snapshots/`. Lock files are not. The core adds
 `state/environment` itself; dnshelper keeps nothing in it.
 
 **Decision: credentials are included.** Without them a restored module cannot manage any zone,
@@ -670,8 +686,12 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
 - **Records**: pick a managed zone to list its records, add a record (name, type, value and an
   optional TTL) or delete one. It calls the same `get-records`, `append-records` and
   `delete-records` actions a consumer module uses, as an administrator, so it is also a way to
-  check that a credential really works. Apex NS and SOA records cannot be deleted. It is not a
-  full DNS editor: there is no editing in place and no bulk change.
+  check that a credential really works. Apex NS and SOA records cannot be deleted. **Snapshots**
+  lists the zone's snapshots and their change history, takes one, and compares one with the zone:
+  the differences are listed (records another module changed since are marked), any can be
+  unticked, and the rest is applied in one `apply-changes`. There is no editing in place or bulk
+  change yet.
+- **Settings**: snapshot retention.
 - **Access**: the policy table (which module may change which record names and types), with
   presets for a mail server, for mail auto-configuration (ns8-automx), for ACME DNS-01 and for a
   web server or service (CNAME records with any name, for modules such as the web server, SOGo or

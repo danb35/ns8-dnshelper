@@ -1,0 +1,121 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "list-snapshots output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/list-snapshots",
+    "description": "list-snapshots",
+    "type": "object",
+    "required": [
+        "zone",
+        "snapshots",
+        "settings"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string"
+        },
+        "settings": {
+            "type": "object",
+            "required": [
+                "snapshot_max_count",
+                "snapshot_max_age_days"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "snapshot_max_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                },
+                "snapshot_max_age_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                }
+            }
+        },
+        "snapshots": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "time",
+                    "kind",
+                    "records"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^\\d{8}T\\d{6}\\.\\d{6}Z$",
+                        "description": "Snapshot id: its UTC time stamp"
+                    },
+                    "time": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "enum": [
+                            "auto",
+                            "manual"
+                        ]
+                    },
+                    "action": {
+                        "type": "string"
+                    },
+                    "caller": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "changes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "description": "A change made after the snapshot, until the next one",
+                            "properties": {
+                                "time": {
+                                    "type": "string"
+                                },
+                                "caller": {
+                                    "type": "string"
+                                },
+                                "action": {
+                                    "type": "string"
+                                },
+                                "result": {
+                                    "enum": [
+                                        "ok",
+                                        "failed"
+                                    ]
+                                },
+                                "label": {
+                                    "type": "string"
+                                },
+                                "add": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    },
+                                    "description": "Records changed; for a failed change, the records requested"
+                                },
+                                "remove": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    },
+                                    "description": "Records changed; for a failed change, the records requested"
+                                }
+                            }
+                        }
+                    },
+                    "records": {
+                        "type": "integer",
+                        "description": "Number of records"
+                    }
+                }
+            }
+        }
+    }
+}

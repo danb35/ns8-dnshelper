@@ -1,0 +1,18 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "create-snapshot output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/create-snapshot",
+    "description": "create-snapshot",
+    "type": "object",
+    "required": [
+        "id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^\\d{8}T\\d{6}\\.\\d{6}Z$",
+            "description": "Snapshot id: its UTC time stamp"
+        }
+    }
+}

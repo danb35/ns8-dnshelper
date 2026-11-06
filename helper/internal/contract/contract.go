@@ -17,6 +17,11 @@ const (
 	// OpApplyChanges removes Request.Remove and adds Request.Add as one
 	// planned change. Every record to remove must exist, or nothing is done.
 	OpApplyChanges = "apply-changes"
+	// OpDiffRecords compares the zone with Request.Records (a snapshot) and
+	// returns, as Changes, what apply-changes would need to remove and add to
+	// make the zone equal to it. SOA and apex NS records are left out. It
+	// writes nothing.
+	OpDiffRecords = "diff-records"
 	// OpListZones lists the zones the credentials can see.
 	OpListZones = "list-zones"
 	// OpRegistrableDomains reduces host names to the registrable domains that
@@ -149,11 +154,15 @@ func (e *Error) Error() string { return e.Code + ": " + e.Message }
 
 // Response is the stdout document.
 type Response struct {
-	OK           bool           `json:"ok"`
-	Error        *Error         `json:"error,omitempty"`
-	DryRun       bool           `json:"dry_run,omitempty"`
-	Records      []Record       `json:"records"`
-	Changes      *Changes       `json:"changes,omitempty"`
+	OK      bool     `json:"ok"`
+	Error   *Error   `json:"error,omitempty"`
+	DryRun  bool     `json:"dry_run,omitempty"`
+	Records []Record `json:"records"`
+	Changes *Changes `json:"changes,omitempty"`
+	// Before is the zone as read just before a write of append-records,
+	// set-records, delete-records or apply-changes was attempted, whether it
+	// succeeded or not. Absent when nothing was written (dry run, no change).
+	Before       []Record       `json:"before,omitempty"`
 	Capabilities *Capabilities  `json:"capabilities,omitempty"`
 	Validation   *Validation    `json:"validation,omitempty"`
 	Providers    []ProviderInfo `json:"providers,omitempty"`
