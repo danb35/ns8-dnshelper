@@ -198,8 +198,13 @@ Take screenshots of the pages
     ...    runagent -m ${module_id} env AGENT_TASK_USER=module/mail1 python3 -c 'import os, sys; sys.path.insert(0, os.environ["AGENT_INSTALL_DIR"] + "/pypkg"); import dnshelper_lib as l; l.record_owners("${UI_ZONE}", {"add": [{"name": "@", "type": "MX", "data": "10 mail.${UI_ZONE}."}], "remove": []})'
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
+    # and the DMARC record as if written by a module that was removed since
+    ${rc} =    Execute Command
+    ...    runagent -m ${module_id} env AGENT_TASK_USER=module/old1 python3 -c 'import os, sys; sys.path.insert(0, os.environ["AGENT_INSTALL_DIR"] + "/pypkg"); import dnshelper_lib as l; l.record_owners("${UI_ZONE}", {"add": [{"name": "_dmarc", "type": "TXT", "data": "v=DMARC1; p=quarantine"}], "remove": []}); l.forget_module("old1")'
+    ...    return_rc=True  return_stdout=False
+    Should Be Equal As Integers    ${rc}  0
     ${owners} =    Run action    list-owners    {"zone":"${UI_ZONE}"}
-    Should Be Equal    ${owners}[owners][0][caller]    module/mail1
+    Should Be Equal    ${owners}[owners][0][callers][0]    module/mail1
     Import Library    Browser
     New Browser    chromium    headless=True
     New Context    ignoreHTTPSErrors=True    viewport={'width': 1440, 'height': 900}

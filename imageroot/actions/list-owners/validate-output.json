@@ -21,7 +21,8 @@
                     "name",
                     "type",
                     "data",
-                    "caller",
+                    "callers",
+                    "removed",
                     "time"
                 ],
                 "additionalProperties": false,
@@ -35,9 +36,19 @@
                     "data": {
                         "type": "string"
                     },
-                    "caller": {
-                        "type": "string",
-                        "description": "module/<id>"
+                    "callers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Modules (module/<id>) that wrote the record and are still installed"
+                    },
+                    "removed": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Modules that wrote it and were removed; with no callers left, the record is orphaned"
                     },
                     "time": {
                         "type": "string"

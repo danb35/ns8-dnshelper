@@ -93,7 +93,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
-| Record owners (admin) | `list-owners`: which module wrote which record |
+| Record owners (admin) | `list-owners`: which modules wrote which record; `release-records`: keep records of removed modules |
 | Propagation (admin) | `check-propagation`: what each authoritative name server serves for a name and type |
 | UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
@@ -689,7 +689,9 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   suggests zones from the mail, web server and Traefik modules' host names; these are candidates
   only. Secrets are never shown again after saving: an empty secret field means "keep".
 - **Records**: pick a managed zone to list its records (filter by type, relative or full names,
-  internationalised names in Unicode), add, edit or delete one. The value has
+  internationalised names in Unicode), add, edit or delete one. Records a module wrote are tagged
+  with it; when a module is removed, the records only it wrote are flagged, and the page offers to
+  add their deletion to the pending changes or to keep them. Nothing is deleted automatically. The value has
   a form of its own for the common types (MX preference and server; SRV priority, weight, port
   and target; CAA flags, tag and value; TXT with a byte count, SPF / DKIM / DMARC hints and a
   warning about a second SPF record at one name); other types take the value in zone-file syntax.

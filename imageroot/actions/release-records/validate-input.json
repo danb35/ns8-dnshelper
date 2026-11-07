@@ -1,0 +1,55 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "release-records input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/release-records",
+    "description": "Keep records written by modules: forget who wrote them, so they are no longer flagged (administrators only). Changes nothing at the DNS host.",
+    "examples": [
+        {
+            "zone": "example.com",
+            "records": [
+                {
+                    "name": "@",
+                    "type": "MX",
+                    "data": "10 mail.example.com."
+                }
+            ]
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone",
+        "records"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "records": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "data"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "data": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

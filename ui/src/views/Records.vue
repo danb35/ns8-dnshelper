@@ -128,6 +128,39 @@
             </NsButton>
           </cv-column>
         </cv-row>
+        <cv-row v-if="orphans.length && !loading.records">
+          <cv-column>
+            <NsInlineNotification
+              kind="warning"
+              :title="$t('owners.orphans_title')"
+              :description="
+                $tc('owners.orphans', orphans.length, {
+                  count: orphans.length,
+                  modules: orphanModules,
+                })
+              "
+              :showCloseButton="false"
+            />
+            <div class="orphan-actions mg-bottom-md">
+              <NsButton
+                kind="secondary"
+                size="small"
+                :icon="TrashCan20"
+                :disabled="loading.release"
+                @click="stageOrphanDeletes"
+                >{{ $tc("owners.stage_delete", orphans.length) }}</NsButton
+              >
+              <NsButton
+                kind="tertiary"
+                size="small"
+                :loading="loading.release"
+                :disabled="loading.release"
+                @click="keepOrphans"
+                >{{ $tc("owners.keep", orphans.length) }}</NsButton
+              >
+            </div>
+          </cv-column>
+        </cv-row>
         <cv-row v-if="pending.length">
           <cv-column>
             <PendingChanges
@@ -282,6 +315,13 @@
                       :label="$t('owners.tag', { module: ownerOf(row) })"
                       :title="$t('owners.tag_help', { module: ownerOf(row) })"
                       kind="teal"
+                      class="mg-left-sm"
+                    />
+                    <NsTag
+                      v-if="orphanOf(row)"
+                      :label="$t('owners.orphan_tag', { module: orphanOf(row) })"
+                      :title="$t('owners.orphan_help', { module: orphanOf(row) })"
+                      kind="magenta"
                       class="mg-left-sm"
                     />
                     <NsTag
@@ -677,6 +717,7 @@ export default {
         save: false,
         remove: false,
         export: false,
+        release: false,
       },
       error: {
         load: "",
@@ -735,6 +776,13 @@ export default {
         return false;
       }
       return !n || n.zone !== o.zone || n.name !== o.name;
+    },
+    // records left by modules that were removed
+    orphans() {
+      return this.records.filter((r) => this.orphanOf(r));
+    },
+    orphanModules() {
+      return [...new Set(this.orphans.map((r) => this.orphanOf(r)))].join(", ");
     },
     pendingKeys() {
       return touchedKeys(this.pending);
@@ -871,16 +919,45 @@ export default {
         });
         const owners = {};
         for (const o of out.owners) {
-          owners[ownerKey(o)] = o.caller;
+          owners[ownerKey(o)] = { callers: o.callers, removed: o.removed };
         }
         this.owners = owners;
       } catch (err) {
         this.owners = {};
       }
     },
+    // the modules that wrote a record and are still installed, or ""
     ownerOf(r) {
-      const who = r ? this.owners[ownerKey(r)] : "";
-      return who ? who.replace(/^module\//, "") : "";
+      const o = r ? this.owners[ownerKey(r)] : null;
+      return o && o.callers.length
+        ? o.callers.map((c) => c.replace(/^module\//, "")).join(", ")
+        : "";
+    },
+    // for a record whose only writers were removed: those modules, or ""
+    orphanOf(r) {
+      const o = r ? this.owners[ownerKey(r)] : null;
+      return o && !o.callers.length && o.removed.length
+        ? o.removed.map((c) => c.replace(/^module\//, "")).join(", ")
+        : "";
+    },
+    stageOrphanDeletes() {
+      this.stageChanges(
+        this.orphans
+          .filter((r) => this.isChangeable(r))
+          .map((r) => ({ kind: "delete", old: this.plain(r) }))
+      );
+    },
+    async keepOrphans() {
+      this.loading.release = true;
+      try {
+        await this.callAction("release-records", {
+          data: { zone: this.zone, records: this.orphans.map(this.plain) },
+        });
+        await this.loadOwners();
+      } catch (err) {
+        this.error.load = this.errorText(err);
+      }
+      this.loading.release = false;
     },
     // the apex first, then by name and type
     compareRecords(a, b) {
@@ -1277,6 +1354,11 @@ export default {
 .same-name {
   opacity: 0.45;
   font-weight: normal;
+}
+
+.orphan-actions {
+  display: flex;
+  gap: $spacing-03;
 }
 
 .ptr-box {
