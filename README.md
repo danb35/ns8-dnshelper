@@ -34,8 +34,7 @@ What has been checked, and where:
   `ns8-github-actions` QEMU workflow, which reports each leg as a status on the pull request).
 
 Known gaps: the French, German, Italian, Spanish and Portuguese translations were written without
-a native-speaker review and do not yet cover the records editor (its pages show in English there),
-and the Basque (`eu`) locale still carries the template's placeholder text.
+a native-speaker review, and the Basque (`eu`) locale still carries the template's placeholder text.
 
 ## Install
 
