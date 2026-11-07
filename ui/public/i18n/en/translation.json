@@ -466,8 +466,8 @@
     "orphan_help": "Written by {module}, which has been removed; no installed module claims it",
     "orphans_title": "Records of removed modules",
     "orphans": "1 record was written by {modules}, which has been removed, and no installed module claims it. Delete it, or keep it as an ordinary record. | {count} records were written by {modules}, which have been removed, and no installed module claims them. Delete them, or keep them as ordinary records.",
-    "stage_delete": "Add deleting them to pending changes",
-    "keep": "Keep them"
+    "stage_delete": "Add deleting it to pending changes | Add deleting them to pending changes",
+    "keep": "Keep it | Keep them"
   },
   "view": {
     "types": "Types",

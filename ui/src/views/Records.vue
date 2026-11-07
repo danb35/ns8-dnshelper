@@ -148,7 +148,7 @@
                 :icon="TrashCan20"
                 :disabled="loading.release"
                 @click="stageOrphanDeletes"
-                >{{ $t("owners.stage_delete") }}</NsButton
+                >{{ $tc("owners.stage_delete", orphans.length) }}</NsButton
               >
               <NsButton
                 kind="tertiary"
@@ -156,7 +156,7 @@
                 :loading="loading.release"
                 :disabled="loading.release"
                 @click="keepOrphans"
-                >{{ $t("owners.keep") }}</NsButton
+                >{{ $tc("owners.keep", orphans.length) }}</NsButton
               >
             </div>
           </cv-column>
