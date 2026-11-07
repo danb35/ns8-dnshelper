@@ -12,7 +12,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.5.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.5.0) (the first
+The latest release is [0.6.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.6.0) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -34,7 +34,8 @@ What has been checked, and where:
   `ns8-github-actions` QEMU workflow, which reports each leg as a status on the pull request).
 
 Known gaps: the French, German, Italian, Spanish and Portuguese translations were written without
-a native-speaker review, and the Basque (`eu`) locale still carries the template's placeholder text.
+a native-speaker review and do not yet cover the records editor (its pages show in English there),
+and the Basque (`eu`) locale still carries the template's placeholder text.
 
 ## Install
 
@@ -80,7 +81,7 @@ The output of the command returns the instance name:
     {"module_id": "dnshelper1", "image_name": "dnshelper", "image_url": "ghcr.io/danb35/dnshelper:latest"}
 
 To install a particular release instead of the newest build, use its tag in place of `latest`,
-for example `ghcr.io/danb35/dnshelper:0.5.0`.
+for example `ghcr.io/danb35/dnshelper:0.6.0`.
 
 Then open the module's page in the NS8 admin UI to add credentials and zones.
 
