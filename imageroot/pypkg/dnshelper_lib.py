@@ -600,7 +600,7 @@ def _write(op, zone, req, requested_add, requested_remove, label=''):
             change['label'] = label
         save_snapshot(zone, resp['before'], 'auto', op, change=change)
         if ok:
-            record_owners(zone, resp['changes'])
+            record_owners(zone, resp['changes'], claimed=requested_add)
     return _helper_result(resp)
 
 
@@ -899,12 +899,20 @@ def diff_snapshot(data):
 
 # ---------------------------------------------------------------- record owners
 
-# Which module wrote which record, in state/owners/<zone>.json, so that the
-# Records page can say so and warn before an administrator changes it. Kept
-# up to date by every successful write through dnshelper: a module's addition
-# makes it the owner; any removal (by anyone) forgets the record; an
-# administrator's addition has no owner. Records written before this existed,
-# or behind dnshelper's back, have none. See DESIGN.md, Records editor.
+# Which modules wrote which record, in state/owners/<zone>.json, so that the
+# Records page can say so, warn before an administrator changes it, and point
+# out records left behind by a module that was removed. Kept up to date by
+# every successful write through dnshelper:
+# - a module that adds a record, or asks for one that is already there,
+#   becomes one of its writers ("callers"; a moved or cloned module that
+#   writes the same records claims them this way);
+# - any removal (by anyone) forgets the record;
+# - an administrator's addition has no writer.
+# When a module is removed (event module-removed), it is dropped from every
+# record's writers; a record left with none is "orphaned" and keeps the
+# removed module in "removed" until the administrator deletes or keeps it.
+# Nothing is deleted automatically (decision 2026-11-07). Records written
+# before this existed have no entry. See DESIGN.md, Records editor.
 
 def _owners_root():
     return os.path.join(_state_dir(), 'owners')
@@ -918,29 +926,76 @@ def _owner_key(r):
     return '|'.join(_rec_key(r))
 
 
+def _owner_entry(e):
+    """An owners entry in the current form (callers and removed lists)."""
+    callers = e.get('callers')
+    if not isinstance(callers, list):
+        callers = [e['caller']] if isinstance(e.get('caller'), str) else []
+    removed = e.get('removed') if isinstance(e.get('removed'), list) else []
+    return {'name': e.get('name', ''), 'type': e.get('type', ''), 'data': e.get('data', ''),
+            'callers': callers, 'removed': removed, 'time': e.get('time', '')}
+
+
 def load_owners(zone):
     data = _read_json_or_none(_owners_path(zone))
     owners = data.get('records') if isinstance(data, dict) else None
-    return owners if isinstance(owners, dict) else {}
+    if not isinstance(owners, dict):
+        return {}
+    return {k: _owner_entry(v) for k, v in owners.items() if isinstance(v, dict)}
 
 
-def record_owners(zone, changes):
+def record_owners(zone, changes, claimed=()):
     """Update the owners of zone after a successful write. Never raises."""
     who = caller()
     try:
         with _SnapshotLock():
             owners = load_owners(zone)
-            before = dict(owners)
+            before = json.dumps(owners, sort_keys=True)
             for r in changes.get('remove', []):
                 owners.pop(_owner_key(r), None)
             if who.startswith('module/'):
-                for r in changes.get('add', []):
-                    owners[_owner_key(r)] = {'name': r['name'], 'type': r['type'], 'data': r['data'],
-                                             'caller': who, 'time': _now().isoformat()}
-            if owners != before:
+                for r in list(changes.get('add', [])) + list(claimed or []):
+                    if not r.get('type') or not r.get('data'):
+                        continue
+                    e = owners.setdefault(_owner_key(r), {
+                        'name': r['name'], 'type': r['type'], 'data': r['data'],
+                        'callers': [], 'removed': [], 'time': ''})
+                    if who not in e['callers']:
+                        e['callers'].append(who)
+                    e['time'] = _now().isoformat()
+            if json.dumps(owners, sort_keys=True) != before:
                 _write_private(_owners_path(zone), {'records': owners})
     except OSError as e:
         print('<4>dnshelper: cannot record the owners of %s: %s' % (zone, type(e).__name__), file=sys.stderr)
+
+
+def forget_module(module_id):
+    """A module was removed: drop it from every record's writers. Returns the
+    number of records it leaves with no writer (orphaned), per zone."""
+    who = 'module/' + module_id
+    orphaned = {}
+    try:
+        names = os.listdir(_owners_root())
+    except FileNotFoundError:
+        return orphaned
+    with _SnapshotLock():
+        for fn in sorted(names):
+            zone = fn[:-len('.json')] if fn.endswith('.json') else ''
+            if not ZONE_RE.match(zone):
+                continue
+            owners = load_owners(zone)
+            changed = False
+            for e in owners.values():
+                if who in e['callers']:
+                    e['callers'].remove(who)
+                    if who not in e['removed']:
+                        e['removed'].append(who)
+                    changed = True
+                    if not e['callers']:
+                        orphaned[zone] = orphaned.get(zone, 0) + 1
+            if changed:
+                _write_private(_owners_path(zone), {'records': owners})
+    return orphaned
 
 
 def remove_owners(zone):
@@ -948,6 +1003,22 @@ def remove_owners(zone):
         os.unlink(_owners_path(zone))
     except FileNotFoundError:
         pass
+
+
+def release_records(data):
+    """The administrator keeps records of removed modules: forget their
+    writers, so that they are ordinary records (administrators only)."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    with _SnapshotLock():
+        owners = load_owners(zone)
+        n = 0
+        for r in data['records']:
+            if owners.pop(_owner_key(r), None) is not None:
+                n += 1
+        if n:
+            _write_private(_owners_path(zone), {'records': owners})
+    return {'released': n}
 
 
 def list_owners(data):
@@ -1231,6 +1302,7 @@ HANDLERS = {
     'diff-snapshot': diff_snapshot,
     'export-zone': export_zone,
     'list-owners': list_owners,
+    'release-records': release_records,
     'check-propagation': check_propagation,
     'import-zone': import_zone,
     'sync-powerdns': sync_powerdns,
@@ -1416,7 +1488,8 @@ def _check_restored_snapshots(warnings):
 # Actions that change something. Every call by another module is logged too.
 MUTATING = {'add-credential', 'update-credential', 'remove-credential', 'add-zone', 'update-zone',
             'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records',
-            'apply-changes', 'configure-module', 'create-snapshot', 'delete-snapshot'}
+            'apply-changes', 'configure-module', 'create-snapshot', 'delete-snapshot',
+            'release-records'}
 ZONE_ACTIONS = {'add-zone', 'update-zone', 'remove-zone'}
 EVENT = 'service-dnshelper-changed'
 
