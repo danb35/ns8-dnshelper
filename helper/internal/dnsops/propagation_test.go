@@ -134,6 +134,12 @@ func TestPropagationErrorsAndFallback(t *testing.T) {
 	if len(r.Servers) != 2 || r.Servers[0].Status != "error" || r.Servers[1].Status != "error" {
 		t.Fatalf("errors: %+v", r.Servers)
 	}
+	// every server carries a list of values, even an empty one (validate-output.json)
+	for _, s := range r.Servers {
+		if s.Values == nil {
+			t.Errorf("%s: values is nil, which encodes as null", s.Server)
+		}
+	}
 	_, err := o.CheckPropagation(ctx, &contract.Filter{Name: "www"})
 	wantCode(t, err, "invalid_request")
 	_, err = o.CheckPropagation(ctx, &contract.Filter{Name: "www", Type: "NOPE"})

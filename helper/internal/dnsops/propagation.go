@@ -99,6 +99,9 @@ func (o *Ops) CheckPropagation(ctx context.Context, f *contract.Filter) (contrac
 	var wg sync.WaitGroup
 	var out []contract.ServerCheck
 	add := func(c contract.ServerCheck) {
+		if c.Values == nil {
+			c.Values = []string{} // the output schema wants a list
+		}
 		mu.Lock()
 		out = append(out, c)
 		mu.Unlock()
