@@ -9,7 +9,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({
+    viewport: { width: 1360, height: 900 },
+    deviceScaleFactor: 1,
+    locale: process.env.LOCALE || "en-US",
+  });
   page.on("pageerror", (e) => console.log("PAGE ERROR", e.message));
   await page.goto(BASE);
   await sleep(2500);
@@ -43,7 +47,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const call = (a, data) => anyWith(root, "callAction").callAction(a, data === undefined ? {} : { data });
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const nav = async (label) => {
-          [...d.querySelectorAll("a")].find((a) => a.textContent.trim() === label).click();
+          // by position in the side menu, so that it works in any language
+          const pages = ["Status", "Zones", "Records", "Access", "Settings", "About"];
+          [...d.querySelectorAll(".bx--side-nav__link")][pages.indexOf(label)].click();
           await sleep(1800);
         };
         // eslint-disable-next-line no-new-func
