@@ -466,5 +466,16 @@
     "all_types": "All types",
     "full_names": "Full names",
     "relative_names": "Relative names"
+  },
+  "ptr": {
+    "set": "Also set the PTR record {name} in {zone} to {host}",
+    "already": "The PTR record in {zone} already points to {host}.",
+    "replaces": "It now points to {values}; that is replaced.",
+    "remove_old": "Also remove the PTR record {name} in {zone} of the old address",
+    "delete_too": "Also delete the PTR record {name} in {zone} that points to this host",
+    "separate": "The PTR record is changed after the record is saved, as a separate change to the reverse zone; with Add to pending it is not changed.",
+    "label": "PTR for {host}",
+    "failed_title": "The PTR record was not changed",
+    "failed": "The record was saved, but changing the PTR record failed: {problems}"
   }
 }

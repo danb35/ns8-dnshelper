@@ -8,6 +8,7 @@ ${TOKEN}    ci-not-a-real-token-0123456789
 ${ADMIN_USER}    admin
 ${ADMIN_PASSWORD}    Nethesis,1234
 ${UI_ZONE}    ui.example.test
+${UI_REVERSE}    2.0.192.in-addr.arpa
 ${PDNS_IMAGE}    docker.io/powerdns/pdns-auth-49:4.9.17
 ${PDNS_API}    http://127.0.0.1:18081
 ${PDNS_KEY}    ci-ui-not-a-real-key
@@ -37,9 +38,14 @@ Start a PowerDNS server with a zone
     ...    curl -fsS -o /dev/null -H 'X-API-Key: ${PDNS_KEY}' -X POST -d '{"name":"${UI_ZONE}.","kind":"Native","nameservers":["ns1.${UI_ZONE}."],"soa_edit_api":"DEFAULT"}' ${PDNS_API}/api/v1/servers/localhost/zones
     ...    return_rc=True  return_stdout=False
     Should Be Equal As Integers    ${rc}  0
+    ${rc} =    Execute Command
+    ...    curl -fsS -o /dev/null -H 'X-API-Key: ${PDNS_KEY}' -X POST -d '{"name":"${UI_REVERSE}.","kind":"Native","nameservers":["ns1.${UI_ZONE}."],"soa_edit_api":"DEFAULT"}' ${PDNS_API}/api/v1/servers/localhost/zones
+    ...    return_rc=True  return_stdout=False
+    Should Be Equal As Integers    ${rc}  0
 
 Remove the screenshot zone
     Run Keyword And Ignore Error    Run action    remove-zone    {"zone":"${UI_ZONE}"}
+    Run Keyword And Ignore Error    Run action    remove-zone    {"zone":"${UI_REVERSE}"}
     Run Keyword And Ignore Error    Run action    remove-credential    {"id":"${ui_credential}"}
     Execute Command    podman rm -f dnshelper-ui-pdns
 
@@ -183,6 +189,7 @@ Take screenshots of the pages
     ...    {"name":"PowerDNS (CI)","provider":"powerdns","fields":{"api_url":"${PDNS_API}","api_key":"${PDNS_KEY}"}}
     Set Test Variable    ${ui_credential}    ${cred}[id]
     Run action    add-zone    {"zone":"${UI_ZONE}","credential":"${ui_credential}"}
+    Run action    add-zone    {"zone":"${UI_REVERSE}","credential":"${ui_credential}"}
     Run action    create-snapshot    {"zone":"${UI_ZONE}","label":"Before the mail setup"}
     Run action    append-records    {"zone":"${UI_ZONE}","records":[{"name":"www","type":"A","data":"192.0.2.10"},{"name":"mail","type":"A","data":"192.0.2.25"},{"name":"@","type":"MX","data":"10 mail.${UI_ZONE}."},{"name":"@","type":"TXT","data":"v=spf1 mx -all"},{"name":"_dmarc","type":"TXT","data":"v=DMARC1; p=quarantine"},{"name":"_autodiscover._tcp","type":"SRV","data":"0 0 443 mail.${UI_ZONE}."}]}
     Run action    apply-changes    {"zone":"${UI_ZONE}","remove":[{"name":"www","type":"A","data":"192.0.2.10"}],"add":[{"name":"www","type":"CNAME","data":"web.example.net."}]}
@@ -212,6 +219,12 @@ Take screenshots of the pages
     Click    iframe >>> .bx--overflow-menu-options--open >> text="Edit"
     Open a dialog    "Edit a record of ${UI_ZONE}"    4._Edit_an_MX_record
     Keyboard Key    press    Escape
+    # an A record whose reverse zone is managed too: the PTR is offered
+    Click    iframe >>> button >> text="Add record"
+    Fill Text    iframe >>> .bx--modal.is-visible input[placeholder="www"]    web2
+    Fill Text    iframe >>> .bx--modal.is-visible input[placeholder="192.0.2.10"]    192.0.2.30
+    Open a dialog    "Also set the PTR record 30 in ${UI_REVERSE} to web2.${UI_ZONE}."    4b._Add_with_a_PTR_record
+    Close the open dialog
     # bulk: a new TTL for every record on the page, collected as pending changes
     Click    iframe >>> button >> text="Select all on this page"
     Click    iframe >>> button >> text="Set TTL"

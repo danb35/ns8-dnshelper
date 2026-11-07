@@ -408,8 +408,8 @@ bulk operations) implemented and tried on a node against Cloudflare in the brows
 undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is checked
 (`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Step 5 (zone file import and
 export) implemented and tried on a node (export, snapshot download, add-mode import applied,
-replace-mode preview). Step 6, the other additions, in progress: the managed-by marker and the
-grouped view are implemented; linked PTR records and the propagation check are design only.
+replace-mode preview). Step 6, the other additions, in progress: the managed-by marker, the
+grouped view and linked PTR records are implemented; the propagation check is design only.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -575,6 +575,14 @@ records, add these", previewed and then applied. Build that once:
   are shown as stored, since that is what an edit changes.
 - **Linked PTR records:** when an A / AAAA is added and its reverse zone is also managed (common
   with adopted PowerDNS zones), offer the matching PTR in the same changeset.
+  As built: not the same changeset (a changeset is one zone), but a second `apply-changes` on the
+  reverse zone right after the record is saved, labelled "PTR for <host>"; if it fails, the record
+  stays saved and the page says so. Offered with Save only (pending changes are per zone). Reverse
+  zones are managed zones under `.arpa` whose provider declares PTR (today: PowerDNS); the longest
+  one containing the reverse name is used. Add: set the PTR (replacing what is there, shown).
+  Edit: the same for the new address, and remove the old address's PTR if it pointed at this
+  host. Delete: delete the PTR if it points at this host. Wildcard names get none. Logic in
+  `ui/src/lib/reverse.js` (IPv4 and IPv6 nibble names).
 - **Propagation check** per record after an apply (moved here from Additional goals): query the
   zone's authoritative nameservers.
 - Rewrite the page intro, which still describes a test tool.

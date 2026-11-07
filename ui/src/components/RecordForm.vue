@@ -239,6 +239,15 @@ export default {
       }
       return t;
     },
+    draft() {
+      let data = "";
+      try {
+        data = compose(this.type, this.fields);
+      } catch (e) {
+        data = "";
+      }
+      return { name: (this.name || "").trim().toLowerCase(), type: this.type, data };
+    },
     isHostType() {
       return HOST_TYPES.includes(this.type);
     },
@@ -298,6 +307,13 @@ export default {
     // an error about the name (NS at @) may no longer hold
     name() {
       this.errors.name = "";
+    },
+    // the record as it stands, for the page (linked PTR records)
+    draft: {
+      handler(d) {
+        this.$emit("draft", d);
+      },
+      immediate: true,
     },
     type(next, prev) {
       this.errors.name = "";
