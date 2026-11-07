@@ -130,7 +130,10 @@ export default {
     isShown(shown) {
       if (shown) {
         this.onlySelected = this.selected.length > 0;
-        this.$nextTick(() => this.$refs.find && this.$refs.find.focus && this.$refs.find.focus());
+        this.$nextTick(
+          () =>
+            this.$refs.find && this.$refs.find.focus && this.$refs.find.focus()
+        );
       }
     },
   },

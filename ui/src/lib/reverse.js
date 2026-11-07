@@ -17,7 +17,10 @@ export function expandIPv6(address) {
     if (o.some((x) => x > 255)) {
       return null;
     }
-    tail = [((o[0] << 8) | o[1]).toString(16), ((o[2] << 8) | o[3]).toString(16)];
+    tail = [
+      ((o[0] << 8) | o[1]).toString(16),
+      ((o[2] << 8) | o[3]).toString(16),
+    ];
     s = v4[1].endsWith("::") ? v4[1] : v4[1].slice(0, -1);
   }
   const halves = s.split("::");
@@ -46,7 +49,10 @@ export function reverseName(type, address) {
   const a = (address || "").trim();
   if (type === "A") {
     const o = a.split(".");
-    if (o.length !== 4 || o.some((x) => !/^\d{1,3}$/.test(x) || Number(x) > 255)) {
+    if (
+      o.length !== 4 ||
+      o.some((x) => !/^\d{1,3}$/.test(x) || Number(x) > 255)
+    ) {
       return "";
     }
     return o.map(Number).reverse().join(".") + ".in-addr.arpa";
@@ -105,5 +111,9 @@ export function ptrTarget(record, zone, reverseZones) {
   if (!rz) {
     return null;
   }
-  return { zone: rz, name: relativeTo(rev, rz), host: hostOf(record.name, zone) };
+  return {
+    zone: rz,
+    name: relativeTo(rev, rz),
+    host: hostOf(record.name, zone),
+  };
 }

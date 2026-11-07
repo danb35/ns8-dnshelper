@@ -98,7 +98,11 @@ export function nameMatcher(pattern) {
       p
         .split("")
         .map((ch) =>
-          ch === "*" ? ".*" : ch === "?" ? "." : ch.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+          ch === "*"
+            ? ".*"
+            : ch === "?"
+            ? "."
+            : ch.replace(/[.+^${}()|[\]\\]/g, "\\$&")
         )
         .join("") +
       "$"

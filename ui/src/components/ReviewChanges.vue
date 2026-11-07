@@ -158,7 +158,8 @@ export default {
       this.$nextTick(() => {
         const modal = this.$refs.modal;
         const button =
-          modal && (this.canApply ? modal.$refs.primary : modal.$refs.secondary);
+          modal &&
+          (this.canApply ? modal.$refs.primary : modal.$refs.secondary);
         if (button && button.$el && button.$el.focus) {
           button.$el.focus();
         }

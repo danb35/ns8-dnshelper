@@ -15,7 +15,10 @@
     @primary-click="check"
   >
     <template slot="title">{{
-      $t("propagation.title", { name: record ? record.name : "", type: record ? record.type : "" })
+      $t("propagation.title", {
+        name: record ? record.name : "",
+        type: record ? record.type : "",
+      })
     }}</template>
     <template slot="content">
       <p class="mg-bottom-md">{{ $t("propagation.intro") }}</p>
@@ -50,7 +53,9 @@
               :kind="tagKind(s.status)"
             />
             <strong class="mg-left-sm">{{ s.server }}</strong>
-            <span v-if="s.address" class="note mg-left-sm">{{ s.address }}</span>
+            <span v-if="s.address" class="note mg-left-sm">{{
+              s.address
+            }}</span>
           </div>
           <div class="values">
             {{
@@ -104,7 +109,11 @@ export default {
       this.error = "";
       try {
         this.result = await this.callAction("check-propagation", {
-          data: { zone: this.zone, name: this.record.name, type: this.record.type },
+          data: {
+            zone: this.zone,
+            name: this.record.name,
+            type: this.record.type,
+          },
         });
       } catch (err) {
         this.result = null;

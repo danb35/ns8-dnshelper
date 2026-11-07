@@ -246,7 +246,11 @@ export default {
       } catch (e) {
         data = "";
       }
-      return { name: (this.name || "").trim().toLowerCase(), type: this.type, data };
+      return {
+        name: (this.name || "").trim().toLowerCase(),
+        type: this.type,
+        data,
+      };
     },
     isHostType() {
       return HOST_TYPES.includes(this.type);
