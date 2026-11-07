@@ -351,7 +351,7 @@ leave them pointing at a dead API.
   libdns has no ownership marker, so track it in the module.
 - Safety rails: never touch apex NS/SOA; per-zone lock; dry-run for `set-records`.
 - Provider capability matrix in UI (e.g. warn when SRV unsupported).
-- Optional propagation check against authoritative nameservers (planned as part of the records
+- Optional propagation check against authoritative nameservers (done as part of the records
   editor, below).
 - Later: dynamic-IP updater (A/AAAA); DNS-01 for wildcard certificates via Traefik (**VERIFY**
   how NS8 configures ACME).
@@ -409,7 +409,8 @@ undo, review and apply, bulk TTL, find and replace, bulk delete); its logic is c
 (`ui/src/lib/pending.js`) and its screens are in the CI screenshots. Step 5 (zone file import and
 export) implemented and tried on a node (export, snapshot download, add-mode import applied,
 replace-mode preview). Step 6, the other additions, in progress: the managed-by marker, the
-grouped view and linked PTR records are implemented; the propagation check is design only.
+grouped view, linked PTR records and the propagation check are implemented, which completes the
+records editor as designed.
 
 **Scope: every supported DNS provider.** PowerDNS is why this became a priority, but the editor,
 snapshots, bulk operations and import are built on the generic libdns operations and work on any
@@ -585,6 +586,13 @@ records, add these", previewed and then applied. Build that once:
   `ui/src/lib/reverse.js` (IPv4 and IPv6 nibble names).
 - **Propagation check** per record after an apply (moved here from Additional goals): query the
   zone's authoritative nameservers.
+  As built: helper operation and admin action `check-propagation` (zone, name, type). The name
+  servers come from the zone's delegation in DNS (system resolver of the node), or, failing that,
+  the apex NS records at the DNS host (`servers_from`). Each server (at most 8) is asked at each
+  address (at most 4), without recursion, UDP with TCP on truncation, 4 s timeout; an answer that
+  is not authoritative counts as an error. The values are compared with the records at the DNS
+  host with the same normalization as everywhere else: `same`, `different` or `error`. Records
+  page: "Check propagation" in each row's menu, with Check again.
 - Rewrite the page intro, which still describes a test tool.
 
 ### Out of scope

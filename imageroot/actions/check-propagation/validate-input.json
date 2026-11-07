@@ -1,0 +1,37 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "check-propagation input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/check-propagation",
+    "description": "Ask the zone's authoritative name servers, without recursion, for one name and type, and compare their answers with the records at the DNS host (administrators only). Writes nothing.",
+    "examples": [
+        {
+            "zone": "example.com",
+            "name": "www",
+            "type": "A"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "zone",
+        "name",
+        "type"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253,
+            "description": "DNS zone, like 'example.com'"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Relative to the zone, '@' for the apex"
+        },
+        "type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+$"
+        }
+    }
+}

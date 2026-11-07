@@ -1,0 +1,106 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "check-propagation output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/check-propagation",
+    "description": "check-propagation",
+    "type": "object",
+    "required": [
+        "zone",
+        "name",
+        "type",
+        "records",
+        "servers_from",
+        "servers"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "zone": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string"
+        },
+        "type": {
+            "type": "string"
+        },
+        "records": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "ttl",
+                    "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Name relative to the zone, '@' for the apex"
+                    },
+                    "type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9]+$",
+                        "description": "Record type: A, AAAA, CNAME, TXT, SRV, MX, NS, CAA, HTTPS, SVCB"
+                    },
+                    "ttl": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Seconds; 0 lets the provider choose"
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "RDATA in unescaped zone-file syntax. TXT: the whole plain value, unquoted, any length"
+                    }
+                }
+            },
+            "description": "The records at the DNS host"
+        },
+        "servers_from": {
+            "enum": [
+                "dns",
+                "provider"
+            ],
+            "description": "Where the name servers were found: the delegation, or the zone's apex NS records at the DNS host"
+        },
+        "servers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "server",
+                    "address",
+                    "status",
+                    "values"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "server": {
+                        "type": "string"
+                    },
+                    "address": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": [
+                            "same",
+                            "different",
+                            "error"
+                        ]
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

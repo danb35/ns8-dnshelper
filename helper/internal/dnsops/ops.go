@@ -34,6 +34,10 @@ type Ops struct {
 	Provider any
 	Zone     string   // as given by the caller, with or without trailing dot
 	Secrets  []string // credential values, scrubbed from provider error text
+	// Resolver and DNSPort are used by CheckPropagation; nil and "" mean the
+	// system resolver and port 53. Tests set them.
+	Resolver Resolver
+	DNSPort  string
 	// Before is the zone as read just before a write was attempted (under
 	// the zone lock), nil when nothing was written. It is reported whether
 	// the write succeeded or not, for the zone snapshots.

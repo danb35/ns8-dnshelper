@@ -958,6 +958,21 @@ def list_owners(data):
     return {'zone': zone, 'owners': owners}
 
 
+# ---------------------------------------------------------------- propagation
+
+def check_propagation(data):
+    """Ask the zone's authoritative name servers for one name and type and
+    compare with the records at the DNS host (administrators only). Reads
+    only; queries go from the node to the name servers."""
+    _refuse_modules()
+    zone = _managed_zone(data)
+    req = _zone_request(zone)
+    req.update(op='check-propagation', filter={'name': data['name'], 'type': data['type']})
+    resp = call_helper(req)
+    return {'zone': zone, 'name': data['name'], 'type': data['type'].upper(), 'records': resp['records'],
+            'servers_from': resp.get('servers_from', ''), 'servers': resp.get('servers') or []}
+
+
 # ---------------------------------------------------------------- zone files
 
 def export_zone(data):
@@ -1216,6 +1231,7 @@ HANDLERS = {
     'diff-snapshot': diff_snapshot,
     'export-zone': export_zone,
     'list-owners': list_owners,
+    'check-propagation': check_propagation,
     'import-zone': import_zone,
     'sync-powerdns': sync_powerdns,
 }
