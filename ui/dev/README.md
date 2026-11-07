@@ -9,7 +9,10 @@ awkward to look at. This harness fakes the shell so the built UI can be exercise
   `imageroot/pypkg/dnshelper_lib.py`; the mail, web server, Traefik and cluster actions the UI
   calls return canned data (shapes checked against those modules' sources). A fake ns8-powerdns
   primary (`powerdns1`, zones `example.net` and `2.0.192.in-addr.arpa`) answers `sync-powerdns`.
-- `fake_helper.py` stands in for the Go binary: it fakes the DNS host. A token containing `bad`
+- `fake_helper.py` stands in for the Go binary: it fakes the DNS host, including what the records
+  editor needs (`apply-changes`, `diff-records`, the pre-write `before` read that snapshots are
+  made from, and a faked `check-propagation`); zone files (`parse-zone`, `export-zone`) go to the
+  real binary when it is set. A token containing `bad`
   is rejected, `readonly` gives a host that cannot replace records, `nolist` one that cannot list
   zones. Set `DNSHELPER_REAL_BIN` to forward `list-providers` and `registrable-domains` to the real
   binary.
@@ -40,6 +43,11 @@ docker run --rm -v "$PWD/ui/dev:/work" -v /tmp/shots:/out -w /work \
     mcr.microsoft.com/playwright:v1.49.1-jammy \
     bash -c "npm init -y >/dev/null && npm i playwright-core@1.49.1 >/dev/null && OUT=/out node screenshots.js"
 ```
+
+`server.py` seeds which module wrote which `example.com` record (mail1, automx1), and
+`POST /dev/module-removed?module=<id>` does what `events/module-removed/20orphan_records` does when
+a module is removed; the script uses it for the "removed module" picture. A run occasionally hangs
+on a lost task result ("step timed out"): restart the harness and run it again.
 
 Start from a fresh harness (it keeps its data until it is stopped), and close any browser tab that
 has the harness open: the guide's pictures are taken at 1360 pixels wide. Copy the ones the guide

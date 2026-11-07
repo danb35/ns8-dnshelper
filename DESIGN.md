@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones implemented and tested 2026-11-05 against a live primary on an NS8 test cluster (adopt, follow zone adds and removals, PTR zone, refusals, primary removed); moves, clones, restores and two primaries were not tested live; see README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones (tested live 2026-11-05); the records editor (snapshots, editing, pending and bulk changes, zone files, record owners, PTR records, propagation check) and record-ownership cleanup (2026-11-06/07, each tried on a node). See README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -400,7 +400,7 @@ core requirement.
 - libdns package docs (pkg.go.dev/github.com/libdns/libdns), v1.1.1 read on 2026-09-19
 - NethServer/agents module-conventions PR; ns8-odoo 1.1.0 release notes (secrets handling)
 
-## Records editor (planned)
+## Records editor
 
 Now that dnshelper is the main frontend for ns8-powerdns zones, the Records page should become a
 full records editor rather than a test tool. Today it can only append or delete one record at a
@@ -619,4 +619,5 @@ Creating and deleting zones, DNSSEC and other zone-level settings belong to the 
 ## Future improvements
 
 - More DNS hosts
-- Records editor: see "Records editor (planned)" above.
+- More of the records editor's ideas, as needs show up; the editor itself is done (see "Records
+  editor" above).

@@ -38,11 +38,32 @@ INSTALLED = {'ghcr.io/nethserver/mail': [{'id': 'mail1', 'node': '1', 'module': 
              'ghcr.io/nethserver/traefik': [{'id': 'traefik1', 'node': '1', 'module': 'traefik'}],
              'ghcr.io/nethserver/webserver': [{'id': 'webserver1', 'node': '1', 'module': 'webserver'}],
              'ghcr.io/nethserver/dnshelper': [{'id': 'dnshelper1', 'node': '1', 'module': 'dnshelper'}],
-             'ghcr.io/danb35/powerdns': [{'id': 'powerdns1', 'node': '1', 'module': 'powerdns'}]}
+             'ghcr.io/danb35/powerdns': [{'id': 'powerdns1', 'node': '1', 'module': 'powerdns'}],
+             'ghcr.io/danb35/automx': [{'id': 'automx1', 'node': '1', 'module': 'automx'}]}
 
 # The ns8-powerdns primary that sync-powerdns adopts from. Its zones are also served by
 # the fake DNS host (fake_helper.py), so Check credentials works on them.
 POWERDNS_ZONES = ['example.net', '2.0.192.in-addr.arpa']
+
+
+# Which module wrote which record of example.com (the fake DNS host's default
+# records), so the Records page shows "by mail1" tags; automx1 is "removed"
+# later through POST /dev/module-removed?module=automx1.
+SEEDED_OWNERS = {
+    'module/mail1': [('@', 'MX', '10 mail.example.com.'), ('@', 'TXT', 'v=spf1 mx -all'),
+                     ('mail._domainkey', 'TXT', 'v=DKIM1; k=rsa; p=' + 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A' * 8),
+                     ('_dmarc', 'TXT', 'v=DMARC1; p=quarantine')],
+    'module/automx1': [('autoconfig', 'CNAME', 'mail.example.com.'),
+                       ('_autodiscover._tcp', 'SRV', '0 0 443 mail.example.com.')],
+}
+
+
+def seed_owners():
+    for who, recs in SEEDED_OWNERS.items():
+        os.environ['AGENT_TASK_USER'] = who
+        lib.record_owners('example.com', {'add': [{'name': n, 'type': t, 'data': d} for n, t, d in recs],
+                                          'remove': []})
+    os.environ['AGENT_TASK_USER'] = 'admin'
 
 
 class FakeAgent:
@@ -173,6 +194,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send(404, {'error': 'not found'})
 
     def do_POST(self):
+        if self.path.startswith('/dev/module-removed'):
+            # what events/module-removed/20orphan_records does when the core removes a module
+            module = (parse_qs(urlparse(self.path).query).get('module') or [''])[0]
+            return self.send(200, {'orphaned': lib.forget_module(module)})
         body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
         parts = self.path.strip('/').split('/')          # api/module/<id>/tasks | api/cluster/tasks
         if parts[:2] == ['api', 'module'] and parts[-1] == 'tasks':
@@ -188,6 +213,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8099
     os.environ.setdefault('DNSHELPER_REAL_BIN', '')
+    lib.ensure_state()
+    seed_owners()
     print(f'state dir {STATE}\nopen http://127.0.0.1:{port}/', flush=True)
     try:
         ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()
