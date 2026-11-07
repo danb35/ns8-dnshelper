@@ -30,6 +30,16 @@
           />
         </cv-column>
       </cv-row>
+      <cv-row v-if="ptrWarning">
+        <cv-column>
+          <NsInlineNotification
+            kind="warning"
+            :title="$t('ptr.failed_title')"
+            :description="ptrWarning"
+            @close="ptrWarning = ''"
+          />
+        </cv-column>
+      </cv-row>
       <cv-row>
         <cv-column>
           <p class="section-intro">{{ $t("records.intro") }}</p>
@@ -422,7 +432,49 @@
             :existing="records"
             :initial="current"
             :disabled="loading.save"
+            @draft="formDraft = $event"
           />
+          <div v-if="newPtr || oldPtrRemovable" class="ptr-box mg-bottom-md">
+            <NsCheckbox
+              v-if="newPtr && !ptrAlready"
+              v-model="ptr.wanted"
+              value="ptrWanted"
+              :label="
+                $t('ptr.set', {
+                  name: newPtr.name,
+                  zone: newPtr.zone,
+                  host: newPtr.host,
+                })
+              "
+              :disabled="loading.save"
+            />
+            <p v-if="newPtr && ptrAlready" class="ptr-note">
+              {{ $t("ptr.already", { zone: newPtr.zone, host: newPtr.host }) }}
+            </p>
+            <p
+              v-else-if="newPtr && ptr.current.length && ptr.wanted"
+              class="ptr-note"
+            >
+              {{
+                $t("ptr.replaces", {
+                  values: ptr.current.map((r) => r.data).join(", "),
+                })
+              }}
+            </p>
+            <NsCheckbox
+              v-if="oldPtrRemovable"
+              v-model="ptrOld.wanted"
+              value="ptrOldWanted"
+              :label="
+                $t('ptr.remove_old', {
+                  name: oldPtr.name,
+                  zone: oldPtr.zone,
+                })
+              "
+              :disabled="loading.save"
+            />
+            <p class="ptr-note">{{ $t("ptr.separate") }}</p>
+          </div>
           <NsInlineNotification
             v-if="error.save"
             kind="error"
@@ -473,6 +525,20 @@
           <span class="record-data">{{ shorten(current.data) }}</span>
         </p>
         <p class="mg-bottom-md">{{ $t("records.remove_explanation") }}</p>
+        <div v-if="deletePtr.records.length" class="ptr-box mg-bottom-md">
+          <NsCheckbox
+            v-model="deletePtr.wanted"
+            value="deletePtrWanted"
+            :label="
+              $t('ptr.delete_too', {
+                name: deletePtr.target.name,
+                zone: deletePtr.target.zone,
+              })
+            "
+            :disabled="loading.remove"
+          />
+          <p class="ptr-note">{{ $t("ptr.separate") }}</p>
+        </div>
         <NsInlineNotification
           v-if="ownerOf(current)"
           kind="warning"
@@ -521,6 +587,11 @@ import {
 } from "../lib/pending";
 import Time20 from "@carbon/icons-vue/es/time/20";
 import { displayName, toUnicode } from "../lib/records";
+import { pointsTo, ptrTarget } from "../lib/reverse";
+
+function hostOfRecord(r, zone) {
+  return (r.name === "@" ? zone : `${r.name}.${zone}`) + ".";
+}
 
 const COMMON_TYPES = ["A", "AAAA", "CNAME", "MX", "SRV", "TXT", "NS", "CAA"];
 
@@ -567,6 +638,13 @@ export default {
       pending: [],
       // keys (recordKey) of the selected rows
       selected: [],
+      // linked PTR records: the form's record as it stands, the PTR records
+      // now at its reverse name, and those of the record being edited
+      formDraft: null,
+      ptr: { wanted: true, current: [], key: "" },
+      ptrOld: { wanted: true, current: [] },
+      deletePtr: { wanted: true, records: [], target: null },
+      ptrWarning: "",
       // view: only these types (none: all); names in full
       typeFilter: [],
       fullNames: false,
@@ -609,6 +687,39 @@ export default {
     presentTypes() {
       return [...new Set(this.records.map((r) => r.type))].sort();
     },
+    // managed reverse zones whose DNS host can hold PTR records
+    reverseZones() {
+      return this.zones.filter((z) => {
+        const info = this.zoneInfo[z];
+        const p = info && this.providers.find((x) => x.name === info.provider);
+        return z.endsWith(".arpa") && p && p.types.includes("PTR");
+      });
+    },
+    newPtr() {
+      return ptrTarget(this.formDraft, this.zone, this.reverseZones);
+    },
+    oldPtr() {
+      return this.current
+        ? ptrTarget(this.current, this.zone, this.reverseZones)
+        : null;
+    },
+    // the PTR already points at the record's host: nothing to do
+    ptrAlready() {
+      return (
+        !!this.newPtr &&
+        this.ptr.current.length === 1 &&
+        pointsTo(this.ptr.current[0].data, this.newPtr.host)
+      );
+    },
+    // the old address had a PTR to the old host, at another reverse name
+    oldPtrRemovable() {
+      const o = this.oldPtr;
+      const n = this.newPtr;
+      if (!o || !this.ptrOld.current.length) {
+        return false;
+      }
+      return !n || n.zone !== o.zone || n.name !== o.name;
+    },
     pendingKeys() {
       return touchedKeys(this.pending);
     },
@@ -632,6 +743,22 @@ export default {
     },
   },
   watch: {
+    newPtr(t) {
+      const key = t ? `${t.zone}|${t.name}` : "";
+      if (key === this.ptr.key) {
+        return;
+      }
+      this.ptr = { wanted: true, current: [], key };
+      if (t) {
+        clearTimeout(this.ptrTimer);
+        this.ptrTimer = setTimeout(async () => {
+          const found = await this.lookupPtr(t);
+          if (this.ptr.key === key) {
+            this.ptr.current = found;
+          }
+        }, 400);
+      }
+    },
     // the link was followed while this page was already open
     "q.zone"(value) {
       const requested = this.zoneFromQuery(value);
@@ -755,6 +882,60 @@ export default {
     // dnshelper never changes apex NS or SOA records; do not offer to
     isProtected(row) {
       return row.type === "SOA" || (row.type === "NS" && row.name === "@");
+    },
+    /** The PTR records at a reverse name; [] when they cannot be read. */
+    async lookupPtr(t) {
+      try {
+        const out = await this.callAction("get-records", {
+          data: { zone: t.zone, name: t.name, type: "PTR" },
+        });
+        return out.records;
+      } catch (err) {
+        return [];
+      }
+    },
+    /** apply-changes on reverse zones; returns a warning text or "". */
+    async applyPtr(plans, host) {
+      const problems = [];
+      for (const p of plans) {
+        try {
+          await this.callAction("apply-changes", {
+            data: {
+              zone: p.zone,
+              remove: p.remove.map((r) => ({ name: r.name, type: r.type, data: r.data })),
+              add: p.add,
+              label: this.$t("ptr.label", { host }),
+            },
+          });
+        } catch (err) {
+          problems.push(`${p.zone}: ${this.errorText(err)}`);
+        }
+      }
+      return problems.length
+        ? this.$t("ptr.failed", { problems: problems.join(" ") })
+        : "";
+    },
+    ptrPlans() {
+      const plans = [];
+      const n = this.newPtr;
+      if (n && this.ptr.wanted && !this.ptrAlready) {
+        plans.push({
+          zone: n.zone,
+          remove: this.ptr.current,
+          add: [{ name: n.name, type: "PTR", data: n.host }],
+        });
+      }
+      if (this.oldPtrRemovable && this.ptrOld.wanted) {
+        const o = this.oldPtr;
+        const remove = this.ptrOld.current.filter((r) => pointsTo(r.data, o.host));
+        const same = plans.find((p) => p.zone === o.zone);
+        if (same) {
+          same.remove = same.remove.concat(remove);
+        } else if (remove.length) {
+          plans.push({ zone: o.zone, remove, add: [] });
+        }
+      }
+      return plans;
     },
     toggleType(t) {
       this.typeFilter = this.typeFilter.includes(t)
@@ -913,6 +1094,17 @@ export default {
     },
     openForm(record) {
       this.current = record;
+      this.formDraft = null;
+      this.ptr = { wanted: true, current: [], key: "" };
+      this.ptrOld = { wanted: true, current: [] };
+      const old = record ? ptrTarget(record, this.zone, this.reverseZones) : null;
+      if (old) {
+        this.lookupPtr(old).then((found) => {
+          if (this.current === record) {
+            this.ptrOld.current = found.filter((r) => pointsTo(r.data, old.host));
+          }
+        });
+      }
       this.error.save = "";
       this.error.stale = false;
       this.formKey++;
@@ -944,6 +1136,10 @@ export default {
             data: { zone: this.zone, records: [record] },
           });
         }
+        const plans = this.ptrPlans();
+        this.ptrWarning = plans.length
+          ? await this.applyPtr(plans, hostOfRecord(record, this.zone))
+          : "";
         this.isFormShown = false;
         this.notice = old
           ? {
@@ -977,6 +1173,19 @@ export default {
     showRemove(row) {
       this.current = row;
       this.error.remove = "";
+      this.deletePtr = { wanted: true, records: [], target: null };
+      const t = ptrTarget(row, this.zone, this.reverseZones);
+      if (t) {
+        this.lookupPtr(t).then((found) => {
+          if (this.current === row) {
+            this.deletePtr = {
+              wanted: true,
+              records: found.filter((r) => pointsTo(r.data, t.host)),
+              target: t,
+            };
+          }
+        });
+      }
       this.isRemoveShown = true;
     },
     async removeRecord() {
@@ -991,6 +1200,14 @@ export default {
             records: [{ name: r.name, type: r.type, data: r.data }],
           },
         });
+        const dp = this.deletePtr;
+        this.ptrWarning =
+          dp.wanted && dp.records.length
+            ? await this.applyPtr(
+                [{ zone: dp.target.zone, remove: dp.records, add: [] }],
+                dp.target.host
+              )
+            : "";
         this.isRemoveShown = false;
         this.notice = {
           title: this.$t("records.removed_title"),
@@ -1040,6 +1257,16 @@ export default {
 .same-name {
   opacity: 0.45;
   font-weight: normal;
+}
+
+.ptr-box {
+  padding: $spacing-03 $spacing-05;
+  background-color: rgba(141, 141, 141, 0.08);
+}
+
+.ptr-note {
+  font-size: 0.875rem;
+  margin-top: $spacing-02;
 }
 
 .bulk-bar {

@@ -693,7 +693,9 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   and target; CAA flags, tag and value; TXT with a byte count, SPF / DKIM / DMARC hints and a
   warning about a second SPF record at one name); other types take the value in zone-file syntax.
   An edit is one `apply-changes`: if the record was changed at the DNS host meanwhile, nothing is
-  changed and the page offers to reload. It calls the same `get-records`, `append-records` and
+  changed and the page offers to reload. When an A or AAAA record's reverse zone is managed too
+  (a zone under `.arpa` on a host that handles PTR, such as PowerDNS), the dialogs offer to set,
+  replace or delete the matching PTR record, as a second change to the reverse zone. It calls the same `get-records`, `append-records` and
   `delete-records` actions a consumer module uses, as an administrator, so it is also a way to
   check that a credential really works. Apex NS and SOA records cannot be deleted. **Snapshots**
   lists the zone's snapshots and their change history, takes one, and compares one with the zone:
