@@ -67,7 +67,8 @@
     "diff-snapshot": "Compare with snapshot",
     "export-zone": "Export zone",
     "import-zone": "Plan zone import",
-    "list-owners": "List record owners"
+    "list-owners": "List record owners",
+    "check-propagation": "Check propagation"
   },
   "error": {
     "error": "Error",
@@ -477,5 +478,19 @@
     "label": "PTR for {host}",
     "failed_title": "The PTR record was not changed",
     "failed": "The record was saved, but changing the PTR record failed: {problems}"
+  },
+  "propagation": {
+    "menu": "Check propagation",
+    "title": "Propagation of {name} {type}",
+    "intro": "Each authoritative name server of the zone is asked directly, without caches, whether it serves this name and type as the DNS host has it.",
+    "at_host": "At the DNS host:",
+    "nothing": "nothing",
+    "from_provider": "The zone's delegation could not be found in DNS; these are the name servers the DNS host lists.",
+    "status_same": "Up to date",
+    "status_different": "Different",
+    "status_error": "No answer",
+    "caching": "Resolvers that cached the old answer keep it until its TTL runs out.",
+    "failed": "The name servers could not be checked",
+    "again": "Check again"
   }
 }

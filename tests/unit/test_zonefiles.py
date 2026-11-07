@@ -84,3 +84,21 @@ class RealZoneFileTests(unittest.TestCase):
         self.assertEqual(parsed['skipped'][0]['type'], 'SOA')
         out = self.run_helper({'op': 'export-zone', 'zone': 'example.com', 'records': parsed['records']})
         self.assertIn('q\t600\tIN\tTXT\t"say \\"hi\\""', out['text'])
+
+
+class PropagationTests(Base):
+    def setUp(self):
+        super().setUp()
+        lib.add_zone({'zone': 'example.com', 'credential': self.add_cred()})
+
+    def test_check_propagation_passes_name_and_type(self):
+        self.respond({'check-propagation': {'ok': True, 'records': [A1], 'servers_from': 'dns', 'servers': [
+            {'server': 'ns1.example.net', 'address': '192.0.2.53', 'status': 'same', 'values': ['192.0.2.1']}]}})
+        out = lib.check_propagation({'zone': 'example.com', 'name': 'www', 'type': 'a'})
+        self.assertEqual((out['type'], out['servers'][0]['status'], out['servers_from']), ('A', 'same', 'dns'))
+        self.assertEqual(self.calls()[-1]['req']['filter'], {'name': 'www', 'type': 'a'})
+
+    def test_modules_cannot_check(self):
+        with as_module('mail1'):
+            self.assertRejects(lib.check_propagation, {'zone': 'example.com', 'name': 'www', 'type': 'A'},
+                               'not_permitted')

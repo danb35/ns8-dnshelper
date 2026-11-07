@@ -94,6 +94,7 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
 | Record owners (admin) | `list-owners`: which module wrote which record |
+| Propagation (admin) | `check-propagation`: what each authoritative name server serves for a name and type |
 | UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
@@ -695,7 +696,9 @@ Vue 2 with Carbon and `ns8-ui-lib`, in `ui/`. Four pages besides About:
   An edit is one `apply-changes`: if the record was changed at the DNS host meanwhile, nothing is
   changed and the page offers to reload. When an A or AAAA record's reverse zone is managed too
   (a zone under `.arpa` on a host that handles PTR, such as PowerDNS), the dialogs offer to set,
-  replace or delete the matching PTR record, as a second change to the reverse zone. It calls the same `get-records`, `append-records` and
+  replace or delete the matching PTR record, as a second change to the reverse zone. **Check
+  propagation** (row menu) asks each of the zone's authoritative name servers, directly and
+  without caches, what it serves for that name and type, and compares it with the DNS host. It calls the same `get-records`, `append-records` and
   `delete-records` actions a consumer module uses, as an administrator, so it is also a way to
   check that a credential really works. Apex NS and SOA records cannot be deleted. **Snapshots**
   lists the zone's snapshots and their change history, takes one, and compares one with the zone:

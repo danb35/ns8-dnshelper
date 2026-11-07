@@ -219,6 +219,12 @@ Take screenshots of the pages
     Click    iframe >>> .bx--overflow-menu-options--open >> text="Edit"
     Open a dialog    "Edit a record of ${UI_ZONE}"    4._Edit_an_MX_record
     Keyboard Key    press    Escape
+    # the test zone's name server does not resolve: the dialog shows that
+    Click    iframe >>> tr:has-text("10 mail.${UI_ZONE}.") >> css=.bx--overflow-menu
+    Click    iframe >>> .bx--overflow-menu-options--open >> text="Check propagation"
+    Open a dialog    "At the DNS host:"    4c._Check_propagation
+    Click    iframe >>> .bx--modal.is-visible >> button >> text="Close"
+    Wait For Elements State    iframe >>> .bx--modal.is-visible    hidden    timeout=10s
     # an A record whose reverse zone is managed too: the PTR is offered
     Click    iframe >>> button >> text="Add record"
     Fill Text    iframe >>> .bx--modal.is-visible input[placeholder="www"]    web2

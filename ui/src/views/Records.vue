@@ -322,6 +322,12 @@
                           :label="$t('records.edit')"
                         />
                       </cv-overflow-menu-item>
+                      <cv-overflow-menu-item @click="showPropagation(row)">
+                        <NsMenuItem
+                          :icon="Search20"
+                          :label="$t('propagation.menu')"
+                        />
+                      </cv-overflow-menu-item>
                       <cv-overflow-menu-item
                         danger
                         :disabled="isProtected(row)"
@@ -355,6 +361,12 @@
       @hide="isReviewShown = false"
       @applied="onApplied"
       @reload="reloadFromReview"
+    />
+    <PropagationCheck
+      :isShown="isPropagationShown"
+      :zone="zone"
+      :record="propagationRecord"
+      @hide="isPropagationShown = false"
     />
     <ImportZone
       :isShown="isImportShown"
@@ -578,6 +590,7 @@ import PendingChanges from "../components/PendingChanges";
 import ReviewChanges from "../components/ReviewChanges";
 import FindReplace from "../components/FindReplace";
 import ImportZone from "../components/ImportZone";
+import PropagationCheck from "../components/PropagationCheck";
 import {
   ownerKey,
   recordKey,
@@ -604,6 +617,7 @@ export default {
     ReviewChanges,
     FindReplace,
     ImportZone,
+    PropagationCheck,
   },
   mixins: [
     DnsHelperService,
@@ -651,6 +665,8 @@ export default {
       isReviewShown: false,
       isFindShown: false,
       isImportShown: false,
+      isPropagationShown: false,
+      propagationRecord: null,
       isTtlShown: false,
       ttlValue: "",
       Time20,
@@ -936,6 +952,10 @@ export default {
         }
       }
       return plans;
+    },
+    showPropagation(row) {
+      this.propagationRecord = this.plain(row);
+      this.isPropagationShown = true;
     },
     toggleType(t) {
       this.typeFilter = this.typeFilter.includes(t)

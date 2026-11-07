@@ -96,7 +96,7 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 	}
 
 	switch req.Op {
-	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges, contract.OpDiffRecords, contract.OpExportZone:
+	case contract.OpValidate, contract.OpListZones, contract.OpGetRecords, contract.OpAppendRecords, contract.OpSetRecords, contract.OpDeleteRecords, contract.OpApplyChanges, contract.OpDiffRecords, contract.OpExportZone, contract.OpCheckPropagation:
 	default:
 		return fail(&contract.Error{Code: contract.CodeInvalidRequest, Message: "unknown op " + quote(req.Op)})
 	}
@@ -159,6 +159,8 @@ func Run(ctx context.Context, req contract.Request, opt Options) contract.Respon
 		resp, err = o.DiffRecords(ctx, req.Records, req.Mode)
 	case contract.OpExportZone:
 		resp, err = o.ExportZone(ctx)
+	case contract.OpCheckPropagation:
+		resp, err = o.CheckPropagation(ctx, req.Filter)
 	}
 	if err != nil {
 		resp = fail(err)

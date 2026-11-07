@@ -29,6 +29,10 @@ const (
 	// for Request.Zone; what it leaves out is in Response.Skipped. It needs
 	// no provider.
 	OpParseZone = "parse-zone"
+	// OpCheckPropagation asks the zone's authoritative name servers for
+	// Request.Filter's name and type and compares their answers with the
+	// records at the DNS host (Response.Records, Response.Servers).
+	OpCheckPropagation = "check-propagation"
 	// OpListZones lists the zones the credentials can see.
 	OpListZones = "list-zones"
 	// OpRegistrableDomains reduces host names to the registrable domains that
@@ -113,6 +117,17 @@ type Skipped struct {
 	Reason string `json:"reason"`
 }
 
+// ServerCheck is what one address of one authoritative name server answered.
+type ServerCheck struct {
+	Server  string `json:"server"`
+	Address string `json:"address"`
+	// Status is "same" (the values at the DNS host), "different", or "error"
+	// (no answer, an error code, or not authoritative; see Message).
+	Status  string   `json:"status"`
+	Values  []string `json:"values"`
+	Message string   `json:"message,omitempty"`
+}
+
 // Candidate is a registrable domain and the host names that led to it.
 type Candidate struct {
 	Zone  string   `json:"zone"`
@@ -187,6 +202,11 @@ type Response struct {
 	Providers    []ProviderInfo `json:"providers,omitempty"`
 	// Text is the zone file written by export-zone.
 	Text string `json:"text,omitempty"`
+	// Servers is the result of check-propagation, and ServersFrom where the
+	// name servers were found: "dns" (the delegation) or "provider" (the
+	// zone's apex NS records).
+	Servers     []ServerCheck `json:"servers,omitempty"`
+	ServersFrom string        `json:"servers_from,omitempty"`
 	// Skipped lists what parse-zone left out.
 	Skipped []Skipped `json:"skipped,omitempty"`
 	// Zones is the result of list-zones: bare zone names, sorted.
