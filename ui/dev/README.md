@@ -44,6 +44,10 @@ docker run --rm -v "$PWD/ui/dev:/work" -v /tmp/shots:/out -w /work \
     bash -c "npm init -y >/dev/null && npm i playwright-core@1.49.1 >/dev/null && OUT=/out node screenshots.js"
 ```
 
+Set `LOCALE` (for example `-e LOCALE=de-DE` on the `docker run`) to take the pictures in another
+language, to check that translated labels fit; the script finds pages by their place in the menu,
+not their name.
+
 `server.py` seeds which module wrote which `example.com` record (mail1, automx1), and
 `POST /dev/module-removed?module=<id>` does what `events/module-removed/20orphan_records` does when
 a module is removed; the script uses it for the "removed module" picture. A run occasionally hangs
