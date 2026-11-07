@@ -68,7 +68,8 @@
     "export-zone": "Export zone",
     "import-zone": "Plan zone import",
     "list-owners": "List record owners",
-    "check-propagation": "Check propagation"
+    "check-propagation": "Check propagation",
+    "release-records": "Keep records"
   },
   "error": {
     "error": "Error",
@@ -460,7 +461,13 @@
     "tag": "by {module}",
     "tag_help": "Written by {module} through dnshelper",
     "warning_title": "Written by {module}",
-    "warning": "{module} wrote this record through dnshelper and may rely on it. Changing or deleting it here can break {module}, and {module} may write it again."
+    "warning": "{module} wrote this record through dnshelper and may rely on it. Changing or deleting it here can break {module}, and {module} may write it again.",
+    "orphan_tag": "from removed {module}",
+    "orphan_help": "Written by {module}, which has been removed; no installed module claims it",
+    "orphans_title": "Records of removed modules",
+    "orphans": "1 record was written by {modules}, which has been removed, and no installed module claims it. Delete it, or keep it as an ordinary record. | {count} records were written by {modules}, which have been removed, and no installed module claims them. Delete them, or keep them as ordinary records.",
+    "stage_delete": "Add deleting them to pending changes",
+    "keep": "Keep them"
   },
   "view": {
     "types": "Types",

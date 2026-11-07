@@ -31,8 +31,8 @@ class OwnerTests(Base):
     def test_a_module_write_records_its_owner(self):
         self.module_write('append-records', lib.append_records,
                           {'zone': 'example.com', 'records': [DKIM, MX]}, written(add=[DKIM, MX]))
-        got = {(o['name'], o['type']): o['caller'] for o in self.owners()}
-        self.assertEqual(got, {('sel._domainkey', 'TXT'): 'module/mail1', ('@', 'MX'): 'module/mail1'})
+        got = {(o['name'], o['type']): o['callers'] for o in self.owners()}
+        self.assertEqual(got, {('sel._domainkey', 'TXT'): ['module/mail1'], ('@', 'MX'): ['module/mail1']})
         path = os.path.join(self.state, 'owners', 'example.com.json')
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
 
@@ -69,9 +69,50 @@ class OwnerTests(Base):
         lib.remove_zone({'zone': 'example.com'})
         self.assertFalse(os.path.exists(os.path.join(self.state, 'owners', 'example.com.json')))
 
+    def test_a_module_asking_for_an_existing_record_claims_it(self):
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [DKIM]}, written(add=[DKIM]))
+        # a moved copy writes the same record: nothing changes at the host
+        self.respond({'append-records': {'ok': True, 'records': [], 'before': [A, DKIM],
+                                         'changes': {'add': [], 'remove': []}}})
+        with as_module('mail2'), mock.patch.object(lib, '_require_access'):
+            lib.append_records({'zone': 'example.com', 'records': [DKIM]})
+        self.assertEqual(self.owners()[0]['callers'], ['module/mail1', 'module/mail2'])
+
+    def test_removing_a_module_orphans_only_what_no_one_else_wrote(self):
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [DKIM, MX]}, written(add=[DKIM, MX]))
+        self.respond({'append-records': {'ok': True, 'records': [], 'before': [A, DKIM, MX],
+                                         'changes': {'add': [], 'remove': []}}})
+        with as_module('mail2'), mock.patch.object(lib, '_require_access'):
+            lib.append_records({'zone': 'example.com', 'records': [MX]})
+        self.assertEqual(lib.forget_module('mail1'), {'example.com': 1})
+        got = {o['type']: (o['callers'], o['removed']) for o in self.owners()}
+        self.assertEqual(got['TXT'], ([], ['module/mail1']))            # orphaned
+        self.assertEqual(got['MX'], (['module/mail2'], ['module/mail1']))  # still mail2's
+        self.assertEqual(lib.forget_module('nobody1'), {})
+
+    def test_the_administrator_keeps_orphaned_records(self):
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [DKIM]}, written(add=[DKIM]))
+        lib.forget_module('mail1')
+        out = lib.release_records({'zone': 'example.com', 'records': [{'name': DKIM['name'], 'type': 'TXT',
+                                                                       'data': DKIM['data']}]})
+        self.assertEqual(out, {'released': 1})
+        self.assertEqual(self.owners(), [])
+
+    def test_an_old_owners_file_is_read(self):
+        lib.ensure_state()
+        with open(os.path.join(self.state, 'owners', 'example.com.json'), 'w') as f:
+            f.write('{"records": {"x": {"name": "@", "type": "MX", "data": "10 m.", "caller": "module/mail1", '
+                    '"time": "t"}}}')
+        self.assertEqual(self.owners()[0]['callers'], ['module/mail1'])
+        self.assertEqual(lib.forget_module('mail1'), {'example.com': 1})
+
     def test_modules_cannot_list_owners(self):
         with as_module('mail1'):
             self.assertRejects(lib.list_owners, {'zone': 'example.com'}, 'not_permitted')
+            self.assertRejects(lib.release_records, {'zone': 'example.com', 'records': []}, 'not_permitted')
 
     def test_restore_drops_an_unreadable_owners_file(self):
         lib.ensure_state()

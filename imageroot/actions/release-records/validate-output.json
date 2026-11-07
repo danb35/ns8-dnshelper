@@ -1,0 +1,16 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "release-records output",
+    "$id": "http://nethserver.org/json-schema/task/output/dnshelper/release-records",
+    "description": "release-records",
+    "type": "object",
+    "required": [
+        "released"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "released": {
+            "type": "integer"
+        }
+    }
+}

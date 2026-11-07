@@ -348,6 +348,12 @@ leave them pointing at a dead API.
 
 - Consumer helper library + README (presence check, call wrapper, error mapping) for other modules.
 - Record ownership and cleanup (consumer registers records; removed on consumer `destroy-module`).
+  Done (2026-11-07), see "Managed-by marker" in the records editor: an owner index records which
+  modules wrote each record (a module that writes a record that already exists claims it too, so
+  a moved or cloned module keeps its records). On `module-removed` the module is dropped as a
+  writer; records left with none are flagged on the Records page, which offers to put their
+  deletion in the pending changes or to keep them (`release-records`). Decision: nothing is
+  deleted automatically, since a wrong guess removes live DNS.
   libdns has no ownership marker, so track it in the module.
 - Safety rails: never touch apex NS/SOA; per-zone lock; dry-run for `set-records`.
 - Provider capability matrix in UI (e.g. warn when SRV unsupported).
@@ -565,8 +571,9 @@ records, add these", previewed and then applied. Build that once:
   no owner (so an administrator's edit of a module's record takes it over). Keys are name, type
   and value, host names without case or final dot. Records written before this existed have no
   owner. Admin action `list-owners`; the Records page shows a "by mail1" tag and a warning in the
-  Edit and Delete dialogs. This is also the first half of the record ownership goal: cleanup on
-  a consumer's removal is still to do.
+  Edit and Delete dialogs. Later (2026-11-07) a record can have several writers (`callers`), a
+  module claims a record it asks for even if nothing changes, and a removed module's records are
+  flagged rather than deleted (see "Record ownership and cleanup" under Additional goals).
 - **Grouped view:** group by name, then type; type filter chips; toggle relative / full names;
   IDNs shown in Unicode with the punycode form available.
   As built: a chip per record type present (none selected: all), a Relative / Full names
