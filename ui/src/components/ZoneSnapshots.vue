@@ -35,9 +35,7 @@
         <cv-form class="take-row mg-bottom-md" @submit.prevent="create">
           <NsTextInput
             v-model.trim="label"
-            :label="
-              $t('snapshots.label') + ' (' + $t('wizard.optional') + ')'
-            "
+            :label="$t('snapshots.label') + ' (' + $t('wizard.optional') + ')'"
             :placeholder="$t('snapshots.label_placeholder')"
             maxlength="200"
             :disabled="loading.list || loading.create"
@@ -73,11 +71,7 @@
           </template>
         </NsEmptyState>
         <div v-else>
-          <div
-            v-for="s in snapshots"
-            :key="s.id"
-            class="snapshot mg-bottom-sm"
-          >
+          <div v-for="s in snapshots" :key="s.id" class="snapshot mg-bottom-sm">
             <div class="snapshot-head">
               <div>
                 <strong>{{ when(s.time) }}</strong>
@@ -174,11 +168,7 @@
               <h6 v-if="rowsOf(part).length" class="mg-bottom-sm mg-top-md">
                 {{ $t("snapshots.part_" + part) }}
               </h6>
-              <div
-                v-for="row in rowsOf(part)"
-                :key="row.key"
-                class="diff-row"
-              >
+              <div v-for="row in rowsOf(part)" :key="row.key" class="diff-row">
                 <NsCheckbox
                   v-model="selected"
                   :value="row.key"
@@ -383,7 +373,12 @@ export default {
         const out = await this.callAction("diff-snapshot", {
           data: { zone: this.zone, id: s.id },
         });
-        this.diff = { id: s.id, time: s.time, remove: out.remove, add: out.add };
+        this.diff = {
+          id: s.id,
+          time: s.time,
+          remove: out.remove,
+          add: out.add,
+        };
         this.selected = this.rows.map((r) => r.key);
       } catch (err) {
         this.error.diff = this.errorText(err);

@@ -127,7 +127,8 @@ export function joinLines(text) {
   return (text || "").replace(/\s*[\r\n]+\s*/g, "").trim();
 }
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const IPV4 =
+  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const LABEL = "[A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?";
 const HOST = new RegExp(`^(\\*\\.)?${LABEL}(\\.${LABEL})*\\.?$`);
 
@@ -199,18 +200,30 @@ export function validate(type, v) {
       need("target", isHost(v.target, false), "record_form.invalid_host");
       break;
     case "MX":
-      need("preference", inRange(v.preference, 0, 65535), "record_form.invalid_16bit");
+      need(
+        "preference",
+        inRange(v.preference, 0, 65535),
+        "record_form.invalid_16bit"
+      );
       need("exchange", isHost(v.exchange, true), "record_form.invalid_host");
       break;
     case "SRV":
-      need("priority", inRange(v.priority, 0, 65535), "record_form.invalid_16bit");
+      need(
+        "priority",
+        inRange(v.priority, 0, 65535),
+        "record_form.invalid_16bit"
+      );
       need("weight", inRange(v.weight, 0, 65535), "record_form.invalid_16bit");
       need("port", inRange(v.port, 0, 65535), "record_form.invalid_16bit");
       need("target", isHost(v.target, true), "record_form.invalid_host");
       break;
     case "CAA":
       need("flags", inRange(v.flags, 0, 255), "record_form.invalid_flags");
-      need("tag", /^[A-Za-z0-9]+$/.test(v.tag.trim()), "record_form.invalid_tag");
+      need(
+        "tag",
+        /^[A-Za-z0-9]+$/.test(v.tag.trim()),
+        "record_form.invalid_tag"
+      );
       need("value", !v.value.includes('"'), "record_form.invalid_caa_value");
       break;
     case "TXT": {

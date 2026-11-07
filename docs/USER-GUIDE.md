@@ -2,7 +2,7 @@
 
 This guide is for the person who administers an NS8 node. It explains what dnshelper does, how to
 give it access to your DNS host, how to decide which modules may change which records, and how to
-check that everything works. Developers who want to call dnshelper from their own module should
+check that everything works, and how to manage your zones' records yourself. Developers who want to call dnshelper from their own module should
 read the [main README](../README.md) instead.
 
 - [What dnshelper does](#what-dnshelper-does)
@@ -10,7 +10,8 @@ read the [main README](../README.md) instead.
 - [Adding a zone](#adding-a-zone)
 - [Managing zones and credentials](#managing-zones-and-credentials)
 - [Letting modules change DNS records](#letting-modules-change-dns-records)
-- [Trying it out: the Records page](#trying-it-out-the-records-page)
+- [Working with records](#working-with-records)
+- [Settings](#settings)
 - [Seeing what happened: the audit log](#seeing-what-happened-the-audit-log)
 - [Backup and restore](#backup-and-restore)
 - [When something goes wrong](#when-something-goes-wrong)
@@ -37,8 +38,9 @@ The pages of the application, in the side menu:
 |---|---|
 | **Status** | How many zones and rules there are, and a shortcut to the audit log |
 | **Zones** | The zones dnshelper manages, and the credentials they use |
-| **Records** | Look at the records of a zone, and add or delete one |
+| **Records** | See and change the records of a zone: edit them, change many at once, import and export zone files, undo changes |
 | **Access** | The rules that decide what each module may change |
+| **Settings** | How many snapshots of each zone are kept, and for how long |
 | **About** | Version and links |
 
 ## Before you start
@@ -217,42 +219,188 @@ The **Access** page also shows the line that a module's developers add to their 
 module may call dnshelper at all (`org.nethserver.authorizations=dnshelper@cluster:dnswriter`).
 You do not need to do anything with it: it is there for people who write modules.
 
-## Trying it out: the Records page
+## Working with records
 
-**Records** lets you see and change the records of a zone yourself, through dnshelper and the
-credential the zone uses. It is the quickest way to check that everything works before a module
-depends on it. It is meant for trying dnshelper and for the occasional change, not as a full DNS
-editor: there is no in-place editing and no bulk change.
+**Records** lets you see and change the records of your zones yourself, through dnshelper and the
+credential each zone uses. It works the same for every DNS host. Changes are made at your DNS host
+at once, and they are real: deleting the record of a running service takes the service down.
 
 ![The Records page](images/records.png)
 
-Pick a zone, and the table lists its records: the zone itself first, then by name and type. You
-can search and sort. Long values, such as a DKIM key, are shortened; hover over one to see all of
-it. **Refresh** reads the zone again.
+- [Finding records](#finding-records)
+- [Adding, editing and deleting a record](#adding-editing-and-deleting-a-record)
+- [Records written by modules](#records-written-by-modules)
+- [Collecting changes and applying them together](#collecting-changes-and-applying-them-together)
+- [Changing many records at once](#changing-many-records-at-once)
+- [Exporting and importing a zone file](#exporting-and-importing-a-zone-file)
+- [Snapshots: undoing changes](#snapshots-undoing-changes)
+- [PTR records](#ptr-records)
+- [Checking that a change has reached the name servers](#checking-that-a-change-has-reached-the-name-servers)
 
-**Add record** asks for a name (`www`, or `@` for the zone itself), a type, a value and an optional
-TTL. The type list only offers what your DNS host can handle, and the field shows an example of
-what the value looks like for that type. Existing records are never changed by adding one.
+### Finding records
+
+Pick a zone, and the table lists its records: the zone itself (`@`) first, then by name and type.
+When a name repeats the row above it is shown in grey, so the records of one name read as a group.
+You can search and sort, and **Refresh** reads the zone again. Long values, such as a DKIM key,
+are shortened; hover over one to see all of it.
+
+The buttons next to **Types** show only the record types you pick (pick several, or **All types**
+to see everything again). **Full names** shows `www.example.com` instead of `www`. Names in other
+scripts (`xn--...`) are shown as you would write them, such as `bücher.example`; hover over one to
+see how it is stored.
+
+![TXT records only, with full names](images/records-filtered.png)
+
+The zone's own NS and SOA records are marked **Read-only**: they belong to your DNS host, and
+dnshelper never changes them.
+
+### Adding, editing and deleting a record
+
+**Add record** asks for a name (`www`, or `@` for the zone itself), a type and the value, and an
+optional TTL. The type list only offers what your DNS host can handle. The value has a form of its
+own for the common types:
+
+- **A** and **AAAA**: the address, checked as you type.
+- **CNAME**, **NS** and **PTR**: a host name, such as `host.example.net`. dnshelper adds the final
+  dot. An NS record at `@` is refused (the zone's own name servers belong to your DNS host); an NS
+  record at another name delegates that name to other name servers.
+- **MX**: the preference (lower is tried first) and the mail server. A single `.` as the mail
+  server means the domain receives no mail.
+- **SRV**: priority, weight, port and target. The name says which service it is, such as
+  `_autodiscover._tcp`.
+- **CAA**: flags (usually 0), tag (`issue`, `issuewild` or `iodef`) and value, such as
+  `letsencrypt.org`.
+- **TXT**: the text, without quotes. It shows how many bytes it takes; a value longer than 255
+  bytes is split for you. Line breaks are removed, so you can paste a DKIM key as your mail server
+  gives it. The form recognises SPF, DKIM and DMARC records, and warns when a name would get a
+  second SPF record, which makes SPF checks fail.
+
+Leave the TTL empty to use your DNS host's default. Some hosts have a minimum TTL and raise a
+shorter one (see [When something goes wrong](#when-something-goes-wrong)).
 
 ![Adding a record](images/records-add.png)
 
-Some notes about values:
+The three dots at the end of a row open a menu with **Edit**, **Check propagation** and
+**Delete**. **Edit** opens the same form with the record's values. Saving replaces the record in
+one step, so you can also change its type, for example turn an A record into a CNAME. If the
+record was changed at your DNS host since the page was loaded (by another module, or in your DNS
+host's own control panel), nothing is changed and dnshelper tells you so: choose **Reload the
+records** and try again.
 
-- A TXT record is one plain piece of text. Do not add quotes: dnshelper does that where the DNS
-  host needs them.
-- MX values are `priority target`, such as `10 mail.example.com.`; SRV values are
-  `priority weight port target`.
-- Leave the TTL empty to use your DNS host's default. Some hosts have a minimum TTL and raise a
-  shorter one, so the record you see afterwards can have a different TTL from the one you typed.
+![Editing a record](images/records-edit.png)
 
-The three dots at the end of a row let you **delete** the record, after a confirmation. Other
-records with the same name stay. The zone's NS and SOA records cannot be deleted.
+**Delete** removes the record, after a confirmation. Other records with the same name stay.
 
 ![Deleting a record](images/records-delete.png)
 
-Changes are made at your DNS host at once, and they are real: deleting the record of a running
-service takes the service down. Records that other modules rely on (for example a mail server's
-DKIM key) are best left to the module.
+### Records written by modules
+
+A record that a module wrote through dnshelper carries a tag with the module's name, such as
+**by mail1**. Editing or deleting it shows a warning: the module may rely on the record, and may
+write it again. Records written before dnshelper kept track of this (version 0.6.0) carry no tag.
+
+When a module is removed from the cluster, the records only it wrote are not deleted. They are
+marked **from removed automx1**, and the page lists them: **Add deleting them to pending changes**
+puts their deletion in the pending changes (below), to review and apply, and **Keep them** keeps
+them as ordinary records. A record that another installed module also wrote stays that module's:
+when you move a module to another node, the copy takes over its records.
+
+![Records left by a removed module](images/records-removed-module.png)
+
+### Collecting changes and applying them together
+
+**Add record**, **Edit** and **Delete** apply at once when you choose **Add record**, **Save** or
+**Delete**. Each dialog also has **Add to pending**, which collects the change instead. The pending
+changes are listed above the table, each with **Undo**; the rows they touch are tagged and cannot
+be changed again until then. While changes are pending, the zone cannot be switched.
+
+![Pending changes](images/records-pending.png)
+
+**Review and apply** first asks dnshelper what would actually happen, without changing anything:
+a change that turns out to change nothing is left out, and a change that would break the zone
+(such as a CNAME next to other records) or a record that was changed at your DNS host meanwhile is
+reported before anything is written. **Apply** then makes all the changes in one step. **Discard
+all** forgets them.
+
+![Reviewing the pending changes](images/records-review.png)
+
+Very many changes (more than 100 records to remove or to add) are applied in parts, one after the
+other; the review says so. If one part fails, the parts before it stay applied.
+
+### Changing many records at once
+
+Tick the records you want, or **Select all on this page**, and then:
+
+- **Delete selected** adds their deletion to the pending changes.
+- **Set TTL** gives them all one TTL, for example a short one before you move a service.
+- **Find and replace** changes text in record values, such as pointing every record at a new host
+  or changing an address. It works on the ticked records, or on the whole zone, and can be limited
+  to one type and to names matching a pattern (`*` for any characters, `?` for one). It shows what
+  would change before anything is added to the pending changes.
+
+![Find and replace](images/records-find.png)
+
+All three go through the pending changes: nothing is changed until you review and apply.
+
+### Exporting and importing a zone file
+
+**Export** downloads the zone as a zone file in BIND format (`example.com.zone`). It is a record
+of the zone, and the way to move a zone to another DNS host.
+
+**Import** reads a zone file: paste it, or choose a file. Choose whether to **add** only the
+records the zone does not have, or to **make the zone match the file**, which also removes the
+records the file does not have, including records other modules wrote. **Preview** shows what
+would change and what is left out: the SOA record, the zone's own NS records, and names outside
+the zone. **Add ... to pending changes** collects the changes; nothing is changed until you review
+and apply. `$INCLUDE` lines are not allowed.
+
+![Importing a zone file](images/records-import.png)
+
+### Snapshots: undoing changes
+
+Before every change made through dnshelper (from this page or by another module), dnshelper keeps
+a **snapshot** of the zone as it was. **Snapshots** lists them, newest first, each with what was
+changed after it, by whom, and whether it worked. **Take snapshot** keeps one now, with a label
+such as "before the server move". **Download** gives you a snapshot as a zone file.
+
+![Snapshots](images/records-snapshots.png)
+
+**Compare and revert** lists what would have to change to make the zone as it was in that
+snapshot. Untick anything you want to keep as it is now, then apply. Records written by another
+module since the snapshot are marked: reverting them may break that module until it writes them
+again. Reverting is itself a change, so you can undo it the same way.
+
+![Comparing with a snapshot](images/records-revert.png)
+
+How many snapshots are kept, and for how long, is set on the [Settings](#settings) page. Deleting
+a zone on the **Zones** page deletes its snapshots too.
+
+### PTR records
+
+If dnshelper also manages the reverse zone of an address (for example `2.0.192.in-addr.arpa` for
+`192.0.2.30`, typically a zone adopted from the PowerDNS module), adding or editing an A or AAAA
+record offers to set its PTR record too, and shows what the PTR points to now. Changing the
+address offers to remove the old address's PTR; deleting the record offers to delete its PTR.
+This is done right after the record is saved, as a separate change to the reverse zone, and not
+with **Add to pending**. Today only the PowerDNS host stores PTR records through dnshelper.
+
+### Checking that a change has reached the name servers
+
+**Check propagation**, in a record's menu, asks each of the zone's name servers directly what it
+serves for that name and type, and compares it with your DNS host: **Up to date**, **Different**
+(not there yet), or **No answer**. **Check again** repeats it. A change usually reaches all name
+servers within seconds to minutes. Resolvers that cached the old answer keep it until its TTL runs
+out, so a short TTL before a planned change makes it take effect sooner.
+
+![Checking propagation](images/records-propagation.png)
+
+## Settings
+
+**Settings** holds how many snapshots dnshelper keeps for each zone, and for how long. Older
+snapshots are deleted when there are more than that, or when they are older; the latest snapshot
+of a zone is always kept. The defaults are 50 snapshots and 90 days.
+
+![Settings](images/settings.png)
 
 ## Seeing what happened: the audit log
 
@@ -266,12 +414,14 @@ dnshelper audit: caller="module/mail1" action="append-records" result="ok"
 ```
 
 `caller` is the module (or your administrator name for changes from the Records page), `result` is
-`ok` or `rejected`, and a rejection carries the reason. Credentials never appear in the log.
+`ok` or `rejected`, and a rejection carries the reason. Credentials never appear in the log. The
+[snapshots](#snapshots-undoing-changes) of a zone show the same changes on the Records page.
 
 ## Backup and restore
 
 dnshelper's backup includes its zones, its access rules **and its credentials**, because a restore
-would otherwise leave you with zones that cannot be changed. After a restore, everything is back
+would otherwise leave you with zones that cannot be changed. It also includes the zones'
+snapshots, the settings, and which module wrote which record. After a restore, everything is back
 and the credentials still work.
 
 Because the credentials are in the backup, treat your backup destination as sensitive. NS8
@@ -290,6 +440,8 @@ These are the messages you may see, with what to check.
 | That would leave the zone invalid | The change would break DNS rules, most often a CNAME next to other records with the same name, or a CNAME at the zone itself. Remove the conflicting record first |
 | That record cannot be changed | dnshelper never changes a zone's NS and SOA records. Some DNS hosts also cannot store certain characters: Cloudflare, name.com, RFC 2136 and Vultr do not accept a TXT value that contains a double quote or a backslash, DigitalOcean and Porkbun one that contains a backslash, and Hetzner one that starts or ends with a double quote. DigitalOcean also refuses an underscore in the name of an A or AAAA record, and Linode an SRV record below a subdomain (it only stores `_service._protocol` directly under the zone) |
 | This DNS host does not support that | The DNS host cannot do it: for example a record type it does not handle. The review step of the wizard lists what it can do |
+| The zone was changed since it was read; compare again | A record you edited, deleted or reverted is no longer the same at your DNS host: a module or someone else changed it after the page was loaded. Nothing was changed. Choose **Reload the records** (or **Refresh**) and do it again |
+| The PTR record was not changed | The record was saved, but changing its PTR record in the reverse zone failed; the message says why. Change the PTR record on its own in the reverse zone |
 | The credential is still used by a zone | Change the zone's credential, or delete the zone, before deleting the credential |
 | This zone (or credential) is adopted from PowerDNS and cannot be changed here | It belongs to the PowerDNS module. Change or remove it there; dnshelper follows within seconds |
 | More than one PowerDNS primary | More than one PowerDNS module claims to be the primary. dnshelper changes nothing until only one is left: remove the extra one |
@@ -305,6 +457,11 @@ A few more things that look like problems and are not:
   beyond that it says how long to wait before trying again.
 - **Core-Networks limits how often you can log in.** dnshelper logs in once and reuses the session for
   up to an hour. If you see that logins are limited, wait a few minutes and try again.
+- **Check propagation says "No answer" for some addresses.** The name server did not answer from
+  your NethServer. "No answer over IPv6" usually means that your NethServer has no working IPv6
+  connection, not that the name server is down.
+- **A record's "by" tag disappeared.** You edited it, or deleted and added it again: it is then
+  your record, not the module's.
 - **The zone list is empty or the wizard asks you to type the zone.** Some credentials are not
   allowed to list zones, and some DNS hosts cannot. Type the zone name.
 

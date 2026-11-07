@@ -8,7 +8,9 @@
 <template>
   <cv-tile class="pending" kind="standard">
     <div class="pending-head">
-      <h5>{{ $tc("pending.title", changes.length, { count: changes.length }) }}</h5>
+      <h5>
+        {{ $tc("pending.title", changes.length, { count: changes.length }) }}
+      </h5>
       <div>
         <NsButton
           kind="primary"

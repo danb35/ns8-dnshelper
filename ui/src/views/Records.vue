@@ -319,15 +319,21 @@
                     />
                     <NsTag
                       v-if="orphanOf(row)"
-                      :label="$t('owners.orphan_tag', { module: orphanOf(row) })"
-                      :title="$t('owners.orphan_help', { module: orphanOf(row) })"
+                      :label="
+                        $t('owners.orphan_tag', { module: orphanOf(row) })
+                      "
+                      :title="
+                        $t('owners.orphan_help', { module: orphanOf(row) })
+                      "
                       kind="magenta"
                       class="mg-left-sm"
                     />
                     <NsTag
                       v-if="pendingKeys[keyOf(row)]"
                       :label="$t('pending.row_' + pendingKeys[keyOf(row)])"
-                      :kind="pendingKeys[keyOf(row)] === 'delete' ? 'red' : 'purple'"
+                      :kind="
+                        pendingKeys[keyOf(row)] === 'delete' ? 'red' : 'purple'
+                      "
                       class="mg-left-sm"
                     />
                   </cv-data-table-cell>
@@ -738,7 +744,9 @@ export default {
     rows() {
       return this.records
         .map((r, index) => ({ ...r, index }))
-        .filter((r) => !this.typeFilter.length || this.typeFilter.includes(r.type));
+        .filter(
+          (r) => !this.typeFilter.length || this.typeFilter.includes(r.type)
+        );
     },
     // the record types in the zone, for the type filter
     presentTypes() {
@@ -995,7 +1003,11 @@ export default {
           await this.callAction("apply-changes", {
             data: {
               zone: p.zone,
-              remove: p.remove.map((r) => ({ name: r.name, type: r.type, data: r.data })),
+              remove: p.remove.map((r) => ({
+                name: r.name,
+                type: r.type,
+                data: r.data,
+              })),
               add: p.add,
               label: this.$t("ptr.label", { host }),
             },
@@ -1020,7 +1032,9 @@ export default {
       }
       if (this.oldPtrRemovable && this.ptrOld.wanted) {
         const o = this.oldPtr;
-        const remove = this.ptrOld.current.filter((r) => pointsTo(r.data, o.host));
+        const remove = this.ptrOld.current.filter((r) =>
+          pointsTo(r.data, o.host)
+        );
         const same = plans.find((p) => p.zone === o.zone);
         if (same) {
           same.remove = same.remove.concat(remove);
@@ -1049,7 +1063,9 @@ export default {
     },
     // rows of one name read as a group: the name is dimmed after the first
     sameAsPrevious(i) {
-      return i > 0 && this.page[i - 1] && this.page[i - 1].name === this.page[i].name;
+      return (
+        i > 0 && this.page[i - 1] && this.page[i - 1].name === this.page[i].name
+      );
     },
     keyOf(row) {
       return recordKey(row);
@@ -1074,14 +1090,17 @@ export default {
     stageChanges(changes) {
       const out = stage(this.pending, changes);
       this.pending = out.pending;
-      const staged = new Set(changes.filter((c) => c.old).map((c) => recordKey(c.old)));
+      const staged = new Set(
+        changes.filter((c) => c.old).map((c) => recordKey(c.old))
+      );
       this.selected = this.selected.filter((k) => !staged.has(k));
       this.notice = {
         title: this.$t("pending.staged_title"),
         text:
           this.$tc("pending.staged", out.added, { count: out.added }) +
           (out.skipped
-            ? " " + this.$tc("pending.skipped", out.skipped, { count: out.skipped })
+            ? " " +
+              this.$tc("pending.skipped", out.skipped, { count: out.skipped })
             : ""),
       };
     },
@@ -1091,7 +1110,9 @@ export default {
     },
     undoRow(row) {
       const key = recordKey(row);
-      this.pending = this.pending.filter((c) => !(c.old && recordKey(c.old) === key));
+      this.pending = this.pending.filter(
+        (c) => !(c.old && recordKey(c.old) === key)
+      );
       this.clearPendingNotice();
     },
     discardPending() {
@@ -1122,7 +1143,10 @@ export default {
     },
     stageSelectedDelete() {
       this.stageChanges(
-        this.selectedRecords.map((r) => ({ kind: "delete", old: this.plain(r) }))
+        this.selectedRecords.map((r) => ({
+          kind: "delete",
+          old: this.plain(r),
+        }))
       );
     },
     showTtl() {
@@ -1160,9 +1184,7 @@ export default {
       this.loading.export = false;
     },
     stageFromFind(changes) {
-      this.stageChanges(
-        changes.map((c) => ({ ...c, old: this.plain(c.old) }))
-      );
+      this.stageChanges(changes.map((c) => ({ ...c, old: this.plain(c.old) })));
       this.isFindShown = false;
     },
     onApplied({ applied, complete }) {
@@ -1194,11 +1216,15 @@ export default {
       this.formDraft = null;
       this.ptr = { wanted: true, current: [], key: "" };
       this.ptrOld = { wanted: true, current: [] };
-      const old = record ? ptrTarget(record, this.zone, this.reverseZones) : null;
+      const old = record
+        ? ptrTarget(record, this.zone, this.reverseZones)
+        : null;
       if (old) {
         this.lookupPtr(old).then((found) => {
           if (this.current === record) {
-            this.ptrOld.current = found.filter((r) => pointsTo(r.data, old.host));
+            this.ptrOld.current = found.filter((r) =>
+              pointsTo(r.data, old.host)
+            );
           }
         });
       }

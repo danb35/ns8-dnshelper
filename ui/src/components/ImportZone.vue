@@ -115,9 +115,7 @@
     </template>
     <template slot="secondary-button">{{ core.$t("common.cancel") }}</template>
     <template slot="primary-button">{{
-      plan
-        ? $tc("bulk.stage", count, { count })
-        : $t("import.preview")
+      plan ? $tc("bulk.stage", count, { count }) : $t("import.preview")
     }}</template>
   </NsModal>
 </template>
@@ -196,7 +194,9 @@ export default {
         this.plan = null;
         this.error =
           err && err.kind === "validation"
-            ? err.errors.map((e) => e.message || this.validationText(e)).join(" ")
+            ? err.errors
+                .map((e) => e.message || this.validationText(e))
+                .join(" ")
             : this.errorText(err);
       }
       this.loading = false;

@@ -6,7 +6,8 @@ modules create, edit and remove DNS records through DNS hosts' APIs, using
 and the build order.
 
 **Administering it?** The [user guide](docs/USER-GUIDE.md) explains adding zones, deciding which
-modules may change which records, and trying it out, with screenshots. This README is for people
+modules may change which records, and working with records (editing, bulk changes, zone files,
+snapshots), with screenshots. This README is for people
 who build, test or call dnshelper.
 
 ## Status
