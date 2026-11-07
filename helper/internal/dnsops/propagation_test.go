@@ -134,6 +134,12 @@ func TestPropagationErrorsAndFallback(t *testing.T) {
 	if len(r.Servers) != 2 || r.Servers[0].Status != "error" || r.Servers[1].Status != "error" {
 		t.Fatalf("errors: %+v", r.Servers)
 	}
+	// over IPv6, the message points at the node's own connectivity
+	o.Resolver = fakeResolver{ns: []string{"::1"}}
+	r = ok(t)(o.CheckPropagation(ctx, &contract.Filter{Name: "www", Type: "A"}))
+	if !strings.Contains(r.Servers[0].Message, "IPv6") {
+		t.Errorf("IPv6 message: %+v", r.Servers)
+	}
 	// every server carries a list of values, even an empty one (validate-output.json)
 	for _, s := range r.Servers {
 		if s.Values == nil {

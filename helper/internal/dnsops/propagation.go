@@ -157,6 +157,10 @@ func askServer(ctx context.Context, host, addr, port, fqdn string, qtype uint16,
 	switch {
 	case err != nil:
 		c.Status, c.Message = "error", "no answer"
+		if ip := net.ParseIP(addr); ip != nil && ip.To4() == nil {
+			// the usual cause is the node, not the name server
+			c.Message = "no answer over IPv6; this node may have no working IPv6"
+		}
 		return c
 	case r.Rcode != dns.RcodeSuccess && r.Rcode != dns.RcodeNameError:
 		c.Status, c.Message = "error", "answered "+dns.RcodeToString[r.Rcode]
