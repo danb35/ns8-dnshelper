@@ -180,6 +180,7 @@
                 v-for="t in presentTypes"
                 :key="t"
                 :kind="typeFilter.includes(t) ? 'primary' : 'tertiary'"
+                :aria-pressed="typeFilter.includes(t) ? 'true' : 'false'"
                 size="small"
                 class="type-chip"
                 @click="toggleType(t)"
@@ -1347,6 +1348,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@import "~@nethserver/ns8-ui-lib/src/lib-styles/branding";
 @import "../styles/carbon-utils";
 
 .section-intro {
@@ -1375,6 +1377,14 @@ export default {
 .type-chip {
   min-height: 2rem;
   padding-right: $spacing-05;
+}
+
+// Carbon fills a focused tertiary button, so a chip just switched off kept
+// looking selected while it had the focus. Keep the outline look; the focus
+// ring (border and inset shadow) stays.
+.type-chip.bx--btn--tertiary:focus:not(:hover):not(:active) {
+  background-color: transparent;
+  color: $interactive-03;
 }
 
 .same-name {
