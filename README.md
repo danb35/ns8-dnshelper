@@ -343,13 +343,14 @@ ns8-powerdns zones", and powerdns DESIGN §8.
 
 ## Providers
 
-Supported providers today: Cloudflare, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, OVHcloud, Porkbun,
-PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, IONOS, Linode, name.com, OVHcloud, Porkbun, Route 53 and Vultr against
+Supported providers today: Cloudflare, ClouDNS, Core-Networks (core-networks.de, new in 0.2.0), deSEC, DigitalOcean, Gandi LiveDNS, GoDaddy, Google Cloud DNS, Hetzner (Cloud DNS API), IONOS, Linode (Akamai), name.com, OVHcloud, Porkbun,
+PowerDNS (HTTP API), RFC 2136, Amazon Route 53 and Vultr. All have been tested live: Cloudflare, ClouDNS, Core-Networks, deSEC, DigitalOcean, Gandi, GoDaddy, Google Cloud DNS, Hetzner, IONOS, Linode, name.com, OVHcloud, Porkbun, Route 53 and Vultr against
 real zones, PowerDNS 4.9 and 5.0 in Docker (see [helper/testdata/powerdns](helper/testdata/powerdns/README.md)), RFC 2136 against a local BIND (see [helper/testdata/bind](helper/testdata/bind/README.md)) and Technitium DNS Server 15.5 in Docker (see [helper/testdata/technitium](helper/testdata/technitium/README.md)).
 
 | Provider | Credentials | Record types | Zones listed in the wizard |
 |---|---|---|---|
 | Cloudflare | API token with Zone:DNS:Edit, and a Zone:Read token if the first is scoped to one zone | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
+| ClouDNS | API user ID, or the ID or name of an API sub-user (preferred: one limited to the zones dnshelper manages), and its password | A, AAAA, CAA, CNAME, MX, NS, PTR, SRV, TXT | Yes |
 | Core-Networks ([core-networks.de](https://www.core-networks.de/)) | Login and password of an API account (made under API user accounts in the Core-Networks web interface; not the login of the web interface) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes (master zones) |
 | deSEC | API token (no permission to create or delete domains needed) | A, AAAA, CAA, CNAME, MX, NS, SRV, TXT | Yes |
 | DigitalOcean | Personal access token with custom scopes: `domain` create, read, update and delete | A, AAAA, CNAME, MX, NS, SRV, TXT | Yes |
@@ -397,6 +398,15 @@ What to know about each provider:
   change one request, waits up to 90 seconds when the limit is reached, and otherwise reports how
   long to wait. TXT values, including ones with `"` or `\`, are stored as written. dnshelper talks
   to the API itself rather than through `github.com/libdns/desec` (see below).
+- **ClouDNS**: API users and sub-users are made under **API & Resellers** in the ClouDNS control
+  panel; not every ClouDNS plan includes API access. An API user (`auth_id`) reaches every zone
+  of the account; prefer a **sub-user** given only the zones dnshelper manages, and give its ID
+  (`sub_auth_id`) or its name (`sub_auth_user`). Give exactly one of the three. If the user or
+  sub-user has an allowed IP address, it must be the NethServer node's public address. ClouDNS
+  accepts only certain TTLs (60, 300, 900, 1800, 3600, 21600, 43200, 86400 and longer), and a TTL
+  in between is rounded up to the next one. TXT values containing `"` or `\` are refused: ClouDNS
+  drops the quote, and its name servers drop the backslash. Tested live with an API user; a
+  sub-user was not tested.
 - **DigitalOcean**: a token cannot be limited to some domains; it can change every domain of the
   account (or team), so keep zones you do not want dnshelper to reach elsewhere. TTLs under 30
   seconds are raised to 30, and a record without a TTL gets the zone's default (1800). TXT values
@@ -576,12 +586,15 @@ has no buildah.
 The providers, their credentials and their limits are described under [Providers](#providers). The
 live tests are in `helper/internal/app/live_test.go`, skipped unless a provider's variables are set
 (never put tokens or keys in a file). They found these provider-package quirks, handled in
-`registry/providers.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/googleclouddns.go`, `registry/ionos.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/ovh.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
+`registry/providers.go`, `registry/cloudns.go`, `registry/hetzner.go`, `registry/godaddy.go`, `registry/desec.go`, `registry/digitalocean.go`, `registry/gandi.go`, `registry/googleclouddns.go`, `registry/ionos.go`, `registry/linode.go`, `registry/namedotcom.go`, `registry/ovh.go`, `registry/porkbun.go`, `registry/powerdns.go`, `registry/route53.go`, `registry/vultr.go`,
 `dnsops` and the registry's `TXTForbidden`:
 
 - Cloudflare returns long TXT values with `" "` between strings and only deletes them when the
   outer quotes are present (a small adapter fixes the delete).
 - Cloudflare's `SetRecords` fails on multi-member RRsets, hence set-records is delete + append.
+- The libdns ClouDNS package (v1.2.0) is used as it is, with an adapter that turns ClouDNS's
+  refusals (always HTTP 200 with `"status": "Failed"`) into structured errors. It sends MX and SRV
+  priority, weight and port as explicit values, 0 included, and deletes by record ID.
 - Cloudflare and RFC 2136 do not round-trip TXT values containing `"` or `\`, so those are refused.
 - The libdns Hetzner package v1 talks to the retired DNS Console API (`dns.hetzner.com` now
   redirects and answers with HTML); v2 uses the Cloud DNS API and needs a Hetzner Cloud API

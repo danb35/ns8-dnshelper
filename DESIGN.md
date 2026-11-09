@@ -81,6 +81,9 @@ change event when zones change (follow the documented event naming convention).
   replaced by `registry/ionos.go`. 2026-09-28: `libdns/ovh` v1.1.0 only knows OVH's older
   application-key login, not OAuth2 service accounts; `registry/ovh.go` talks to the API itself and
   takes either.
+  2026-11-09: `libdns/cloudns` v1.2.0 (libdns v1 API) is used as it is, behind a small adapter
+  (`registry/cloudns.go`) that maps ClouDNS's `"status": "Failed"` answers to structured errors;
+  tested live. ClouDNS drops `"` from TXT values and its name servers drop `\`, so both are refused.
 - 2026-09-23: live SRV creation through Cloudflare (a real `0 0 443 <target>` record, for
   ns8-automx) failed with a 400 from Cloudflare's own API ("weight is a required data field").
   Root cause: `libdns/cloudflare` v0.2.2 serializes SRV priority/weight/port as plain (non-pointer)
