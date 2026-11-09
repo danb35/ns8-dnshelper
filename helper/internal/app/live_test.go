@@ -61,6 +61,11 @@ package app
 //
 //	DNSHELPER_LIVE_R53_KEY_ID=... DNSHELPER_LIVE_R53_SECRET=... DNSHELPER_LIVE_R53_ZONE=example.com go test ...
 //
+// ClouDNS (an API sub-user; or DNSHELPER_LIVE_CLOUDNS_AUTH_ID or
+// DNSHELPER_LIVE_CLOUDNS_SUB_USER instead of the sub-user ID):
+//
+//	DNSHELPER_LIVE_CLOUDNS_SUB_ID=... DNSHELPER_LIVE_CLOUDNS_PASSWORD=... DNSHELPER_LIVE_CLOUDNS_ZONE=example.com go test ...
+//
 // Vultr:
 //
 //	DNSHELPER_LIVE_VULTR_TOKEN=... DNSHELPER_LIVE_VULTR_ZONE=example.com go test ...
@@ -215,6 +220,19 @@ func liveTarget(provider string) (zone string, cred map[string]string) {
 			return "", nil
 		}
 		return zone, map[string]string{"api_url": u, "api_key": key}
+	case "cloudns":
+		pw, zone := os.Getenv("DNSHELPER_LIVE_CLOUDNS_PASSWORD"), os.Getenv("DNSHELPER_LIVE_CLOUDNS_ZONE")
+		cred = map[string]string{"auth_password": pw}
+		for env, field := range map[string]string{"DNSHELPER_LIVE_CLOUDNS_AUTH_ID": "auth_id",
+			"DNSHELPER_LIVE_CLOUDNS_SUB_ID": "sub_auth_id", "DNSHELPER_LIVE_CLOUDNS_SUB_USER": "sub_auth_user"} {
+			if v := os.Getenv(env); v != "" {
+				cred[field] = v
+			}
+		}
+		if pw == "" || zone == "" || len(cred) != 2 {
+			return "", nil
+		}
+		return zone, cred
 	case "vultr":
 		token, zone := os.Getenv("DNSHELPER_LIVE_VULTR_TOKEN"), os.Getenv("DNSHELPER_LIVE_VULTR_ZONE")
 		if token == "" || zone == "" {
@@ -284,7 +302,7 @@ func liveCacheDir() string {
 	return cacheDir
 }
 
-var allProviders = []string{"cloudflare", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "ionos", "linode", "namedotcom", "ovh", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
+var allProviders = []string{"cloudflare", "cloudns", "corenetworks", "desec", "digitalocean", "gandi", "godaddy", "googleclouddns", "hetzner", "ionos", "linode", "namedotcom", "ovh", "porkbun", "powerdns", "rfc2136", "route53", "vultr"}
 
 func (l *live) name(n int) string { return fmt.Sprintf("%s-%d", l.prefix, n) }
 
@@ -450,6 +468,24 @@ func TestLiveBadCredentialsPowerDNS(t *testing.T) {
 		}
 		if strings.Contains(fmt.Sprint(r.Error), "not-the-key") {
 			t.Fatal("key echoed")
+		}
+	})
+}
+
+func TestLiveBadCredentialsClouDNS(t *testing.T) {
+	eachLive(t, []string{"cloudns"}, func(t *testing.T, l *live) {
+		r := l.run(contract.OpValidate, func(q *contract.Request) {
+			q.Credentials = map[string]string{}
+			for k, v := range l.cred {
+				q.Credentials[k] = v
+			}
+			q.Credentials["auth_password"] = "not-the-password-0123456789"
+		})
+		if r.OK || r.Error.Code != contract.CodeAuthFailed {
+			t.Fatalf("want auth_failed, got ok=%v err=%+v", r.OK, r.Error)
+		}
+		if strings.Contains(fmt.Sprint(r.Error), "not-the-password") {
+			t.Fatal("password echoed")
 		}
 	})
 }

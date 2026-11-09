@@ -67,6 +67,11 @@ package registry
 //     structured priority/weight/port fields at all, just one opaque "data"
 //     string holding the whole zone-file-style RDATA ("0 0 443 target."),
 //     so there's nothing for omitempty to drop.
+//   - cloudns (github.com/libdns/cloudns v1.2.0, added after the audit):
+//     safe. It sends a form, not JSON: priority, weight and port are strings
+//     from strconv.Itoa, set whenever non-empty, so "0" is always sent
+//     (cloudns_test.go asserts it); verified live with a 0 0 443 SRV and an
+//     MX of preference 0.
 //   - hetzner (github.com/libdns/hetzner/v2 v2.0.1): safe, same reasoning as
 //     Core-Networks -- fromRecord() in that package sends the whole RDATA
 //     as one opaque hcloud.ZoneRRSetRecord.Value string, no separate
@@ -117,6 +122,23 @@ func init() {
 		TXTForbidden: "\"\\",
 		New: func(c map[string]string) any {
 			return cloudflareProvider{&cloudflare.Provider{APIToken: c["api_token"], ZoneToken: c["zone_token"]}}
+		},
+	})
+	Register(Def{
+		Name:  "cloudns",
+		Label: "ClouDNS",
+		Fields: []contract.Field{
+			{Name: "sub_auth_id", Label: "API sub-user ID (preferred: a sub-user limited to the zones dnshelper manages)"},
+			{Name: "sub_auth_user", Label: "or the API sub-user's name"},
+			{Name: "auth_id", Label: "or the API user ID (reaches every zone of the account)"},
+			{Name: "auth_password", Label: "Password of that API user or sub-user", Secret: true, Required: true},
+		},
+		Verify:       clouDNSVerify,
+		Types:        []string{"A", "AAAA", "CAA", "CNAME", "MX", "NS", "PTR", "SRV", "TXT"},
+		Notes:        "API users and sub-users are made under API & Resellers in the ClouDNS control panel; not every plan includes API access. Give exactly one of the three IDs. Prefer an API sub-user given only the zones dnshelper manages. If the API user or sub-user has an allowed IP address, it must be the NethServer node's public address. ClouDNS only accepts certain TTLs: a TTL is rounded up to the next one of 60, 300, 900, 1800, 3600, 21600, 43200, 86400 seconds and longer. TXT values containing a double quote or a backslash are refused: ClouDNS drops the quote, and its name servers drop the backslash.",
+		TXTForbidden: "\"\\",
+		New: func(c map[string]string) any {
+			return newClouDNS(c)
 		},
 	})
 	Register(Def{
