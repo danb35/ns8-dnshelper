@@ -66,8 +66,8 @@ appear.
 **If you installed from `danb35.github.io/ns8-repomd`:** dnshelper is no longer listed there. Your
 instance keeps running and needs no reinstall; enable NethForge as above and it is offered updates
 again, because NS8 matches an installed module to a repository by its image
-(`ghcr.io/danb35/dnshelper`). Keep the old repository only if you use
-[automx](https://github.com/danb35/ns8-automx), which is still published there.
+(`ghcr.io/danb35/dnshelper`). [automx](https://github.com/danb35/ns8-automx) has moved to NethForge
+too, so you can remove the old repository unless you use another module still published there.
 
 ### From the command line
 
