@@ -110,6 +110,8 @@ github.com/aws/aws-sdk-go-v2/service/route53 v1.70.7 h1:D32f6QIep61QIxKHDbYuds67
 github.com/aws/aws-sdk-go-v2/service/route53 v1.70.7/go.mod h1:af8K3q0ql+mtoJ+Fw3smE5lf2wzD2vRIoXdKtksDcfY=
 github.com/aws/aws-sdk-go-v2/service/route53 v1.70.10 h1:CSToEknPPik1neAIlinq7RTFG4XYAHqPkW7LwlbqGiU=
 github.com/aws/aws-sdk-go-v2/service/route53 v1.70.10/go.mod h1:ESN88d5omEDCHVFJ+jz01i3w8oYvGVj3lSCYhM6BoL8=
+github.com/aws/aws-sdk-go-v2/service/route53 v1.71.0 h1:z3rXSCR6cqg34XeZlzpYo1txK9EP/lAPh7NxhQSTF7g=
+github.com/aws/aws-sdk-go-v2/service/route53 v1.71.0/go.mod h1:ESN88d5omEDCHVFJ+jz01i3w8oYvGVj3lSCYhM6BoL8=
 github.com/aws/aws-sdk-go-v2/service/signin v1.13.1 h1:ssrDA6AKfXEc3h0Pf4EI4vQ8sN5Zd136SrU9Tjr0XPc=
 github.com/aws/aws-sdk-go-v2/service/signin v1.13.1/go.mod h1:LdwHjKqPE9VCC7sTlWcOAizZx3ZJYjmfwC/EW2tIIAE=
 github.com/aws/aws-sdk-go-v2/service/sso v1.29.4 h1:FTdEN9dtWPB0EOURNtDPmwGp6GGvMqRJCAihkSl/1No=
