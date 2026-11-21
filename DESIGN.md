@@ -619,6 +619,125 @@ Creating and deleting zones, DNSSEC and other zone-level settings belong to the 
 5. Zone file import and export.
 6. The rest, in any order.
 
+## Delegated access for an API module (draft)
+
+Status: design only, nothing implemented. Origin: forum topic 28774, posts 32-37 (2026-11-18/20).
+A hosting operator wants their billing or client portal (Blesta, WHMCS, their own) to manage DNS
+records for their customers through dnshelper, from outside the cluster. A customer control panel
+was deferred (2026-11-21).
+
+**Decision (2026-11-21): a separate module, not part of dnshelper.** The new module (`dnsapi`,
+brief in `docs/dnsapi-DESIGN.md`) does the public HTTPS API, the API keys and the
+tenants. It is an ordinary consumer: one caller, `module/dnsapi1`, limited by the policy table.
+dnshelper gets no service, no route and no authentication of its own, and keeps no idea of
+tenants: dnsapi keeps the tenant -> zone map and checks it, and dnshelper's policy checks that
+dnsapi may write the zone at all. The changes below are what dnshelper needs for that. They are
+general (any consumer can use them), not tied to dnsapi.
+
+### Phase 1: records in zones the administrator grants
+
+- **`apply-changes` in the `dnswriter` role.** It already runs `_require_access` on both lists, so
+  the policy covers it. What a consumer gets is the strict remove (`stale`), which is what an edit
+  from a client panel needs: without it, editing a value someone else has changed since adds a
+  second record. `update-module.d/10grants` re-runs `create-module/30grants`, so existing installs
+  get the role change on update. The `label` input stays allowed (it only shows in the history).
+- **`check-propagation` for modules.** Today `_refuse_modules()` refuses it. Allow a module caller
+  that has a read rule for the zone (the record values it returns are ones the caller may read
+  anyway), and add it to `dnsreader` and `dnswriter`. Optional: dnsapi works without it.
+- **Say how much a module may do in each zone.** For module callers, `list-zones` and `has-zone`
+  add `access`: `write` when some write rule covers the zone, `read` otherwise. They also add
+  `full: true` when a write rule covers every name and type there (names `*`, types `*`). dnsapi
+  offers only `full` zones to its tenants, so the dnshelper Access page is where the administrator
+  decides which zones the API may hand out, and dnsapi cannot widen that. Today `has-zone`'s
+  `allowed` is true for a read-only rule too, and `list-zones` lists the zones with any rule, so
+  neither says enough.
+- **Access page preset** "API module (all records)": write, names `*`, types `*`, on the zones
+  chosen. The safety rails still apply (no SOA, no apex NS, CNAME conflicts).
+- **`on_behalf_of`** (optional input on `append-records`, `set-records`, `delete-records`,
+  `apply-changes`): a short label from the caller, pattern `^[A-Za-z0-9_.@:-]{1,64}$`, such as
+  dnsapi's tenant and key id. It is recorded and shown, never used to decide anything:
+  - in the audit line;
+  - in the snapshot's `changes` entry;
+  - on the Records page history ("dnsapi1 for t1a2b3c4d").
+- **A write with `on_behalf_of` records no owner**, as an administrator's write does today. Any
+  removal still forgets the record. The reason: what a tenant writes through dnsapi is the
+  tenant's record, not one dnsapi needs. If dnsapi became its owner, removing dnsapi would flag
+  every tenant record on the Records page as orphaned and offer to delete it. A side effect: a
+  tenant who edits a record another module wrote takes it over, as an administrator's edit does.
+- **`list-owners` for modules**, limited to the records the caller's rules let it read, and added
+  to `dnsreader` and `dnswriter`. Decision (2026-11-21): a tenant may change records another
+  module wrote in its zones, with a warning. dnsapi needs the owners to give that warning (see
+  `docs/dnsapi-DESIGN.md`, "Records written by other modules").
+- Unchanged: snapshots, export, import, credentials, zones and policy stay admin only.
+
+### Phase 2: delegated zones (the operator's tool adds domains)
+
+The operator's described workflow is "add a domain in our admin tool, assign its provider". That
+means a module creates credentials and zones, which today only an administrator can do.
+
+- **Opt-in per module.** Setting `delegates` (`configure-module`, Settings page): module ids that
+  may add zones. Empty by default. New role `dnszoneadmin`, made up of:
+  - `dnswriter`;
+  - `list-providers`, `list-provider-zones`, `validate-zone`;
+  - `add-credential`, `update-credential`, `remove-credential`;
+  - `add-zone`, `update-zone`, `remove-zone`.
+
+  A module caller not in `delegates` is refused (`not_permitted`), so having the role alone is not
+  enough. That is the same two-step pattern as roles plus the policy table.
+- **Marker `delegated_to: "module/<id>"`** in the credential file, set when a delegate creates it.
+  It is a new field: reusing `managed_by` would break the PowerDNS adoption, because
+  `_apply_sync` treats every credential with `managed_by` as an earlier primary's and deletes it
+  (verified in `dnshelper_lib.py`). A zone is delegated when its credential is. As with adoption,
+  there is one source of truth and zones.json is unchanged.
+- **What a delegate may do:**
+  - create credentials (marked as its own);
+  - update or remove only its own credentials;
+  - add zones only with its own credentials, never an administrator's or a managed one. An
+    administrator's token is often valid for the whole account, so attaching a zone to it would
+    reach zones the administrator never handed out;
+  - update or remove only zones whose credential is its own.
+- **A delegate needs no policy rule for its own zones:** a delegated zone is writable by its
+  delegate as if a rule gave it names `*`, types `*`. Safety rails as everywhere.
+- **Administrator:**
+  - sees a "Delegated to dnsapi1" tag;
+  - can validate and remove delegated objects;
+  - can take one over (clear the marker, so it becomes hand-configured), but not edit it in
+    place.
+
+  Decision (2026-11-21): the administrator cannot edit a delegated credential or zone in place.
+  `update-credential` and `update-zone` refuse it with `delegated` until it is taken over. This
+  stops the delegate and the administrator from rewriting each other's changes. It is the same
+  rule as for adopted PowerDNS objects, except that taking over is possible here.
+  - Take-over is a new admin-only action, `take-over-credential`. It clears the marker on the
+    credential, and so on every zone that uses it, and writes one audit line.
+  - After a take-over, the delegate gets `not_permitted` for those zones, unless a policy rule
+    covers them.
+  - The UI offers "Take over" in place of "Edit" on delegated objects.
+- **The delegate is removed (`module-removed`):** clear the marker. Zones and credentials stay,
+  as the administrator's, and the change is logged. Nothing is deleted automatically, consistent
+  with record ownership: a wrong guess removes live DNS.
+- **Removing a zone** through a delegate does what `remove-zone` does today (snapshots and owner
+  index go with it).
+- **Secrets in transit:** the credential fields reach dnshelper in the task input, as they do
+  from the UI today. dnsapi must not store or log them. `get-configuration` shows them as "set"
+  only, as for every credential.
+- Backup and restore: the marker is in the credential file, already backed up;
+  `check_restored_state` must accept the field.
+
+### Phase 3: zones hosted on ns8-powerdns
+
+"Offer DNS hosting via PowerDNS" means creating the zone itself, which is ns8-powerdns's job
+(libdns cannot create zones). Sketch:
+
+- ns8-powerdns gets a role (for example `zoneadmin`: `add-zone`, `remove-zone`, `get-zone`) that
+  dnsapi asks for with `powerdns@any:zoneadmin`.
+- dnshelper adopts the new zone through `sync-powerdns` as today.
+- Open: an adopted zone is default-deny for other modules, so dnsapi would still need a policy
+  rule for it. Either the administrator adds one, or `add-zone` on powerdns records who asked and
+  dnshelper treats that module as the zone's delegate.
+
+Not designed further until phase 2 is in use.
+
 ## Future improvements
 
 - More DNS hosts
