@@ -16,7 +16,9 @@
                 "required": [
                     "zone",
                     "credential",
-                    "provider"
+                    "provider",
+                    "access",
+                    "full"
                 ],
                 "properties": {
                     "zone": {
@@ -30,6 +32,18 @@
                             "string",
                             "null"
                         ]
+                    },
+                    "access": {
+                        "enum": [
+                            "write",
+                            "read",
+                            "none"
+                        ],
+                        "description": "What the caller may do in the zone: 'write' when some write rule covers it (whatever names and types it allows), 'read' when only read rules do, 'none' otherwise. Always 'write' for administrators"
+                    },
+                    "full": {
+                        "type": "boolean",
+                        "description": "Whether the caller may change every name and type in the zone (a write rule with names '*' and types '*'). Always true for administrators"
                     }
                 }
             }

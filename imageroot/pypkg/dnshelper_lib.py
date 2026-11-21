@@ -326,6 +326,20 @@ def _may(rules, name, rtype, write):
     return any((r['access'] == 'write' or not write) and _covers(r, name, rtype) for r in rules)
 
 
+def _zone_access(zone):
+    """How much the caller may do in a managed zone: {'access': 'write' | 'read'
+    | 'none', 'full': bool}. 'write' when some write rule covers the zone,
+    whatever names and types it allows; 'full' when a write rule allows every
+    name and type there (an API module hands out only such zones)."""
+    if not _restricted():
+        return {'access': 'write', 'full': True}
+    rules = _rules_for(zone)
+    writes = [r for r in rules if r['access'] == 'write']
+    access = 'write' if writes else ('read' if rules else 'none')
+    full = any('*' in r['names'] and '*' in r['types'] for r in writes)
+    return {'access': access, 'full': full}
+
+
 def _require_access(zone, records):
     """Refuse a change the caller's rules do not cover."""
     if not _restricted():
@@ -471,8 +485,9 @@ def list_zones(data):
         if _restricted() and not _rules_for(z):
             continue
         cred = _read_json(_cred_path(v['credential']), None)
-        out.append({'zone': z, 'credential': v['credential'],
-                    'provider': cred['provider'] if cred else None})
+        entry = {'zone': z, 'credential': v['credential'], 'provider': cred['provider'] if cred else None}
+        entry.update(_zone_access(z))
+        out.append(entry)
     return {'zones': out}
 
 
@@ -484,6 +499,7 @@ def has_zone(data):
             best = z
     allowed = best is not None and (not _restricted() or bool(_rules_for(best)))
     out = {'managed': best is not None, 'zone': best, 'allowed': allowed}
+    out.update(_zone_access(best) if best is not None else {'access': 'none', 'full': False})
     if 'records' in data:
         out['records'] = [_record_access(best, r) for r in data['records']]
     return out
@@ -584,9 +600,14 @@ def get_records(data):
     return {'records': records}
 
 
-def _write(op, zone, req, requested_add, requested_remove, label=''):
+def _write(op, zone, req, requested_add, requested_remove, label='', on_behalf_of=''):
     """Run a record-changing helper request and keep a snapshot of the zone
-    as the helper read it just before writing, whether the write worked."""
+    as the helper read it just before writing, whether the write worked.
+
+    on_behalf_of is the caller's own label for whom it acts (an API module's
+    tenant). It is recorded, never used to decide anything, and a write
+    that carries it records no owner, as an administrator's write does: the
+    records are the tenant's, not ones the module needs."""
     resp = _helper_response(req)
     if 'before' in resp:
         ok = bool(resp.get('ok'))
@@ -598,9 +619,11 @@ def _write(op, zone, req, requested_add, requested_remove, label=''):
             change.update(add=requested_add, remove=requested_remove)
         if label:
             change['label'] = label
+        if on_behalf_of:
+            change['on_behalf_of'] = on_behalf_of
         save_snapshot(zone, resp['before'], 'auto', op, change=change)
         if ok:
-            record_owners(zone, resp['changes'], claimed=requested_add)
+            record_owners(zone, resp['changes'], claimed=requested_add, claim=not on_behalf_of)
     return _helper_result(resp)
 
 
@@ -614,7 +637,8 @@ def _change(op):
             if k in data:
                 req[k] = data[k]
         removing = op == 'delete-records'
-        resp = _write(op, zone, req, [] if removing else data['records'], data['records'] if removing else [])
+        resp = _write(op, zone, req, [] if removing else data['records'], data['records'] if removing else [],
+                      on_behalf_of=data.get('on_behalf_of', ''))
         return {'dry_run': bool(resp.get('dry_run')), 'changes': resp['changes'], 'records': resp['records']}
     return handler
 
@@ -625,15 +649,15 @@ delete_records = _change('delete-records')
 
 
 def apply_changes(data):
-    """Remove exact records and add others as one planned change (admin
-    only: in no role). A record to remove that is no longer in the zone fails
-    the whole change with 'stale'."""
+    """Remove exact records and add others as one planned change (role
+    dnswriter, within the policy). A record to remove that is no longer in
+    the zone fails the whole change with 'stale'."""
     zone = normalize_zone(data['zone'])
     remove, add = data.get('remove', []), data.get('add', [])
     _require_access(zone, remove + add)
     req = _zone_request(zone)
     req.update(op='apply-changes', remove=remove, add=add, dry_run=bool(data.get('dry_run')))
-    resp = _write('apply-changes', zone, req, add, remove, data.get('label', ''))
+    resp = _write('apply-changes', zone, req, add, remove, data.get('label', ''), data.get('on_behalf_of', ''))
     return {'dry_run': bool(resp.get('dry_run')), 'changes': resp['changes'], 'records': resp['records']}
 
 
@@ -944,8 +968,11 @@ def load_owners(zone):
     return {k: _owner_entry(v) for k, v in owners.items() if isinstance(v, dict)}
 
 
-def record_owners(zone, changes, claimed=()):
-    """Update the owners of zone after a successful write. Never raises."""
+def record_owners(zone, changes, claimed=(), claim=True):
+    """Update the owners of zone after a successful write. Never raises.
+
+    claim=False (a write on behalf of someone else) only forgets removed
+    records, as an administrator's write does."""
     who = caller()
     try:
         with _SnapshotLock():
@@ -953,7 +980,7 @@ def record_owners(zone, changes, claimed=()):
             before = json.dumps(owners, sort_keys=True)
             for r in changes.get('remove', []):
                 owners.pop(_owner_key(r), None)
-            if who.startswith('module/'):
+            if claim and who.startswith('module/'):
                 for r in list(changes.get('add', [])) + list(claimed or []):
                     if not r.get('type') or not r.get('data'):
                         continue
@@ -1022,10 +1049,15 @@ def release_records(data):
 
 
 def list_owners(data):
-    """The records of a zone that a module wrote (administrators only)."""
-    _refuse_modules()
+    """The records of a zone that a module wrote. A module sees only the
+    records its rules let it read, and needs a rule for the zone."""
     zone = _managed_zone(data)
     owners = sorted(load_owners(zone).values(), key=lambda o: (o['name'], o['type'], o['data']))
+    if _restricted():
+        rules = _rules_for(zone)
+        if not rules:
+            raise ActionError('zone', 'not_permitted', zone, 'this module may not read zone %s' % zone)
+        owners = [o for o in owners if _may(rules, o['name'], o['type'], write=False)]
     return {'zone': zone, 'owners': owners}
 
 
@@ -1033,10 +1065,13 @@ def list_owners(data):
 
 def check_propagation(data):
     """Ask the zone's authoritative name servers for one name and type and
-    compare with the records at the DNS host (administrators only). Reads
-    only; queries go from the node to the name servers."""
-    _refuse_modules()
+    compare with the records at the DNS host. Reads only; queries go from
+    the node to the name servers. A module needs a rule that lets it read
+    that name and type."""
     zone = _managed_zone(data)
+    if _restricted() and not _may(_rules_for(zone), data['name'], data['type'], write=False):
+        what = '%s %s' % (data['name'], data['type'].upper())
+        raise ActionError('name', 'not_permitted', what, 'the policy does not let this module read %s in %s' % (what, zone))
     req = _zone_request(zone)
     req.update(op='check-propagation', filter={'name': data['name'], 'type': data['type']})
     resp = call_helper(req)
@@ -1511,7 +1546,7 @@ def audit_line(action, data, result, outcome, error=None):
     f = [('caller', caller() or '-'), ('action', action), ('result', outcome)]
     if error:
         f.append(('error', error))
-    for key in ('zone', 'id', 'credential', 'provider', 'name'):
+    for key in ('zone', 'id', 'credential', 'provider', 'name', 'on_behalf_of'):
         if isinstance(data.get(key), str):
             f.append((key, data[key]))
     if 'dry_run' in data:

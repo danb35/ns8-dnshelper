@@ -81,6 +81,10 @@
                                 "caller": {
                                     "type": "string"
                                 },
+                                "on_behalf_of": {
+                                    "type": "string",
+                                    "description": "Whom the caller acted for, when it said so"
+                                },
                                 "action": {
                                     "type": "string"
                                 },

@@ -20,11 +20,14 @@ reader_actions=(
     get-records
     list-zones
     has-zone
+    list-owners
+    check-propagation
 )
 writer_actions=(
     append-records
     set-records
     delete-records
+    apply-changes
 )
 redis-exec SADD "${AGENT_ID}/roles/dnsreader" "${reader_actions[@]}"
 redis-exec SADD "${AGENT_ID}/roles/dnswriter" "${reader_actions[@]}" "${writer_actions[@]}"

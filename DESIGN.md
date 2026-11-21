@@ -38,8 +38,8 @@ Status: build order steps 1-7 done (scaffold, Go helper, actions + credential st
 |---|---|
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | UI convention | `configure-module`, `get-configuration` |
-| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns`, `apply-changes` |
-| Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
+| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns` |
+| Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation` |
 
 Each action: `validate-input.json` and `validate-output.json` (NS8 validation framework).
 Record types in the API map to libdns v1 types: CNAME, TXT, SRV, Address (A/AAAA), MX, NS, CAA,
@@ -621,7 +621,8 @@ Creating and deleting zones, DNSSEC and other zone-level settings belong to the 
 
 ## Delegated access for an API module (draft)
 
-Status: design only, nothing implemented. Origin: forum topic 28774, posts 32-37 (2026-11-18/20).
+Status: phase 1 implemented (2026-11-21), unit-tested, not yet tried on a node; phases 2 and 3
+are design only. Origin: forum topic 28774, posts 32-37 (2026-11-18/20).
 A hosting operator wants their billing or client portal (Blesta, WHMCS, their own) to manage DNS
 records for their customers through dnshelper, from outside the cluster. A customer control panel
 was deferred (2026-11-21).

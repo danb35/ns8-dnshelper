@@ -85,6 +85,11 @@
                 "minLength": 1
             },
             "description": "merge mode: existing values starting with one of these are replaced, e.g. 'v=spf1'"
+        },
+        "on_behalf_of": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.@:-]{1,64}$",
+            "description": "Whom the caller acts for, such as an API module's tenant. Recorded in the audit line and the zone's change history, never used to decide anything. A module's write that carries it records no owner for the records, as an administrator's write does"
         }
     }
 }

@@ -120,7 +120,12 @@
                 {{
                   $t("snapshots.change_line", {
                     time: when(c.time),
-                    caller: c.caller,
+                    caller: c.on_behalf_of
+                      ? $t("snapshots.caller_for", {
+                          caller: c.caller,
+                          who: c.on_behalf_of,
+                        })
+                      : c.caller,
                     action: c.label || c.action,
                     add: (c.add || []).length,
                     remove: (c.remove || []).length,

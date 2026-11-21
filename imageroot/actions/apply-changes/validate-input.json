@@ -125,6 +125,11 @@
             "type": "string",
             "maxLength": 200,
             "description": "Shown in the zone's change history, e.g. 'revert to 2026-11-06 10:15'"
+        },
+        "on_behalf_of": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.@:-]{1,64}$",
+            "description": "Whom the caller acts for, such as an API module's tenant. Recorded in the audit line and the zone's change history, never used to decide anything. A module's write that carries it records no owner for the records, as an administrator's write does"
         }
     }
 }
