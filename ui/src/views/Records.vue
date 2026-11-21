@@ -548,6 +548,7 @@
             kind="tertiary"
             size="small"
             :icon="Renew20"
+            type="button"
             @click="reloadAfterStale"
           >
             {{ $t("records.reload") }}
