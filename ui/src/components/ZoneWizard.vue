@@ -159,6 +159,7 @@
               :icon="Search20"
               :loading="discovering"
               :disabled="busy"
+              type="button"
               @click="discover"
             >
               {{ $t("wizard.find_zones") }}
@@ -253,6 +254,7 @@
             :icon="Checkmark20"
             :loading="testing"
             :disabled="busy || writeTest === 'passed'"
+            type="button"
             @click="runWriteTest"
           >
             {{ $t("wizard.run_write_test") }}

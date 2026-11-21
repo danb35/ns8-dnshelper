@@ -24,6 +24,7 @@
             kind="tertiary"
             size="small"
             :disabled="loading"
+            type="button"
             @click="applyPreset(p)"
           >
             {{ $t("access.preset_" + p.key) }}
