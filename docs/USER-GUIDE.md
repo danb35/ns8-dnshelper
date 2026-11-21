@@ -466,6 +466,36 @@ A few more things that look like problems and are not:
 - **The zone list is empty or the wizard asks you to type the zone.** Some credentials are not
   allowed to list zones, and some DNS hosts cannot. Type the zone name.
 
+### A module stopped changing records after a dnshelper instance was removed
+
+Modules that use dnshelper, such as automx, usually ask NS8 for access to the cluster's *default*
+dnshelper instance, the first one installed. When that instance is removed, NS8 forgets which
+instance is the default and does not choose a new one. So if you installed a second dnshelper and
+then removed the first, those modules have no access to the one that is left. NS8 refuses their
+requests before they reach dnshelper: the module's own log shows the error, dnshelper's audit log
+shows nothing, and the **Access** rules look correct.
+
+To check: run this as root on the cluster leader. No output means there is no default instance.
+
+```bash
+redis-cli GET cluster/default_instance/dnshelper
+```
+
+To fix it, make the remaining instance the default and let NS8 grant the modules their access
+again. Replace `dnshelper4` with your instance's name (shown in the Software center):
+
+```bash
+runagent -m cluster python3 -c '
+import agent, cluster.grants
+rdb = agent.redis_connect(privileged=True)
+rdb.set("cluster/default_instance/dnshelper", "dnshelper4")
+cluster.grants.refresh_permissions(rdb)
+'
+```
+
+This is what NS8 does itself when it installs a module. The modules can then reach dnshelper
+again, and the **Access** rules decide what they may change, as before.
+
 If something still does not work, the audit log and the system log of the dnshelper module (Logs
 in the NS8 admin interface, module `dnshelper`) show what was asked and what was answered.
 Please report bugs at <https://github.com/danb35/ns8-dnshelper/issues>; do not include tokens or
