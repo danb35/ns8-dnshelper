@@ -27,7 +27,7 @@
           <div class="mg-bottom-md">{{ $t("wizard.provider_intro") }}</div>
           <div class="mg-bottom-md">
             <NsComboBox
-              :key="comboKey"
+              :key="'provider-' + comboKey"
               :marginBottomOnOpen="true"
               v-model="providerName"
               :options="providerOptions"
@@ -64,7 +64,7 @@
               <template slot="text-right">{{ $t("common.yes") }}</template>
             </NsToggle>
             <NsComboBox
-              :key="comboKey"
+              :key="'credential-' + comboKey"
               :marginBottomOnOpen="true"
               v-if="useSaved && savedForProvider.length"
               v-model="credentialId"
@@ -123,7 +123,7 @@
           </div>
           <div v-if="providerZones.supported" class="mg-bottom-md">
             <NsComboBox
-              :key="comboKey"
+              :key="'zone-' + comboKey"
               :marginBottomOnOpen="true"
               v-model.trim="zone"
               :options="zoneOptions"
@@ -405,6 +405,25 @@ export default {
       if (shown) {
         this.reset();
       }
+    },
+    step() {
+      // Each step mounts its combo boxes afresh (each has its own key, so a
+      // box never inherits another's text). NsComboBox (ns8-ui-lib 2.2.1)
+      // shows its raw value when it mounts and the option's label only when
+      // the value changes, so after Previous the DNS host and the saved
+      // credential would read "cloudflare" and "c1a2b3c4d": show the labels.
+      this.$nextTick(() => {
+        for (const ref of ["provider", "credential"]) {
+          const box = this.$refs[ref];
+          if (
+            box &&
+            box.value &&
+            typeof box.internalUpdateValue === "function"
+          ) {
+            box.internalUpdateValue(box.value);
+          }
+        }
+      });
     },
     providerName() {
       this.useSaved = this.savedForProvider.length > 0;
