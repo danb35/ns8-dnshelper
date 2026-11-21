@@ -130,9 +130,10 @@ class NodeIntegration(unittest.TestCase):
         roles = redis('HGETALL roles/module/' + cls.consumer).split()
         self.assertEqual(roles, ['module/' + cls.helper, 'dnswriter'])
         self.assertEqual(sorted(redis('SMEMBERS module/%s/roles/dnswriter' % cls.helper).split()),
-                         ['append-records', 'delete-records', 'get-records', 'has-zone', 'list-zones', 'set-records'])
+                         ['append-records', 'apply-changes', 'check-propagation', 'delete-records', 'get-records',
+                          'has-zone', 'list-owners', 'list-zones', 'set-records'])
         self.assertEqual(sorted(redis('SMEMBERS module/%s/roles/dnsreader' % cls.helper).split()),
-                         ['get-records', 'has-zone', 'list-zones'])
+                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-zones'])
         self.assertEqual(redis('HGET module/%s/srv/api/dnshelper api' % cls.helper), 'actions')
 
     def test_02_configure_against_a_real_dns_server(self):
@@ -151,6 +152,7 @@ class NodeIntegration(unittest.TestCase):
         seen = self.call('has-zone', {'name': 'mail.' + ZONE})
         self.assertTrue(seen['present'])
         self.assertEqual((seen['exit_code'], seen['output']['managed'], seen['output']['allowed']), (0, True, False))
+        self.assertEqual((seen['output']['access'], seen['output']['full']), ('none', False))
         self.assertEqual(self.call('list-zones')['output']['zones'], [])
         denied = self.call('append-records', {'zone': ZONE, 'records': [{'name': '_it', 'type': 'TXT', 'data': 'x'}]})
         self.assertEqual((denied['exit_code'], denied['output'][0]['error']), (2, 'not_permitted'))
@@ -210,6 +212,61 @@ class NodeIntegration(unittest.TestCase):
                   % (self.helper, payload, self.helper)).stdout
         self.assertIn('module/%s/event/service-dnshelper-changed' % self.helper, out)
         self.assertIn('"key": "module/%s/srv/api/dnshelper"' % self.helper, out)
+
+    def test_06b_what_an_api_module_needs(self):
+        """DESIGN.md, Delegated access for an API module, phase 1: zone access,
+        apply-changes, on_behalf_of, and list-owners and check-propagation
+        limited by the rules."""
+        kept = api(self.helper, 'get-policy')[1]['rules']   # test_07 checks what test_04 set
+        me = 'module/' + self.consumer
+        txt = lambda name, data: {'name': name, 'type': 'TXT', 'ttl': 120, 'data': data}
+        error = lambda r: r['output'][0]['error'] if r['exit_code'] and isinstance(r['output'], list) else None
+        try:
+            api(self.helper, 'set-policy', {'rules': [
+                {'caller': me, 'zones': [ZONE], 'access': 'write', 'names': ['*'], 'types': ['*']}]})
+            zones = self.call('list-zones')['output']['zones']
+            self.assertEqual([(z['zone'], z['access'], z['full']) for z in zones], [(ZONE, 'write', True)])
+
+            # apply-changes for a tenant: recorded in the history and the journal, no owner
+            r = self.call('apply-changes', {'zone': ZONE, 'add': [txt('_it-api', 'tenant')], 'on_behalf_of': 't-it'})
+            self.assertEqual(r['exit_code'], 0, r)
+            self.assertIn(('_it-api', 'tenant'), [(x['name'], x['data']) for x in self.zone_records()])
+            change = api(self.helper, 'list-snapshots', {'zone': ZONE})[1]['snapshots'][0]['changes'][-1]
+            self.assertEqual((change['caller'], change['on_behalf_of']), (me, 't-it'))
+            self.assertIn('on_behalf_of="t-it"', journal())
+
+            # a module's own write is owned; editing it for a tenant takes it over
+            self.assertEqual(self.call('append-records', {'zone': ZONE, 'records': [txt('_it-own', 'module')]})['exit_code'], 0)
+            owners = self.call('list-owners', {'zone': ZONE})['output']['owners']
+            self.assertEqual([(o['name'], o['callers']) for o in owners if o['name'].startswith('_it-')], [('_it-own', [me])])
+            r = self.call('apply-changes', {'zone': ZONE, 'remove': [txt('_it-own', 'module')],
+                                            'add': [txt('_it-own', 'edited')], 'on_behalf_of': 't-it'})
+            self.assertEqual(r['exit_code'], 0, r)
+            owners = self.call('list-owners', {'zone': ZONE})['output']['owners']
+            self.assertEqual([o for o in owners if o['name'].startswith('_it-')], [])
+
+            # strict removes, and NS8's own check of the label
+            r = self.call('apply-changes', {'zone': ZONE, 'remove': [txt('_it-api', 'not there')], 'add': [txt('_it-api', 'x')]})
+            self.assertEqual(error(r), 'stale')
+            r = self.call('append-records', {'zone': ZONE, 'records': [txt('_it-x', 'x')], 'on_behalf_of': 'bad value!'})
+            self.assertNotEqual(r['exit_code'], 0)
+
+            r = self.call('check-propagation', {'zone': ZONE, 'name': '_it-api', 'type': 'TXT'})
+            self.assertEqual(r['exit_code'], 0, r)
+            self.assertIn('servers', r['output'])
+
+            # a read-only rule for one name: not full, and nothing else
+            api(self.helper, 'set-policy', {'rules': [
+                {'caller': me, 'zones': [ZONE], 'access': 'read', 'names': ['_it-api'], 'types': ['TXT']}]})
+            out = self.call('has-zone', {'name': ZONE})['output']
+            self.assertEqual((out['access'], out['full']), ('read', False))
+            self.assertEqual(error(self.call('check-propagation', {'zone': ZONE, 'name': '_it-own', 'type': 'TXT'})), 'not_permitted')
+            self.assertEqual(error(self.call('apply-changes', {'zone': ZONE, 'add': [txt('_it-api', 'y')], 'dry_run': True})),
+                             'not_permitted')
+        finally:
+            for name in ('_it-api', '_it-own'):
+                api(self.helper, 'delete-records', {'zone': ZONE, 'records': [{'name': name, 'type': 'TXT'}]}, check=False)
+            api(self.helper, 'set-policy', {'rules': kept})
 
     @unittest.skipUnless(WEBDAV_URL, 'set WEBDAV_URL to a WebDAV server (base path must exist) to test backup and restore')
     def test_07_real_backup_and_restore_into_a_new_instance(self):
