@@ -64,6 +64,11 @@
         "dry_run": {
             "type": "boolean",
             "description": "Report the changes without making them"
+        },
+        "on_behalf_of": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.@:-]{1,64}$",
+            "description": "Whom the caller acts for, such as an API module's tenant. Recorded in the audit line and the zone's change history, never used to decide anything. A module's write that carries it records no owner for the records, as an administrator's write does"
         }
     }
 }

@@ -144,7 +144,7 @@ class ZoneTests(Base):
         self.assertRejects(lib.add_zone, {'zone': 'example.org', 'credential': 'cnone'}, 'credential_not_found')
         lib.update_zone({'zone': 'example.com', 'credential': b})
         self.assertEqual(lib.list_zones({})['zones'],
-                         [{'zone': 'example.com', 'credential': b, 'provider': 'cloudflare'}])
+                         [{'zone': 'example.com', 'credential': b, 'provider': 'cloudflare', 'access': 'write', 'full': True}])
         lib.remove_zone({'zone': 'example.com'})
         self.assertRejects(lib.remove_zone, {'zone': 'example.com'}, 'zone_not_found')
 
@@ -157,10 +157,14 @@ class ZoneTests(Base):
         cid = self.add_cred()
         for z in ('example.com', 'sub.example.com'):
             lib.add_zone({'zone': z, 'credential': cid})
-        self.assertEqual(lib.has_zone({'name': 'mail.example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True})
-        self.assertEqual(lib.has_zone({'name': 'a.SUB.example.com.'}), {'managed': True, 'zone': 'sub.example.com', 'allowed': True})
-        self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True})
-        self.assertEqual(lib.has_zone({'name': 'notexample.com'}), {'managed': False, 'zone': None, 'allowed': False})
+        self.assertEqual(lib.has_zone({'name': 'mail.example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True,
+                                                                          'access': 'write', 'full': True})
+        self.assertEqual(lib.has_zone({'name': 'a.SUB.example.com.'}), {'managed': True, 'zone': 'sub.example.com', 'allowed': True,
+                                                                            'access': 'write', 'full': True})
+        self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True,
+                                                                          'access': 'write', 'full': True})
+        self.assertEqual(lib.has_zone({'name': 'notexample.com'}), {'managed': False, 'zone': None, 'allowed': False,
+                                                                        'access': 'none', 'full': False})
 
     def test_zones_file_is_private(self):
         lib.add_zone({'zone': 'example.com', 'credential': self.add_cred()})
@@ -334,7 +338,8 @@ class ImportTests(Base):
 class RunTests(ActionRunner):
     def test_success_prints_json(self):
         code, out, _, agent = self.run_action('has-zone', {'name': 'x.example.com'})
-        self.assertEqual((code, json.loads(out)), (0, {'managed': False, 'zone': None, 'allowed': False}))
+        self.assertEqual((code, json.loads(out)), (0, {'managed': False, 'zone': None, 'allowed': False,
+                                                     'access': 'none', 'full': False}))
         agent.set_status.assert_not_called()
 
     def test_validation_failure_protocol(self):
@@ -446,7 +451,8 @@ class PolicyTests(Base):
             self.assertRejects(lib.get_records, {'zone': 'example.com'}, 'not_permitted')
             self.assertRejects(lib.append_records, {'zone': 'example.com', 'records': [self.txt('@')]}, 'not_permitted')
             self.assertEqual(lib.list_zones({})['zones'], [])
-            self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': False})
+            self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': False,
+                                                                     'access': 'none', 'full': False})
         self.assertEqual(self.calls(), [])  # nothing reached the provider
 
     def test_administrators_are_not_restricted(self):
@@ -527,6 +533,40 @@ class PolicyTests(Base):
             self.assertTrue(lib.has_zone({'name': 'mail.example.com'})['allowed'])
             self.assertFalse(lib.has_zone({'name': 'x.other.org'})['allowed'])
             self.assertEqual([z['zone'] for z in lib.list_zones({})['zones']], ['example.com'])
+
+    def test_zone_access_says_how_much_a_module_may_do(self):
+        lib.add_zone({'zone': 'third.net', 'credential': self.cid})
+        lib.set_policy({'rules': [
+            self.rule(caller='module/api1', zones=['example.com'], names=['*'], types=['*']),
+            self.rule(caller='module/api1', zones=['other.org'], names=['*'], types=['CNAME']),
+            self.rule(caller='module/api1', zones=['third.net'], access='read', names=['*'], types=['*'])]})
+        with as_module('api1'):
+            got = {z['zone']: (z['access'], z['full']) for z in lib.list_zones({})['zones']}
+            self.assertEqual(got, {'example.com': ('write', True), 'other.org': ('write', False),
+                                   'third.net': ('read', False)})
+            out = lib.has_zone({'name': 'www.example.com'})
+            self.assertEqual((out['access'], out['full']), ('write', True))
+            out = lib.has_zone({'name': 'nowhere.test'})
+            self.assertEqual((out['managed'], out['access'], out['full']), (False, 'none', False))
+        # two rules that together cover everything are not 'full': one rule must
+        lib.set_policy({'rules': [self.rule(caller='module/api1', zones=['example.com'], names=['*'], types=['A']),
+                                  self.rule(caller='module/api1', zones=['example.com'], names=['@'], types=['*'])]})
+        with as_module('api1'):
+            self.assertEqual(lib.has_zone({'name': 'example.com'})['full'], False)
+        for z in lib.list_zones({})['zones']:  # administrators
+            self.assertEqual((z['access'], z['full']), ('write', True))
+
+    def test_on_behalf_of_is_recorded_in_the_history(self):
+        self.respond({'append-records': {'ok': True, 'records': [], 'before': [],
+                                         'changes': {'add': [self.txt('@')], 'remove': []}}})
+        lib.set_policy({'rules': [self.rule(caller='module/api1', names=['*'], types=['*'])]})
+        with as_module('api1'):
+            lib.append_records({'zone': 'example.com', 'records': [self.txt('@')], 'on_behalf_of': 't1a2b3c4d'})
+        snap = lib.list_snapshots({'zone': 'example.com'})['snapshots'][0]
+        self.assertEqual((snap['changes'][0]['caller'], snap['changes'][0]['on_behalf_of']),
+                         ('module/api1', 't1a2b3c4d'))
+        line = lib.audit_line('append-records', {'zone': 'example.com', 'on_behalf_of': 't1a2b3c4d'}, None, 'ok')
+        self.assertIn('on_behalf_of="t1a2b3c4d"', line)
 
     def test_has_zone_reports_access_per_record(self):
         # The case that hid ns8-automx's SRV record: a rule for the zone that
@@ -864,6 +904,14 @@ class ModuleScriptTests(unittest.TestCase):
         for admin in ('set-policy', 'get-policy', 'add-zone', 'add-credential', 'update-credential', 'validate-zone',
                       'remove-zone', 'update-zone', 'remove-credential', 'get-configuration', 'list-providers'):
             self.assertNotIn(admin, arrays['reader_actions'] + arrays['writer_actions'])
+        # Snapshots, zone files and record release stay with administrators too.
+        for admin in ('list-snapshots', 'get-snapshot', 'create-snapshot', 'delete-snapshot', 'diff-snapshot',
+                      'export-zone', 'import-zone', 'release-records', 'sync-powerdns', 'configure-module'):
+            self.assertNotIn(admin, arrays['reader_actions'] + arrays['writer_actions'])
+        # What an API module needs (DESIGN.md, Delegated access, phase 1).
+        self.assertEqual(sorted(arrays['reader_actions']),
+                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-zones'])
+        self.assertIn('apply-changes', arrays['writer_actions'])
         self.assertIn('roles/dnsreader', text)
         self.assertIn('roles/dnswriter" "${reader_actions[@]}" "${writer_actions[@]}"', text)
 

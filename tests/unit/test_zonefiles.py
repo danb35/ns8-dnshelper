@@ -98,7 +98,18 @@ class PropagationTests(Base):
         self.assertEqual((out['type'], out['servers'][0]['status'], out['servers_from']), ('A', 'same', 'dns'))
         self.assertEqual(self.calls()[-1]['req']['filter'], {'name': 'www', 'type': 'a'})
 
-    def test_modules_cannot_check(self):
+    def test_a_module_checks_only_what_its_rules_let_it_read(self):
+        self.respond({'check-propagation': {'ok': True, 'records': [A1], 'servers_from': 'dns', 'servers': []}})
+        before = len(self.calls())
         with as_module('mail1'):
             self.assertRejects(lib.check_propagation, {'zone': 'example.com', 'name': 'www', 'type': 'A'},
-                               'not_permitted')
+                               'not_permitted', 'name')
+        lib.set_policy({'rules': [{'caller': 'module/mail1', 'zones': ['example.com'], 'access': 'read',
+                                   'names': ['www'], 'types': ['A']}]})
+        with as_module('mail1'):
+            self.assertEqual(lib.check_propagation({'zone': 'example.com', 'name': 'www', 'type': 'a'})['type'], 'A')
+            self.assertRejects(lib.check_propagation, {'zone': 'example.com', 'name': 'www', 'type': 'AAAA'},
+                               'not_permitted', 'name')
+            self.assertRejects(lib.check_propagation, {'zone': 'example.com', 'name': 'mail', 'type': 'A'},
+                               'not_permitted', 'name')
+        self.assertEqual(len(self.calls()) - before, 1)  # only the permitted check reached the helper

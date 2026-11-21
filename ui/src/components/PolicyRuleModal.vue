@@ -152,6 +152,14 @@ const PRESETS = [
     types: "CNAME",
     access: "write",
   },
+  {
+    // an API module (ns8-dnsapi) that hands whole zones to its tenants: it
+    // offers only zones where one rule allows every name and type
+    key: "api",
+    names: "*",
+    types: "*",
+    access: "write",
+  },
 ];
 
 export default {

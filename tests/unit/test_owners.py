@@ -109,10 +109,34 @@ class OwnerTests(Base):
         self.assertEqual(self.owners()[0]['callers'], ['module/mail1'])
         self.assertEqual(lib.forget_module('mail1'), {'example.com': 1})
 
-    def test_modules_cannot_list_owners(self):
-        with as_module('mail1'):
-            self.assertRejects(lib.list_owners, {'zone': 'example.com'}, 'not_permitted')
+    def test_a_module_lists_only_the_owners_its_rules_let_it_read(self):
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [DKIM, MX]}, written(add=[DKIM, MX]))
+        with as_module('api1'):  # no rule for the zone
+            self.assertRejects(lib.list_owners, {'zone': 'example.com'}, 'not_permitted', 'zone')
+        lib.set_policy({'rules': [{'caller': 'module/api1', 'zones': ['example.com'], 'access': 'read',
+                                   'names': ['@'], 'types': ['*']}]})
+        with as_module('api1'):
+            got = lib.list_owners({'zone': 'example.com'})['owners']
+            self.assertEqual([(o['name'], o['type'], o['callers']) for o in got], [('@', 'MX', ['module/mail1'])])
             self.assertRejects(lib.release_records, {'zone': 'example.com', 'records': []}, 'not_permitted')
+
+    def test_a_write_on_behalf_of_someone_records_no_owner(self):
+        # an API module writing for its tenant: the record is the tenant's,
+        # and removing the API module must not flag it as orphaned
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [DKIM], 'on_behalf_of': 't1a2b3c4d'},
+                          written(add=[DKIM]))
+        self.assertEqual(self.owners(), [])
+        self.assertEqual(lib.forget_module('mail1'), {})
+        # it still forgets what it removes, and takes over a module's record it edits
+        self.module_write('append-records', lib.append_records,
+                          {'zone': 'example.com', 'records': [MX]}, written(add=[MX]))
+        new = dict(MX, data='20 mail.example.com.')
+        self.module_write('apply-changes', lib.apply_changes,
+                          {'zone': 'example.com', 'remove': [MX], 'add': [new], 'on_behalf_of': 't1a2b3c4d'},
+                          written(add=[new], remove=[MX]))
+        self.assertEqual(self.owners(), [])
 
     def test_restore_drops_an_unreadable_owners_file(self):
         lib.ensure_state()

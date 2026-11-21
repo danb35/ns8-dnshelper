@@ -90,12 +90,12 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 
 | Group | Actions |
 |---|---|
-| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns`, `apply-changes` |
-| Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records` |
+| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
+| Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
-| Record owners (admin) | `list-owners`: which modules wrote which record; `release-records`: keep records of removed modules |
-| Propagation (admin) | `check-propagation`: what each authoritative name server serves for a name and type |
+| Record owners | `list-owners`: which modules wrote which record (modules too, limited to what they may read); `release-records` (admin): keep records of removed modules |
+| Propagation | `check-propagation`: what each authoritative name server serves for a name and type (modules too, for what they may read) |
 | UI convention | `configure-module` (snapshot retention), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
@@ -103,7 +103,7 @@ zone containing it. `validate-zone` checks a saved zone, a zone with a saved cre
 zone with inline provider fields, so a wizard can validate before saving anything.
 `validate-zone` is read-only unless `write_test` is set.
 
-`apply-changes` (admin only, in no role) takes `zone`, `remove` and `add` record lists and an
+`apply-changes` (role `dnswriter`; for a module, the policy must cover both lists) takes `zone`, `remove` and `add` record lists and an
 optional `dry_run`, and applies them as one planned change: the CNAME and target checks run on the
 zone as it will be afterwards, so an A record can be turned into a CNAME in one step. Every record
 in `remove` must still be in the zone (name, type and value; TTL too when given), otherwise nothing
@@ -134,8 +134,9 @@ Snapshot actions refuse module callers.
 --label="org.nethserver.authorizations=dnshelper@cluster:dnswriter"
 ```
 
-`dnsreader` allows `get-records`, `list-zones` and `has-zone`; `dnswriter` adds `append-records`,
-`set-records` and `delete-records`. `@cluster` means the default dnshelper instance of the
+`dnsreader` allows `get-records`, `list-zones`, `has-zone`, `list-owners` and `check-propagation`;
+`dnswriter` adds `append-records`, `set-records`, `delete-records` and `apply-changes`. (Releases up
+to 0.6.1 give `dnsreader` only the first three and `dnswriter` no `apply-changes`.) `@cluster` means the default dnshelper instance of the
 cluster (`@node` and `@any` work too). The grant also reaches consumers installed *before*
 dnshelper: ns8-core stores each module's authorizations and re-applies them after every
 `add-module` (`cluster.grants.refresh_permissions`).
@@ -183,12 +184,15 @@ TXT is one plain, unquoted string of any length, MX is `"priority target"` and S
 
 | Action | Input | Output |
 |---|---|---|
-| `has-zone` | `name`: a zone or a host name; optional `records`: `[{"name", "type"}]` with full host names | `{"managed", "zone", "allowed"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it. With `records`, also `"records": [{"name", "type", "read", "write"}]`, in the same order: whether the caller may read each record and change it (see below) |
-| `list-zones` | none | `{"zones": [{"zone", "credential", "provider"}]}`, only the zones the caller has a rule for |
+| `has-zone` | `name`: a zone or a host name; optional `records`: `[{"name", "type"}]` with full host names | `{"managed", "zone", "allowed", "access", "full"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it, `access` and `full` say how much it may do there (see below). With `records`, also `"records": [{"name", "type", "read", "write"}]`, in the same order: whether the caller may read each record and change it (see below) |
+| `list-zones` | none | `{"zones": [{"zone", "credential", "provider", "access", "full"}]}`, only the zones the caller has a rule for |
 | `get-records` | `zone`; optional `name`, `type` filters | `{"records": [...]}`, only records the caller's rules cover |
 | `append-records` | `zone`, `records`, optional `dry_run` | `{"dry_run", "changes": {"add", "remove"}, "records"}`; adds records, never removes; adding one that already exists is not an error |
 | `set-records` | `zone`, `records`, optional `dry_run`, `mode`, `replace_prefixes` | as above; see below |
 | `delete-records` | `zone`, `records` (only `name` required), optional `dry_run` | as above; removes the records that match |
+| `apply-changes` | `zone`, `remove`, `add`, optional `dry_run`, `label` | as above; removes exact records and adds others as one planned change, refused as a whole with `stale` if a record to remove is no longer there (see [Actions](#actions)) |
+| `list-owners` | `zone` | `{"zone", "owners": [{"name", "type", "data", "callers", "removed", "time"}]}`: the records modules wrote, only those the caller may read |
+| `check-propagation` | `zone`, `name`, `type` | what each authoritative name server answers, compared with the DNS host; the caller needs a rule that lets it read that name and type |
 
 - `set-records` defaults to `"mode": "merge"`: it keeps the other members of an RRset, so setting an
   SPF record does not delete site-verification TXT records. `replace_prefixes` (for example
@@ -199,6 +203,11 @@ TXT is one plain, unquoted string of any length, MX is `"priority target"` and S
   leave out matches anything. Leaving the type out therefore needs an access rule with type `*`.
   A provider that raised a TTL on write stores a different one, so leave the TTL out.
 - `dry_run` returns `changes` and writes nothing, for a preview or a permission check.
+- `on_behalf_of` (optional on the four write actions): whom the caller acts for, such as an API
+  module's tenant (`^[A-Za-z0-9_.@:-]{1,64}$`). It goes in the audit line and the zone's change
+  history ("module/dnsapi1 for t1a2b3c4d") and is never used to decide anything. A write that
+  carries it records no owner for the records it adds, as an administrator's write does: they
+  are the tenant's records, not ones the module needs, so removing the module does not flag them.
 - A change is refused as a whole, before any provider call, if the access rules do not cover every
   record. dnshelper also refuses results that would be invalid (a CNAME at the apex or beside other
   records, an SRV or MX target that is a CNAME) and never changes apex NS or SOA records.
@@ -236,6 +245,11 @@ module with the role can call the actions but is refused everything.
   contacted. A delete without a `type` needs a rule with type `*`.
 - `get-records` returns only the records a rule covers; `list-zones` only zones with a rule;
   `has-zone` says `allowed`.
+- `list-zones` and `has-zone` also say how much: `access` is `write` when some write rule covers
+  the zone (whatever names and types it allows), `read` when only read rules do, `none` otherwise;
+  `full` is true when one write rule allows every name and type there (names `*`, types `*`), as
+  the Access page's "API module" preset does. For administrators they are always `write` and
+  true. Releases up to 0.6.1 do not return them.
 - A record the rules do not let the caller read is simply absent from `get-records`, which looks
   the same as a record that does not exist. To tell them apart, pass the records to `has-zone`
   as `records`: each comes back with `read` and `write`, decided from the rules alone without
