@@ -140,6 +140,14 @@ cluster (`@node` and `@any` work too). The grant also reaches consumers installe
 dnshelper: ns8-core stores each module's authorizations and re-applies them after every
 `add-module` (`cluster.grants.refresh_permissions`).
 
+`@cluster` depends on the cluster's default instance (`cluster/default_instance/dnshelper`), and
+ns8-core does not choose a new one when the default instance is removed: `remove-module` deletes the
+key and `add-module` only sets it when it is missing. After an administrator installs a second
+dnshelper and removes the first, a `@cluster` consumer is granted nothing and its calls are refused
+by the api-server. `dnshelper@any` avoids that, but grants the role on every dnshelper instance. The
+user guide describes how an administrator restores the default
+([A module stopped changing records…](docs/USER-GUIDE.md#a-module-stopped-changing-records-after-a-dnshelper-instance-was-removed)).
+
 **2. Check that dnshelper is there and covers the name.** The role is granted on the cluster's
 *default* dnshelper instance (the first one installed, `cluster/default_instance/dnshelper`), so
 that is the one to call if a cluster ever has more than one.

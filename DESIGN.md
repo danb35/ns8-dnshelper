@@ -161,6 +161,17 @@ Checklist, in addition to the usual live test against a real zone (README's Prov
   runs `refresh_permissions` after every install, so a consumer installed BEFORE dnshelper is
   granted the role when dnshelper arrives (dnshelper's roles exist by then: `create-module` has
   run). The built-in `reader` role additionally gets `get-*` and `list-*`.
+- Caveat for `@cluster`, found on the test node on 2026-11-21. ns8-core's `remove-module` deletes
+  `cluster/default_instance/<module>` when that instance is removed, and `add-module` only sets the
+  key when it is missing, so nothing becomes the default again. After an administrator installs a
+  second dnshelper and removes the first, a `dnshelper@cluster` consumer is granted nothing, and
+  the api-server refuses its calls before dnshelper sees them. On the node, automx39 had no role
+  on dnshelper4 for this reason.
+  - Fix, by hand on the leader: set the key and run `cluster.grants.refresh_permissions` (user
+    guide, "When something goes wrong").
+  - `dnshelper@any` avoids the problem, but grants the role on every dnshelper instance.
+  - dnshelper cannot set the key itself, since it holds no cluster rights. Consumers, including
+    the planned dnsapi, should know this.
 - Roles are module-wide. Add an in-module policy table: which caller may touch which zone,
   record types and name patterns (e.g. mail: `_domainkey` TXT, SPF, MX; ACME: `_acme-challenge`
   only). Verified 2026-09-19 in ns8-core (`agent/htask.go`, `bind-user-domains`): `AGENT_TASK_USER` is
