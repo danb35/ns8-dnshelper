@@ -627,7 +627,8 @@ records for their customers through dnshelper, from outside the cluster. A custo
 was deferred (2026-11-21).
 
 **Decision (2026-11-21): a separate module, not part of dnshelper.** The new module (`dnsapi`,
-brief in `docs/dnsapi-DESIGN.md`) does the public HTTPS API, the API keys and the
+its own repository [danb35/ns8-dnsapi](https://github.com/danb35/ns8-dnsapi), design in its
+DESIGN.md) does the public HTTPS API, the API keys and the
 tenants. It is an ordinary consumer: one caller, `module/dnsapi1`, limited by the policy table.
 dnshelper gets no service, no route and no authentication of its own, and keeps no idea of
 tenants: dnsapi keeps the tenant -> zone map and checks it, and dnshelper's policy checks that
@@ -667,7 +668,7 @@ general (any consumer can use them), not tied to dnsapi.
 - **`list-owners` for modules**, limited to the records the caller's rules let it read, and added
   to `dnsreader` and `dnswriter`. Decision (2026-11-21): a tenant may change records another
   module wrote in its zones, with a warning. dnsapi needs the owners to give that warning (see
-  `docs/dnsapi-DESIGN.md`, "Records written by other modules").
+  ns8-dnsapi's DESIGN.md, "Records written by other modules").
 - Unchanged: snapshots, export, import, credentials, zones and policy stay admin only.
 
 ### Phase 2: delegated zones (the operator's tool adds domains)
