@@ -22,6 +22,7 @@ reader_actions=(
     has-zone
     list-owners
     check-propagation
+    list-providers
 )
 writer_actions=(
     append-records

@@ -131,9 +131,9 @@ class NodeIntegration(unittest.TestCase):
         self.assertEqual(roles, ['module/' + cls.helper, 'dnswriter'])
         self.assertEqual(sorted(redis('SMEMBERS module/%s/roles/dnswriter' % cls.helper).split()),
                          ['append-records', 'apply-changes', 'check-propagation', 'delete-records', 'get-records',
-                          'has-zone', 'list-owners', 'list-zones', 'set-records'])
+                          'has-zone', 'list-owners', 'list-providers', 'list-zones', 'set-records'])
         self.assertEqual(sorted(redis('SMEMBERS module/%s/roles/dnsreader' % cls.helper).split()),
-                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-zones'])
+                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-providers', 'list-zones'])
         self.assertEqual(redis('HGET module/%s/srv/api/dnshelper api' % cls.helper), 'actions')
 
     def test_02_configure_against_a_real_dns_server(self):

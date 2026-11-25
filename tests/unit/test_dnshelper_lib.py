@@ -902,7 +902,7 @@ class ModuleScriptTests(unittest.TestCase):
             self.assertTrue(os.path.isdir(os.path.join(actions, name)), name)
         # Modules must never be able to reach the administration actions.
         for admin in ('set-policy', 'get-policy', 'add-zone', 'add-credential', 'update-credential', 'validate-zone',
-                      'remove-zone', 'update-zone', 'remove-credential', 'get-configuration', 'list-providers'):
+                      'remove-zone', 'update-zone', 'remove-credential', 'get-configuration'):
             self.assertNotIn(admin, arrays['reader_actions'] + arrays['writer_actions'])
         # Snapshots, zone files and record release stay with administrators too.
         for admin in ('list-snapshots', 'get-snapshot', 'create-snapshot', 'delete-snapshot', 'diff-snapshot',
@@ -910,7 +910,7 @@ class ModuleScriptTests(unittest.TestCase):
             self.assertNotIn(admin, arrays['reader_actions'] + arrays['writer_actions'])
         # What an API module needs (DESIGN.md, Delegated access, phase 1).
         self.assertEqual(sorted(arrays['reader_actions']),
-                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-zones'])
+                         ['check-propagation', 'get-records', 'has-zone', 'list-owners', 'list-providers', 'list-zones'])
         self.assertIn('apply-changes', arrays['writer_actions'])
         self.assertIn('roles/dnsreader', text)
         self.assertIn('roles/dnswriter" "${reader_actions[@]}" "${writer_actions[@]}"', text)
