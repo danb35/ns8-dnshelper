@@ -38,8 +38,8 @@ Status: build order steps 1-7 done (scaffold, Go helper, actions + credential st
 |---|---|
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | UI convention | `configure-module`, `get-configuration` |
-| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `list-providers`, `sync-powerdns` |
-| Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation` |
+| Admin | `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `sync-powerdns` |
+| Consumer API | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation`, `list-providers` |
 
 Each action: `validate-input.json` and `validate-output.json` (NS8 validation framework).
 Record types in the API map to libdns v1 types: CNAME, TXT, SRV, Address (A/AAAA), MX, NS, CAA,
@@ -695,6 +695,13 @@ general (any consumer can use them), not tied to dnsapi.
   module wrote in its zones, with a warning. dnsapi needs the owners to give that warning (see
   ns8-dnsapi's DESIGN.md, "Records written by other modules").
 - Unchanged: snapshots, export, import, credentials, zones and policy stay admin only.
+- **`list-providers` for modules** (added 2026-11-25, in `dnsreader` and `dnswriter`): an API
+  module can show which DNS hosts dnshelper supports and the credential fields each one takes,
+  without keeping its own copy of the list (ns8-dnsapi's `GET /v1/providers`, forum topic 29504,
+  post 7). The output is the helper's built-in registry (names, labels, field descriptions and
+  defaults, notes, record types), the same for every caller: it says nothing about the
+  administrator's credentials or zones, so it needs no policy rule. Until 0.7.0 it was admin only,
+  as part of the credential form.
 
 ### Phase 2: delegated zones (the operator's tool adds domains)
 
@@ -704,7 +711,7 @@ means a module creates credentials and zones, which today only an administrator 
 - **Opt-in per module.** Setting `delegates` (`configure-module`, Settings page): module ids that
   may add zones. Empty by default. New role `dnszoneadmin`, made up of:
   - `dnswriter`;
-  - `list-providers`, `list-provider-zones`, `validate-zone`;
+  - `list-provider-zones`, `validate-zone` (`list-providers` is in `dnsreader` already);
   - `add-credential`, `update-credential`, `remove-credential`;
   - `add-zone`, `update-zone`, `remove-zone`.
 

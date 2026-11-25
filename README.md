@@ -90,8 +90,8 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 
 | Group | Actions |
 |---|---|
-| Admin | `list-providers`, `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
-| Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation` |
+| Admin | `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
+| Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation`, `list-providers` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
 | Record owners | `list-owners`: which modules wrote which record (modules too, limited to what they may read); `release-records` (admin): keep records of removed modules |
@@ -134,9 +134,12 @@ Snapshot actions refuse module callers.
 --label="org.nethserver.authorizations=dnshelper@cluster:dnswriter"
 ```
 
-`dnsreader` allows `get-records`, `list-zones`, `has-zone`, `list-owners` and `check-propagation`;
-`dnswriter` adds `append-records`, `set-records`, `delete-records` and `apply-changes`. (Releases up
-to 0.6.1 give `dnsreader` only the first three and `dnswriter` no `apply-changes`.) `@cluster` means the default dnshelper instance of the
+`dnsreader` allows `get-records`, `list-zones`, `has-zone`, `list-owners`, `check-propagation` and
+`list-providers`; `dnswriter` adds `append-records`, `set-records`, `delete-records` and
+`apply-changes`. (Releases up to 0.6.1 give `dnsreader` only the first three and `dnswriter` no
+`apply-changes`; releases up to 0.7.0 have no `list-providers` in either role.) `list-providers`
+returns the DNS hosts dnshelper supports and the credential fields each one takes: a description,
+the same for every caller, with nothing from the administrator's credentials or zones. `@cluster` means the default dnshelper instance of the
 cluster (`@node` and `@any` work too). The grant also reaches consumers installed *before*
 dnshelper: ns8-core stores each module's authorizations and re-applies them after every
 `add-module` (`cluster.grants.refresh_permissions`).
