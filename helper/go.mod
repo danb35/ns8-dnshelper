@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/aws/aws-sdk-go-v2 v1.48.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.3
-	github.com/aws/aws-sdk-go-v2/service/route53 v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.73.0
 	github.com/libdns/cloudns v1.2.0
 	github.com/libdns/hetzner/v2 v2.0.1
 	github.com/libdns/libdns v1.1.1
