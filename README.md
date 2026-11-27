@@ -12,7 +12,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.7.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.7.1) (the first
+The latest release is [0.8.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.8.0) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
