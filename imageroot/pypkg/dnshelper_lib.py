@@ -26,6 +26,13 @@ A credential with "managed_by": "module/<id>" was created by sync_powerdns()
 from an ns8-powerdns primary; the zones that use it are "adopted". Neither can
 be changed by hand: the next sync would undo it (DESIGN.md, Adopting
 ns8-powerdns zones).
+
+A credential with "delegated_to": "module/<id>" was created by that module, a
+delegate (listed in the "delegates" setting, with the dnszoneadmin role); the
+zones that use it are "delegated". The delegate may change only its own
+credentials and zones, and writes every record of its own zones without a
+policy rule. The administrator may remove them or take them over, but not edit
+them in place (DESIGN.md, Delegated access, phase 2).
 """
 
 import datetime
@@ -164,6 +171,21 @@ def _refuse_adopted_zone(zone, entry):
     cred = _read_json(_cred_path(entry['credential']), None) if ID_RE.match(entry['credential']) else None
     if _managed_by(cred):
         raise ActionError('zone', 'managed_zone', zone, _managed_by(cred))
+
+
+def _delegated_to(cred):
+    """The delegate module that created a credential ("module/<id>"), or ''."""
+    owner = cred.get('delegated_to') if isinstance(cred, dict) else None
+    return owner if isinstance(owner, str) else ''
+
+
+def _zone_credential(zone, zones=None):
+    """The credential of a managed zone, or None."""
+    entry = (_load_zones() if zones is None else zones).get(zone)
+    cred_id = entry.get('credential') if isinstance(entry, dict) else None
+    if not isinstance(cred_id, str) or not ID_RE.match(cred_id):
+        return None
+    return _read_json(_cred_path(cred_id), None)
 
 
 def normalize_zone(zone):
@@ -308,8 +330,12 @@ def _normalize_rules(rules):
 def _rules_for(zone):
     """The rules that apply to the current caller in zone."""
     who = caller().lower()
-    return [r for r in _load_rules()
-            if fnmatch.fnmatchcase(who, r['caller']) and ('*' in r['zones'] or zone in r['zones'])]
+    rules = [r for r in _load_rules()
+             if fnmatch.fnmatchcase(who, r['caller']) and ('*' in r['zones'] or zone in r['zones'])]
+    if _owns_zone(zone):
+        # a delegate's own zone: as if a rule allowed every name and type
+        rules.append({'caller': who, 'zones': [zone], 'access': 'write', 'names': ['*'], 'types': ['*']})
+    return rules
 
 
 def _covers(rule, name, rtype):
@@ -354,6 +380,110 @@ def _require_access(zone, records):
                               'the policy does not let this module change %s in %s' % (what, zone))
 
 
+# ---------------------------------------------------------------- delegates
+
+MODULE_ID_RE = re.compile(r'^[a-z][a-z0-9_-]{0,62}$')
+MAX_DELEGATES = 50
+
+
+def _is_delegate():
+    """Is the caller a module listed in the delegates setting?"""
+    who = caller()
+    return who.startswith('module/') and who[len('module/'):] in load_settings()['delegates']
+
+
+def _require_delegate():
+    """Credentials and zones are the administrator's, and a delegate's own."""
+    if _restricted() and not _is_delegate():
+        raise ActionError('zone', 'not_permitted', caller(),
+                          "this module may not add or change zones and credentials: it is not "
+                          "one of the delegates in dnshelper's settings")
+
+
+def _owned(cred):
+    """Is cred the calling delegate's own credential?"""
+    return _restricted() and _is_delegate() and _delegated_to(cred).lower() == caller().lower()
+
+
+def _owns_zone(zone):
+    return _restricted() and zone is not None and _owned(_zone_credential(zone))
+
+
+def _check_credential(field, cred_id, cred, removing=False):
+    """Refuse a change to a credential, or attaching a zone to it, that the
+    caller may not make: adopted credentials are nobody's to change; a
+    delegate may use only its own; the administrator may remove a delegated
+    one but not edit it in place or give it more zones."""
+    _refuse_managed_credential(field, cred_id, cred)
+    if _restricted():
+        if not _owned(cred):
+            raise ActionError(field, 'not_permitted', cred_id, 'credential %s is not this module\'s' % cred_id)
+    elif _delegated_to(cred) and not removing:
+        raise ActionError(field, 'delegated', cred_id,
+                          'credential %s belongs to %s: take it over first' % (cred_id, _delegated_to(cred)))
+
+
+def _check_zone(zone, entry, removing=False):
+    """As _check_credential, for changing or removing a configured zone."""
+    _refuse_adopted_zone(zone, entry)
+    cred = _zone_credential(zone)
+    if _restricted():
+        if not _owned(cred):
+            raise ActionError('zone', 'not_permitted', zone, 'zone %s is not this module\'s' % zone)
+    elif _delegated_to(cred) and not removing:
+        raise ActionError('zone', 'delegated', zone,
+                          'zone %s belongs to %s: take its credential over first' % (zone, _delegated_to(cred)))
+
+
+def _refuse_overlap(zone, zones):
+    """A delegate may not add a zone inside, or around, a zone that is not its
+    own: names there would be written with its credential, or the other way."""
+    if not _restricted():
+        return
+    for z in zones:
+        if (z.endswith('.' + zone) or zone.endswith('.' + z)) and not _owned(_zone_credential(z, zones)):
+            raise ActionError('zone', 'zone_overlaps', zone, '%s overlaps a zone dnshelper already manages' % zone)
+
+
+def take_over_credential(data):
+    """The administrator takes a delegated credential, and so its zones, over:
+    they become hand-configured, and the delegate loses access to them unless
+    a policy rule gives it some (administrators only)."""
+    if _restricted():
+        raise ActionError('id', 'not_permitted', data['id'], 'only an administrator can take a credential over')
+    with _ConfigLock():
+        cred = _load_credential(data['id'])
+        owner = _delegated_to(cred)
+        if not owner:
+            raise ActionError('id', 'not_delegated', data['id'])
+        del cred['delegated_to']
+        _write_private(_cred_path(data['id']), cred)
+        zones = sorted(z for z, v in _load_zones().items() if v['credential'] == data['id'])
+    return {'id': data['id'], 'delegated_to': owner, 'zones': zones}
+
+
+def forget_delegate(module_id):
+    """A delegate was removed: its credentials and zones become the
+    administrator's. Returns {credential id: [zones]} of what it left."""
+    who = 'module/' + module_id
+    out = {}
+    with _ConfigLock():
+        zones = _load_zones()
+        if not os.path.isdir(_cred_dir()):
+            return out
+        for fn in sorted(os.listdir(_cred_dir())):
+            cid = fn[:-len('.json')]
+            if not (fn.endswith('.json') and ID_RE.match(cid)):
+                continue
+            cred = _read_json(os.path.join(_cred_dir(), fn), None)
+            if _delegated_to(cred).lower() != who:
+                continue
+            del cred['delegated_to']
+            _write_private(_cred_path(cid), cred)
+            out[cid] = sorted(z for z, v in zones.items() if v['credential'] == cid)
+    return out
+
+
 def get_policy(data):
     return {'rules': _load_rules()}
 
@@ -372,19 +502,23 @@ def list_providers(data):
 
 
 def add_credential(data):
+    _require_delegate()
     fields, _ = _check_fields(data['provider'], data['fields'], creating=True)
     cred_id = 'c' + secrets.token_hex(4)
+    cred = {'name': data['name'], 'provider': data['provider'],
+            'fields': {k: v for k, v in fields.items() if v != ''}}
+    if _restricted():
+        cred['delegated_to'] = caller()
     with _ConfigLock():
-        _write_private(_cred_path(cred_id), {
-            'name': data['name'], 'provider': data['provider'],
-            'fields': {k: v for k, v in fields.items() if v != ''}})
+        _write_private(_cred_path(cred_id), cred)
     return {'id': cred_id}
 
 
 def update_credential(data):
+    _require_delegate()
     with _ConfigLock():
         cred = _load_credential(data['id'])
-        _refuse_managed_credential('id', data['id'], cred)
+        _check_credential('id', data['id'], cred)
         _, known = _check_fields(cred['provider'], data.get('fields', {}), creating=False)
         if 'name' in data:
             cred['name'] = data['name']
@@ -403,8 +537,9 @@ def update_credential(data):
 
 
 def remove_credential(data):
+    _require_delegate()
     with _ConfigLock():
-        _refuse_managed_credential('id', data['id'], _load_credential(data['id']))
+        _check_credential('id', data['id'], _load_credential(data['id']), removing=True)
         users = sorted(z for z, v in _load_zones().items() if v['credential'] == data['id'])
         if users:
             raise ActionError('id', 'credential_in_use', data['id'], ', '.join(users))
@@ -413,37 +548,41 @@ def remove_credential(data):
 
 
 def add_zone(data):
+    _require_delegate()
     zone = normalize_zone(data['zone'])
     with _ConfigLock():
-        _refuse_managed_credential('credential', data['credential'], _load_credential(data['credential']))
+        _check_credential('credential', data['credential'], _load_credential(data['credential']))
         zones = _load_zones()
         if zone in zones:
             raise ActionError('zone', 'zone_already_configured', zone)
+        _refuse_overlap(zone, zones)
         zones[zone] = {'credential': data['credential']}
         _save_zones(zones)
     return {}
 
 
 def update_zone(data):
+    _require_delegate()
     zone = normalize_zone(data['zone'])
     with _ConfigLock():
-        _refuse_managed_credential('credential', data['credential'], _load_credential(data['credential']))
         zones = _load_zones()
         if zone not in zones:
-            raise ActionError('zone', 'zone_not_found', zone)
-        _refuse_adopted_zone(zone, zones[zone])
+            raise ActionError('zone', 'not_permitted' if _restricted() else 'zone_not_found', zone)
+        _check_zone(zone, zones[zone])
+        _check_credential('credential', data['credential'], _load_credential(data['credential']))
         zones[zone] = {'credential': data['credential']}
         _save_zones(zones)
     return {}
 
 
 def remove_zone(data):
+    _require_delegate()
     zone = normalize_zone(data['zone'])
     with _ConfigLock():
         zones = _load_zones()
         if zone not in zones:
-            raise ActionError('zone', 'zone_not_found', zone)
-        _refuse_adopted_zone(zone, zones[zone])
+            raise ActionError('zone', 'not_permitted' if _restricted() else 'zone_not_found', zone)
+        _check_zone(zone, zones[zone], removing=True)
         del zones[zone]
         _save_zones(zones)
         remove_snapshots(zone)
@@ -470,10 +609,12 @@ def get_configuration(data):
                 'values': {k: v for k, v in cred['fields'].items() if k not in secret and k in known},
                 'secrets_set': sorted(k for k, v in cred['fields'].items() if k in secret and v),
                 'managed_by': _managed_by(cred),
+                'delegated_to': _delegated_to(cred),
             })
     owner = {c['id']: c['managed_by'] for c in creds}
+    delegate = {c['id']: c['delegated_to'] for c in creds}
     zones = [{'zone': z, 'credential': v['credential'], 'managed_by': owner.get(v['credential'], ''),
-              'snapshots': len(_snapshot_ids(z))}
+              'delegated_to': delegate.get(v['credential'], ''), 'snapshots': len(_snapshot_ids(z))}
              for z, v in sorted(_load_zones().items())]
     return {'credentials': creds, 'zones': zones, 'settings': load_settings()}
 
@@ -485,7 +626,8 @@ def list_zones(data):
         if _restricted() and not _rules_for(z):
             continue
         cred = _read_json(_cred_path(v['credential']), None)
-        entry = {'zone': z, 'credential': v['credential'], 'provider': cred['provider'] if cred else None}
+        entry = {'zone': z, 'credential': v['credential'], 'provider': cred['provider'] if cred else None,
+                 'delegated': _owned(cred)}
         entry.update(_zone_access(z))
         out.append(entry)
     return {'zones': out}
@@ -498,7 +640,7 @@ def has_zone(data):
         if (name == z or name.endswith('.' + z)) and (best is None or len(z) > len(best)):
             best = z
     allowed = best is not None and (not _restricted() or bool(_rules_for(best)))
-    out = {'managed': best is not None, 'zone': best, 'allowed': allowed}
+    out = {'managed': best is not None, 'zone': best, 'allowed': allowed, 'delegated': _owns_zone(best)}
     out.update(_zone_access(best) if best is not None else {'access': 'none', 'full': False})
     if 'records' in data:
         out['records'] = [_record_access(best, r) for r in data['records']]
@@ -533,6 +675,9 @@ def _zone_request(zone):
 
 
 def validate_zone(data):
+    """A delegate may validate inline credentials, its own credentials and its
+    own zones."""
+    _require_delegate()
     if 'provider' in data:
         zone = normalize_zone(data['zone'])
         fields, _ = _check_fields(data['provider'], data['fields'], creating=True)
@@ -540,9 +685,15 @@ def validate_zone(data):
     elif 'credential' in data:
         zone = normalize_zone(data['zone'])
         cred = _load_credential(data['credential'])
+        if _restricted() and not _owned(cred):
+            raise ActionError('credential', 'not_permitted', data['credential'],
+                              'credential %s is not this module\'s' % data['credential'])
         req = {'provider': cred['provider'], 'zone': zone, 'credentials': cred['fields']}
     else:
-        req = _zone_request(data['zone'])
+        zone = normalize_zone(data['zone'])
+        if _restricted() and not _owns_zone(zone):
+            raise ActionError('zone', 'not_permitted', zone, 'zone %s is not this module\'s' % zone)
+        req = _zone_request(zone)
     req.update(op='validate', write_test=bool(data.get('write_test')))
     resp = call_helper(req)
     return {'valid': True, 'validation': resp['validation'], 'capabilities': resp['capabilities']}
@@ -554,11 +705,15 @@ def list_provider_zones(data):
     Not every provider package can list zones: then supported is false and the
     wizard asks for the name instead.
     """
+    _require_delegate()
     if 'provider' in data:
         fields, _ = _check_fields(data['provider'], data['fields'], creating=True)
         req = {'provider': data['provider'], 'credentials': fields}
     else:
         cred = _load_credential(data['credential'])
+        if _restricted() and not _owned(cred):
+            raise ActionError('credential', 'not_permitted', data['credential'],
+                              'credential %s is not this module\'s' % data['credential'])
         req = {'provider': cred['provider'], 'credentials': cred['fields']}
     req['op'] = 'list-zones'
     try:
@@ -671,24 +826,51 @@ def _settings_path():
 
 
 def load_settings():
+    """The settings, with defaults for what is missing or invalid.
+
+    delegates: the module ids (dnsapi1) that may add credentials and zones
+    (DESIGN.md, Delegated access, phase 2). Empty by default."""
     stored = _read_json(_settings_path(), {})
     out = dict(DEFAULT_SETTINGS)
+    out['delegates'] = []
     if isinstance(stored, dict):
         for k in DEFAULT_SETTINGS:
             v = stored.get(k)
             if isinstance(v, int) and not isinstance(v, bool) and v >= 1:
                 out[k] = v
+        if isinstance(stored.get('delegates'), list):
+            out['delegates'] = [d for d in stored['delegates'] if isinstance(d, str) and MODULE_ID_RE.match(d)]
     return out
 
 
+def _normalize_delegates(values):
+    out = []
+    for v in values:
+        d = str(v).strip().lower()
+        if d.startswith('module/'):
+            d = d[len('module/'):]
+        if not MODULE_ID_RE.match(d):
+            raise ActionError('delegates', 'invalid_module_id', str(v))
+        if d == os.environ.get('MODULE_ID'):
+            raise ActionError('delegates', 'invalid_module_id', str(v), 'dnshelper cannot be its own delegate')
+        if d not in out:
+            out.append(d)
+    if len(out) > MAX_DELEGATES:
+        raise ActionError('delegates', 'too_many_delegates')
+    return sorted(out)
+
+
 def configure_module(data):
-    """Module-wide settings: snapshot retention. Missing keys keep their value."""
+    """Module-wide settings: snapshot retention, delegates. Missing keys keep
+    their value."""
     data = data or {}
     with _ConfigLock():
         settings = load_settings()
         for k in DEFAULT_SETTINGS:
             if k in data:
                 settings[k] = data[k]
+        if 'delegates' in data:
+            settings['delegates'] = _normalize_delegates(data['delegates'])
         _write_private(_settings_path(), settings)
     for zone in _snapshot_zones():
         prune_snapshots(zone, managed=zone in _load_zones())
@@ -853,7 +1035,8 @@ def list_snapshots(data):
         out.append({k: snap.get(k, d) for k, d in (('id', sid), ('time', ''), ('kind', 'auto'), ('action', ''),
                                                   ('caller', '-'), ('label', ''), ('changes', []))})
         out[-1]['records'] = len(snap.get('records', []))
-    return {'zone': zone, 'snapshots': out, 'settings': load_settings()}
+    settings = load_settings()
+    return {'zone': zone, 'snapshots': out, 'settings': {k: settings[k] for k in DEFAULT_SETTINGS}}
 
 
 def get_snapshot(data):
@@ -1313,6 +1496,7 @@ HANDLERS = {
     'add-credential': add_credential,
     'update-credential': update_credential,
     'remove-credential': remove_credential,
+    'take-over-credential': take_over_credential,
     'add-zone': add_zone,
     'update-zone': update_zone,
     'remove-zone': remove_zone,
@@ -1418,7 +1602,8 @@ def check_restored_state(module_exists=None):
         except (OSError, ValueError):
             raise StateError('credentials/%s is not valid JSON' % fn)
         if not (isinstance(cred, dict) and isinstance(cred.get('name'), str) and isinstance(cred.get('provider'), str)
-                and isinstance(cred.get('fields'), dict) and isinstance(cred.get('managed_by', ''), str)):
+                and isinstance(cred.get('fields'), dict) and isinstance(cred.get('managed_by', ''), str)
+                and isinstance(cred.get('delegated_to', ''), str)):
             raise StateError('credentials/%s has an unexpected structure' % fn)
         creds[fn[:-len('.json')]] = cred
         os.chmod(path, 0o600)
@@ -1446,6 +1631,14 @@ def check_restored_state(module_exists=None):
         for who in sorted({r.get('caller', '') for r in rules if isinstance(r.get('caller'), str)}):
             if who.startswith('module/') and not re.search(r'[*?]', who) and module_exists(who[len('module/'):]) is False:
                 warnings.append('policy refers to %s, which does not exist in this cluster' % who)
+        for cid, cred in sorted(creds.items()):
+            who = _delegated_to(cred)
+            if who.startswith('module/') and module_exists(who[len('module/'):]) is False:
+                warnings.append('credential %s is delegated to %s, which does not exist in this cluster: '
+                                'take it over, or remove it' % (cid, who))
+        for d in load_settings()['delegates']:
+            if module_exists(d) is False:
+                warnings.append('the delegates setting lists %s, which does not exist in this cluster' % d)
 
     if os.path.exists(_settings_path()):
         stored = _read_json_or_none(_settings_path())
@@ -1521,11 +1714,13 @@ def _check_restored_snapshots(warnings):
 # ---------------------------------------------------------------- audit, events
 
 # Actions that change something. Every call by another module is logged too.
-MUTATING = {'add-credential', 'update-credential', 'remove-credential', 'add-zone', 'update-zone',
-            'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records',
+MUTATING = {'add-credential', 'update-credential', 'remove-credential', 'take-over-credential',
+            'add-zone', 'update-zone', 'remove-zone', 'set-policy', 'append-records', 'set-records', 'delete-records',
             'apply-changes', 'configure-module', 'create-snapshot', 'delete-snapshot',
             'release-records'}
-ZONE_ACTIONS = {'add-zone', 'update-zone', 'remove-zone'}
+# Actions after which listeners must look at the zones again: the set of zones,
+# or what a module may do in them, changed.
+ZONE_ACTIONS = {'add-zone', 'update-zone', 'remove-zone', 'take-over-credential'}
 EVENT = 'service-dnshelper-changed'
 
 

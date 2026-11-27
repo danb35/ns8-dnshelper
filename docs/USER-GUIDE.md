@@ -141,6 +141,24 @@ row open a menu:
 - **Delete** removes a credential that no zone uses. The token stays valid at your DNS host: revoke
   it there too if it should stop working.
 
+### Zones added by a delegate module
+
+A module you list as a delegate in [Settings](#settings), such as dnsapi, can add credentials and
+zones of its own, for example the domains a hosting portal adds for its customers. They appear in
+both tables with a **Delegated to dnsapi1** tag. The module may change every record of those
+zones; it cannot touch your own zones and credentials, which still need an access rule.
+
+You cannot edit a delegated credential or zone, or give the credential another zone: the module
+keeps them up to date, and your edits and its own would overwrite each other. Their menus offer:
+
+- **Check credentials** (zones) and **Delete** (both), as for your own;
+- **Take over**, which makes the credential and every zone that uses it yours. You can then edit
+  them, and the module can no longer change them or their records, unless an access rule allows
+  it.
+
+If the delegate module is removed, its credentials and zones become yours as if you had taken
+them over. Nothing is deleted.
+
 ### Zones from the PowerDNS module
 
 If the cluster runs the PowerDNS module (ns8-powerdns) as a primary DNS server, dnshelper adopts its
@@ -402,6 +420,14 @@ out, so a short TTL before a planned change makes it take effect sooner.
 snapshots are deleted when there are more than that, or when they are older; the latest snapshot
 of a zone is always kept. The defaults are 50 snapshots and 90 days.
 
+**Delegate modules** lists the modules that may add credentials and zones of their own (see
+[Zones added by a delegate module](#zones-added-by-a-delegate-module)), by their ids, separated by
+commas: for example `dnsapi1`. It is empty by default, and a module needs both this and the
+`dnszoneadmin` role, which its image asks for. A delegate holds the credentials its users give it,
+your customers' for example: list only modules you trust with them. Removing a module from the
+list stops it from using or changing its zones at once; they stay, tagged, until you take them
+over or delete them.
+
 ![Settings](images/settings.png)
 
 ## Seeing what happened: the audit log
@@ -425,6 +451,18 @@ dnshelper's backup includes its zones, its access rules **and its credentials**,
 would otherwise leave you with zones that cannot be changed. It also includes the zones'
 snapshots, the settings, and which module wrote which record. After a restore, everything is back
 and the credentials still work.
+
+Credentials a delegate module added are restored as its own. A restored module gets a new name
+(for example `dnsapi2` for `dnsapi1`), and the delegated credentials and zones still name the old
+one, so the new module cannot use them:
+
+- if dnshelper is restored and the old module no longer exists, the restore warns about them;
+- if only the delegate module is restored, they become yours when you remove the old instance,
+  as for any removed delegate.
+
+Either way, take them over on the Zones page if needed, list the new module in **Delegate
+modules**, and add an access rule (the "API module (all records)" preset) on those zones if the
+new module should keep changing their records.
 
 Because the credentials are in the backup, treat your backup destination as sensitive. NS8
 encrypts backups, but a narrow, revocable token (see [Before you start](#before-you-start)) is

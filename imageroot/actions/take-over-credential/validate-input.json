@@ -1,0 +1,23 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "take-over-credential input",
+    "$id": "http://nethserver.org/json-schema/task/input/dnshelper/take-over-credential",
+    "description": "Take a credential a delegate module created, and the zones that use it, over: they become hand-configured (administrators only)",
+    "examples": [
+        {
+            "id": "c1a2b3c4"
+        }
+    ],
+    "type": "object",
+    "required": [
+        "id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Credential id"
+        }
+    }
+}

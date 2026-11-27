@@ -69,7 +69,8 @@
     "import-zone": "Préparer l'import d'une zone",
     "list-owners": "Lister les propriétaires des enregistrements",
     "check-propagation": "Vérifier la propagation",
-    "release-records": "Conserver des enregistrements"
+    "release-records": "Conserver des enregistrements",
+    "take-over-credential": "Reprendre l'identifiant"
   },
   "error": {
     "error": "Erreur",
@@ -123,7 +124,8 @@
     "sync_multiple_title": "Plus d'un serveur primaire PowerDNS",
     "sync_multiple": "{modules} se présentent tous comme le serveur primaire PowerDNS. Rien n'a été modifié.",
     "sync_failed": "Impossible de synchroniser avec PowerDNS",
-    "remove_zone_snapshots": "L'instantané de la zone est aussi supprimé. | Les {count} instantanés de la zone sont aussi supprimés."
+    "remove_zone_snapshots": "L'instantané de la zone est aussi supprimé. | Les {count} instantanés de la zone sont aussi supprimés.",
+    "delegated_to": "Délégué à {module}"
   },
   "records": {
     "title": "Enregistrements",
@@ -298,7 +300,12 @@
     "credential_id_taken": "Un identifiant portant l'id du module PowerDNS existe déjà",
     "stale": "La zone a été modifiée depuis sa lecture ; comparez à nouveau",
     "snapshot_not_found": "Instantané introuvable",
-    "invalid_snapshot_id": "Instantané non valide"
+    "invalid_snapshot_id": "Instantané non valide",
+    "delegated": "Appartient à un module délégué : reprenez-le d'abord",
+    "not_delegated": "Cet identifiant n'est pas délégué",
+    "zone_overlaps": "Cette zone est incluse dans une zone déjà gérée, ou en contient une",
+    "invalid_module_id": "Identifiant de module non valide",
+    "too_many_delegates": "Trop de modules délégués"
   },
   "snapshots": {
     "button": "Instantanés",
@@ -341,7 +348,13 @@
     "max_count_help": "De 1 à 1000",
     "max_age": "Âge maximal en jours",
     "max_age_help": "De 1 à 3650",
-    "invalid_number": "Hors limites"
+    "invalid_number": "Hors limites",
+    "delegates_title": "Modules délégués",
+    "delegates_intro": "Un module délégué, comme dnsapi, peut ajouter ses propres identifiants et zones, par exemple les domaines qu'un portail d'hébergement ajoute pour ses clients, et modifier tous les enregistrements de ces zones sans règle d'accès. Il ne peut ni utiliser, ni modifier, ni supprimer vos identifiants et zones. Le module a aussi besoin du rôle dnszoneadmin, que son image demande. Ses identifiants et zones sont signalés sur la page Zones, où vous pouvez les supprimer ou les reprendre.",
+    "delegates_warning": "Un module délégué conserve les identifiants que ses utilisateurs lui confient. N'indiquez que des modules auxquels vous les confieriez.",
+    "delegates": "Modules délégués",
+    "delegates_placeholder": "dnsapi1",
+    "delegates_help": "Identifiants de modules, séparés par des virgules. Laissez vide pour n'en autoriser aucun."
   },
   "record_form": {
     "address": "Adresse",
@@ -501,5 +514,13 @@
     "caching": "Les résolveurs qui ont mis en cache l'ancienne réponse la gardent jusqu'à expiration de son TTL.",
     "failed": "Les serveurs de noms n'ont pas pu être vérifiés",
     "again": "Vérifier à nouveau"
+  },
+  "delegation": {
+    "take_over": "Reprendre",
+    "take_over_title": "Reprendre {name}",
+    "take_over_description": "{module} a ajouté cet identifiant par son API. Le reprendre vous en rend propriétaire, ainsi que de toutes les zones qui l'utilisent : vous pourrez les modifier ici, et {module} ne pourra plus les modifier, ni leurs enregistrements, sauf si une règle d'accès le permet.",
+    "take_over_zones": "Zones qui l'utilisent : {zones}",
+    "taken_over_title": "Identifiant repris",
+    "taken_over": "{name} et ses zones ne sont plus délégués à {module}."
   }
 }

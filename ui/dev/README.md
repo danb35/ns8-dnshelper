@@ -50,7 +50,9 @@ not their name.
 
 `server.py` seeds which module wrote which `example.com` record (mail1, automx1), and
 `POST /dev/module-removed?module=<id>` does what `events/module-removed/20orphan_records` does when
-a module is removed; the script uses it for the "removed module" picture. A run occasionally hangs
+a module is removed; the script uses it for the "removed module" picture. `POST /dev/delegate?module=dnsapi1&zone=customer-shop.com` lists the module in the delegates
+setting and adds a Cloudflare credential and the zone as that module would, for the "Delegated
+to" tags and Take over. A run occasionally hangs
 on a lost task result ("step timed out"): restart the harness and run it again.
 
 Start from a fresh harness (it keeps its data until it is stopped), and close any browser tab that

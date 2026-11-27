@@ -2,11 +2,14 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Configure dnshelper",
     "$id": "http://nethserver.org/json-schema/task/input/dnshelper/configure-module",
-    "description": "Module-wide settings: snapshot retention. Keys left out keep their value; the UI may also send no payload at all.",
+    "description": "Module-wide settings: snapshot retention and the delegate modules. Keys left out keep their value; the UI may also send no payload at all.",
     "examples": [
         {
             "snapshot_max_count": 50,
-            "snapshot_max_age_days": 90
+            "snapshot_max_age_days": 90,
+            "delegates": [
+                "dnsapi1"
+            ]
         }
     ],
     "type": [
@@ -24,6 +27,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 3650
+        },
+        "delegates": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+                "type": "string",
+                "maxLength": 70
+            },
+            "description": "Module ids (like 'dnsapi1') that may add credentials and zones of their own, with the dnszoneadmin role. Empty by default"
         }
     }
 }

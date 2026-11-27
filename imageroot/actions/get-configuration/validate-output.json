@@ -52,6 +52,10 @@
                     "managed_by": {
                         "type": "string",
                         "description": "'module/<id>' when the credential was adopted from that ns8-powerdns primary and cannot be changed here; '' otherwise"
+                    },
+                    "delegated_to": {
+                        "type": "string",
+                        "description": "'module/<id>' when that delegate module created the credential; '' otherwise. Such a credential can be removed or taken over, not edited"
                     }
                 }
             }
@@ -79,6 +83,10 @@
                     "snapshots": {
                         "type": "integer",
                         "description": "Number of snapshots kept for the zone"
+                    },
+                    "delegated_to": {
+                        "type": "string",
+                        "description": "'module/<id>' when the zone's credential is that delegate module's; '' otherwise"
                     }
                 }
             }
@@ -87,7 +95,8 @@
             "type": "object",
             "required": [
                 "snapshot_max_count",
-                "snapshot_max_age_days"
+                "snapshot_max_age_days",
+                "delegates"
             ],
             "additionalProperties": false,
             "properties": {
@@ -100,6 +109,13 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 3650
+                },
+                "delegates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Module ids that may add credentials and zones"
                 }
             }
         }

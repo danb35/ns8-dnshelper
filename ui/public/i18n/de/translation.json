@@ -69,7 +69,8 @@
     "import-zone": "Zonenimport planen",
     "list-owners": "Eintragsbesitzer auflisten",
     "check-propagation": "Verbreitung prüfen",
-    "release-records": "Einträge behalten"
+    "release-records": "Einträge behalten",
+    "take-over-credential": "Zugangsdaten übernehmen"
   },
   "error": {
     "error": "Fehler",
@@ -123,7 +124,8 @@
     "sync_multiple_title": "Mehr als ein PowerDNS-Primärserver",
     "sync_multiple": "{modules} geben alle an, der PowerDNS-Primärserver zu sein. Es wurde nichts geändert.",
     "sync_failed": "Abgleich mit PowerDNS nicht möglich",
-    "remove_zone_snapshots": "Der Snapshot der Zone wird ebenfalls gelöscht. | Die {count} Snapshots der Zone werden ebenfalls gelöscht."
+    "remove_zone_snapshots": "Der Snapshot der Zone wird ebenfalls gelöscht. | Die {count} Snapshots der Zone werden ebenfalls gelöscht.",
+    "delegated_to": "Delegiert an {module}"
   },
   "records": {
     "title": "Einträge",
@@ -298,7 +300,12 @@
     "credential_id_taken": "Es gibt bereits Zugangsdaten mit der Kennung des PowerDNS-Moduls",
     "stale": "Die Zone wurde seit dem Lesen geändert; bitte erneut vergleichen",
     "snapshot_not_found": "Snapshot nicht gefunden",
-    "invalid_snapshot_id": "Ungültiger Snapshot"
+    "invalid_snapshot_id": "Ungültiger Snapshot",
+    "delegated": "Gehört einem delegierten Modul: zuerst übernehmen",
+    "not_delegated": "Diese Zugangsdaten sind nicht delegiert",
+    "zone_overlaps": "Diese Zone liegt in einer bereits verwalteten Zone oder enthält eine",
+    "invalid_module_id": "Keine gültige Modul-ID",
+    "too_many_delegates": "Zu viele delegierte Module"
   },
   "snapshots": {
     "button": "Snapshots",
@@ -341,7 +348,13 @@
     "max_count_help": "Von 1 bis 1000",
     "max_age": "Höchstalter in Tagen",
     "max_age_help": "Von 1 bis 3650",
-    "invalid_number": "Außerhalb des zulässigen Bereichs"
+    "invalid_number": "Außerhalb des zulässigen Bereichs",
+    "delegates_title": "Delegierte Module",
+    "delegates_intro": "Ein delegiertes Modul wie dnsapi darf eigene Zugangsdaten und Zonen hinzufügen, zum Beispiel die Domains, die ein Hosting-Portal für seine Kunden anlegt, und alle Einträge dieser Zonen ohne Zugriffsregel ändern. Ihre Zugangsdaten und Zonen kann es weder verwenden noch ändern oder entfernen. Das Modul braucht außerdem die Rolle dnszoneadmin, die sein Image anfordert. Seine Zugangsdaten und Zonen sind auf der Seite Zonen gekennzeichnet, wo Sie sie entfernen oder übernehmen können.",
+    "delegates_warning": "Ein delegiertes Modul verwahrt die Zugangsdaten, die seine Benutzer ihm geben. Tragen Sie nur Module ein, denen Sie diese anvertrauen.",
+    "delegates": "Delegierte Module",
+    "delegates_placeholder": "dnsapi1",
+    "delegates_help": "Modul-IDs, durch Kommas getrennt. Leer lassen, um keines zuzulassen."
   },
   "record_form": {
     "address": "Adresse",
@@ -501,5 +514,13 @@
     "caching": "Resolver, die die alte Antwort zwischengespeichert haben, behalten sie, bis ihre TTL abläuft.",
     "failed": "Die Nameserver konnten nicht geprüft werden",
     "again": "Erneut prüfen"
+  },
+  "delegation": {
+    "take_over": "Übernehmen",
+    "take_over_title": "{name} übernehmen",
+    "take_over_description": "{module} hat diese Zugangsdaten über seine API hinzugefügt. Wenn Sie sie übernehmen, gehören sie und alle Zonen, die sie verwenden, Ihnen: Sie können sie hier bearbeiten, und {module} kann sie und ihre Einträge nicht mehr ändern, es sei denn, eine Zugriffsregel erlaubt es.",
+    "take_over_zones": "Zonen, die sie verwenden: {zones}",
+    "taken_over_title": "Zugangsdaten übernommen",
+    "taken_over": "{name} und die zugehörigen Zonen sind nicht mehr an {module} delegiert."
   }
 }

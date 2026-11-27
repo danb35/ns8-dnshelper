@@ -76,6 +76,51 @@
           </cv-tile>
         </cv-column>
       </cv-row>
+      <cv-row>
+        <cv-column>
+          <cv-tile light>
+            <h4 class="mg-bottom-md">{{ $t("settings.delegates_title") }}</h4>
+            <p class="mg-bottom-md section-intro">
+              {{ $t("settings.delegates_intro") }}
+            </p>
+            <p class="mg-bottom-lg section-intro">
+              {{ $t("settings.delegates_warning") }}
+            </p>
+            <cv-skeleton-text
+              v-if="loading.load"
+              :paragraph="true"
+              :line-count="2"
+            />
+            <cv-form v-else @submit.prevent="saveDelegates">
+              <NsTextInput
+                v-model.trim="form.delegates"
+                :label="$t('settings.delegates')"
+                :placeholder="$t('settings.delegates_placeholder')"
+                :helper-text="$t('settings.delegates_help')"
+                :invalid-message="error.delegates"
+                :disabled="loading.saveDelegates"
+                ref="delegates"
+                class="mg-bottom-lg"
+              />
+              <NsInlineNotification
+                v-if="error.saveDelegates"
+                kind="error"
+                :title="$t('action.configure-module')"
+                :description="error.saveDelegates"
+                :showCloseButton="false"
+              />
+              <NsButton
+                kind="primary"
+                :icon="Save20"
+                :loading="loading.saveDelegates"
+                :disabled="loading.saveDelegates"
+              >
+                {{ $t("common.save") }}
+              </NsButton>
+            </cv-form>
+          </cv-tile>
+        </cv-column>
+      </cv-row>
     </cv-grid>
   </div>
 </template>
@@ -108,11 +153,17 @@ export default {
     return {
       q: { page: "settings" },
       urlCheckInterval: null,
-      form: { snapshot_max_count: "", snapshot_max_age_days: "" },
-      loading: { load: true, save: false },
+      form: {
+        snapshot_max_count: "",
+        snapshot_max_age_days: "",
+        delegates: "",
+      },
+      loading: { load: true, save: false, saveDelegates: false },
       error: {
         load: "",
         save: "",
+        saveDelegates: "",
+        delegates: "",
         snapshot_max_count: "",
         snapshot_max_age_days: "",
       },
@@ -143,6 +194,7 @@ export default {
         for (const k of Object.keys(LIMITS)) {
           this.form[k] = String(config.settings[k]);
         }
+        this.form.delegates = (config.settings.delegates || []).join(", ");
       } catch (err) {
         this.error.load = this.errorText(err);
       }
@@ -168,6 +220,35 @@ export default {
         this.error.save = this.errorText(err);
       }
       this.loading.save = false;
+    },
+    async saveDelegates() {
+      this.error.saveDelegates = "";
+      this.error.delegates = "";
+      const delegates = this.form.delegates
+        .split(/[\s,]+/)
+        .filter((d) => d)
+        .map((d) => d.replace(/^module\//, ""));
+      this.loading.saveDelegates = true;
+      try {
+        await this.callAction("configure-module", { data: { delegates } });
+        this.form.delegates = [
+          ...new Set(delegates.map((d) => d.toLowerCase())),
+        ]
+          .sort()
+          .join(", ");
+      } catch (err) {
+        const bad =
+          err && err.kind === "validation"
+            ? err.errors.find((e) => e.field === "delegates")
+            : null;
+        if (bad) {
+          this.error.delegates = this.validationText(bad);
+          this.focusElement("delegates");
+        } else {
+          this.error.saveDelegates = this.errorText(err);
+        }
+      }
+      this.loading.saveDelegates = false;
     },
   },
 };

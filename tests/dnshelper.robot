@@ -171,6 +171,32 @@ Check if the policy file is private
     ${output} =    Execute Command    stat -c %a /home/${module_id}/.config/state/policy.json
     Should Be Equal    ${output}    600
 
+Check if the dnszoneadmin role is granted
+    ${output} =    Execute Command    redis-cli SMEMBERS module/${module_id}/roles/dnszoneadmin
+    FOR    ${action}    IN    add-credential    remove-credential    add-zone    remove-zone    validate-zone    list-provider-zones    append-records    get-records
+        Should Contain    ${output}    ${action}
+    END
+    Should Not Contain    ${output}    take-over-credential
+    Should Not Contain    ${output}    set-policy
+
+Check if the delegates can be set and read back
+    Run action    configure-module    {"delegates":["module/DNSapi1","dnsapi1"]}
+    ${config} =    Run action    get-configuration
+    Should Be Equal    ${config}[settings][delegates]    ${{["dnsapi1"]}}
+    ${rc} =    Execute Command
+    ...    api-cli run module/${module_id}/configure-module --data '{"delegates":["bad id!"]}'
+    ...    return_rc=True  return_stdout=False  return_stderr=False
+    Should Not Be Equal As Integers    ${rc}  0
+    Run action    configure-module    {"delegates":[]}
+
+Check if a credential that is not delegated cannot be taken over
+    ${result} =    Run action    add-credential    {"name":"CI take over","provider":"cloudflare","fields":{"api_token":"${TOKEN}"}}
+    ${rc} =    Execute Command
+    ...    api-cli run module/${module_id}/take-over-credential --data '{"id":"${result}[id]"}'
+    ...    return_rc=True  return_stdout=False  return_stderr=False
+    Should Not Be Equal As Integers    ${rc}  0
+    Run action    remove-credential    {"id":"${result}[id]"}
+
 Check if the state to back up is complete
     ${rc} =    Execute Command    runagent -m ${module_id} module-dump-state
     ...    return_rc=True  return_stdout=False

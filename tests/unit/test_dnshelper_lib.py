@@ -102,7 +102,7 @@ class CredentialTests(Base):
         self.assertNotIn(SECRET, json.dumps(cfg))
         self.assertEqual(cfg['credentials'], [{
             'id': cid, 'name': 'CF', 'provider': 'cloudflare',
-            'values': {'account': 'acme'}, 'secrets_set': ['api_token'], 'managed_by': ''}])
+            'values': {'account': 'acme'}, 'secrets_set': ['api_token'], 'managed_by': '', 'delegated_to': ''}])
 
     def test_update_blank_secret_keeps_and_new_secret_replaces(self):
         cid = self.add_cred(fields={'api_token': SECRET, 'account': 'acme'})
@@ -144,7 +144,8 @@ class ZoneTests(Base):
         self.assertRejects(lib.add_zone, {'zone': 'example.org', 'credential': 'cnone'}, 'credential_not_found')
         lib.update_zone({'zone': 'example.com', 'credential': b})
         self.assertEqual(lib.list_zones({})['zones'],
-                         [{'zone': 'example.com', 'credential': b, 'provider': 'cloudflare', 'access': 'write', 'full': True}])
+                         [{'zone': 'example.com', 'credential': b, 'provider': 'cloudflare', 'delegated': False,
+                       'access': 'write', 'full': True}])
         lib.remove_zone({'zone': 'example.com'})
         self.assertRejects(lib.remove_zone, {'zone': 'example.com'}, 'zone_not_found')
 
@@ -157,13 +158,13 @@ class ZoneTests(Base):
         cid = self.add_cred()
         for z in ('example.com', 'sub.example.com'):
             lib.add_zone({'zone': z, 'credential': cid})
-        self.assertEqual(lib.has_zone({'name': 'mail.example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True,
+        self.assertEqual(lib.has_zone({'name': 'mail.example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True, 'delegated': False,
                                                                           'access': 'write', 'full': True})
-        self.assertEqual(lib.has_zone({'name': 'a.SUB.example.com.'}), {'managed': True, 'zone': 'sub.example.com', 'allowed': True,
+        self.assertEqual(lib.has_zone({'name': 'a.SUB.example.com.'}), {'managed': True, 'zone': 'sub.example.com', 'allowed': True, 'delegated': False,
                                                                             'access': 'write', 'full': True})
-        self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True,
+        self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': True, 'delegated': False,
                                                                           'access': 'write', 'full': True})
-        self.assertEqual(lib.has_zone({'name': 'notexample.com'}), {'managed': False, 'zone': None, 'allowed': False,
+        self.assertEqual(lib.has_zone({'name': 'notexample.com'}), {'managed': False, 'zone': None, 'allowed': False, 'delegated': False,
                                                                         'access': 'none', 'full': False})
 
     def test_zones_file_is_private(self):
@@ -338,7 +339,7 @@ class ImportTests(Base):
 class RunTests(ActionRunner):
     def test_success_prints_json(self):
         code, out, _, agent = self.run_action('has-zone', {'name': 'x.example.com'})
-        self.assertEqual((code, json.loads(out)), (0, {'managed': False, 'zone': None, 'allowed': False,
+        self.assertEqual((code, json.loads(out)), (0, {'managed': False, 'zone': None, 'allowed': False, 'delegated': False,
                                                      'access': 'none', 'full': False}))
         agent.set_status.assert_not_called()
 
@@ -451,7 +452,7 @@ class PolicyTests(Base):
             self.assertRejects(lib.get_records, {'zone': 'example.com'}, 'not_permitted')
             self.assertRejects(lib.append_records, {'zone': 'example.com', 'records': [self.txt('@')]}, 'not_permitted')
             self.assertEqual(lib.list_zones({})['zones'], [])
-            self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': False,
+            self.assertEqual(lib.has_zone({'name': 'example.com'}), {'managed': True, 'zone': 'example.com', 'allowed': False, 'delegated': False,
                                                                      'access': 'none', 'full': False})
         self.assertEqual(self.calls(), [])  # nothing reached the provider
 

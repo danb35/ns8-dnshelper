@@ -69,7 +69,8 @@
     "import-zone": "Plan zone import",
     "list-owners": "List record owners",
     "check-propagation": "Check propagation",
-    "release-records": "Keep records"
+    "release-records": "Keep records",
+    "take-over-credential": "Take over credential"
   },
   "error": {
     "error": "Error",
@@ -123,7 +124,8 @@
     "sync_multiple_title": "More than one PowerDNS primary",
     "sync_multiple": "{modules} all claim to be the PowerDNS primary. Nothing was changed.",
     "sync_failed": "Cannot sync with PowerDNS",
-    "remove_zone_snapshots": "The zone's snapshot is deleted too. | The zone's {count} snapshots are deleted too."
+    "remove_zone_snapshots": "The zone's snapshot is deleted too. | The zone's {count} snapshots are deleted too.",
+    "delegated_to": "Delegated to {module}"
   },
   "records": {
     "title": "Records",
@@ -298,7 +300,12 @@
     "credential_id_taken": "A credential with the id of the PowerDNS module already exists",
     "stale": "The zone was changed since it was read; compare again",
     "snapshot_not_found": "Snapshot not found",
-    "invalid_snapshot_id": "Invalid snapshot"
+    "invalid_snapshot_id": "Invalid snapshot",
+    "delegated": "This belongs to a delegate module: take it over first",
+    "not_delegated": "This credential is not delegated",
+    "zone_overlaps": "This zone is inside, or contains, a zone that is managed already",
+    "invalid_module_id": "Not a valid module id",
+    "too_many_delegates": "Too many delegate modules"
   },
   "snapshots": {
     "button": "Snapshots",
@@ -341,7 +348,13 @@
     "max_count_help": "From 1 to 1000",
     "max_age": "Maximum age in days",
     "max_age_help": "From 1 to 3650",
-    "invalid_number": "Out of range"
+    "invalid_number": "Out of range",
+    "delegates_title": "Delegate modules",
+    "delegates_intro": "A delegate module, such as dnsapi, may add credentials and zones of its own, for example the domains a hosting portal adds for its customers, and change every record of those zones without an access rule. It cannot use, change or remove your credentials and zones. The module also needs the dnszoneadmin role, which its image asks for. Its credentials and zones are tagged on the Zones page, where you can remove them or take them over.",
+    "delegates_warning": "A delegate holds the credentials its users give it. List only modules you trust with them.",
+    "delegates": "Delegate modules",
+    "delegates_placeholder": "dnsapi1",
+    "delegates_help": "Module ids, separated by commas. Leave empty to allow none."
   },
   "record_form": {
     "address": "Address",
@@ -501,5 +514,13 @@
     "caching": "Resolvers that cached the old answer keep it until its TTL runs out.",
     "failed": "The name servers could not be checked",
     "again": "Check again"
+  },
+  "delegation": {
+    "take_over": "Take over",
+    "take_over_title": "Take over {name}",
+    "take_over_description": "{module} added this credential through its API. Taking it over makes it, and every zone that uses it, yours: you can edit them here, and {module} can no longer change them or their records unless an access rule allows it.",
+    "take_over_zones": "Zones that use it: {zones}",
+    "taken_over_title": "Credential taken over",
+    "taken_over": "{name} and its zones are no longer delegated to {module}."
   }
 }

@@ -198,6 +198,21 @@ class Handler(BaseHTTPRequestHandler):
             # what events/module-removed/20orphan_records does when the core removes a module
             module = (parse_qs(urlparse(self.path).query).get('module') or [''])[0]
             return self.send(200, {'orphaned': lib.forget_module(module)})
+        if self.path.startswith('/dev/delegate'):
+            # a delegate module (dnsapi1) adding a credential and a zone of its own through its API
+            q = parse_qs(urlparse(self.path).query)
+            module, zone = (q.get('module') or ['dnsapi1'])[0], (q.get('zone') or ['customer-shop.com'])[0]
+            with LOCK:
+                settings = lib.load_settings()
+                lib.configure_module({'delegates': sorted(set(settings['delegates']) | {module})})
+                os.environ['AGENT_TASK_USER'] = 'module/' + module
+                try:
+                    cid = lib.add_credential({'name': zone, 'provider': 'cloudflare',
+                                              'fields': {'api_token': 'cf-delegated-token'}})['id']
+                    lib.add_zone({'zone': zone, 'credential': cid})
+                finally:
+                    os.environ['AGENT_TASK_USER'] = 'admin'
+            return self.send(200, {'credential': cid, 'zone': zone})
         body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
         parts = self.path.strip('/').split('/')          # api/module/<id>/tasks | api/cluster/tasks
         if parts[:2] == ['api', 'module'] and parts[-1] == 'tasks':
