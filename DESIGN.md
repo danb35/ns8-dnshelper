@@ -812,8 +812,18 @@ for dnshelper:
   marker, after which the module's `list-zones` reported the zone `delegated: false`.
 - The PowerDNS API key given in the tasks' input was not in NS8's task records in Redis.
 
-Not tried on a node: `module-removed` for a delegate, and a restore with delegated credentials
-(unit tests only).
+- `module-removed` for a delegate (2026-11-27): a second ns8-dnsapi instance (`dnsapi6`), listed
+  in `delegates` and not otherwise configured, added a credential and a zone with its own NS8
+  identity; `remove-module` then cleared the marker on both, kept them as the administrator's
+  (editable with `update-credential`), and `30delegated` logged an audit line naming the
+  credential and the zone.
+- A write still running when its zone is removed finishes (2026-11-27, seen while testing
+  ns8-dnsapi's one-shot clean-up): `append-records` waiting for a paused DNS host completed once
+  the host answered, after `remove-zone`, and saved a snapshot of the zone no longer managed. The
+  request had its credential already; retention ages the orphan snapshot out. Not changed: an
+  administrator's `remove-zone` during a write behaves the same.
+
+Not tried on a node: a restore with delegated credentials (unit tests only).
 
 ### Phase 3: zones hosted on ns8-powerdns
 
