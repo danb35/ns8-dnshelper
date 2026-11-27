@@ -101,7 +101,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await shot("zones-one-zone");
 
-  // ---- a fuller Zones page
+  // ---- a fuller Zones page, with a zone a delegate module (dnsapi1) added through its API
+  await page.request.post(BASE + "dev/delegate?module=dnsapi1&zone=customer-shop.com");
   await run(async (root, findBy, call, sleep, nav) => {
     const cfg = await call("get-configuration");
     const cf = cfg.credentials[0].id;
@@ -250,8 +251,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await shot("records-adopted");
 
   // ---- Settings
+  await page.setViewportSize({ width: 1360, height: 960 }); // snapshots and delegate modules
   await run(async (root, findBy, call, sleep, nav) => { await nav("Settings"); await sleep(1200); });
   await shot("settings");
+  await page.setViewportSize({ width: 1360, height: 900 });
 
   // ---- Status with data
   await run(async (root, findBy, call, sleep, nav) => { await nav("Status"); await sleep(800); });
