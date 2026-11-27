@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones (tested live 2026-11-05); the records editor (snapshots, editing, pending and bulk changes, zone files, record owners, PTR records, propagation check) and record-ownership cleanup (2026-11-06/07, each tried on a node); phase 1 of delegated access for an API module (2026-11-21, tried on a node); phase 2, delegated zones (2026-11-27, unit tests and the UI harness only, not yet tried on a node). See README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones (tested live 2026-11-05); the records editor (snapshots, editing, pending and bulk changes, zone files, record owners, PTR records, propagation check) and record-ownership cleanup (2026-11-06/07, each tried on a node); phase 1 of delegated access for an API module (2026-11-21, tried on a node); phase 2, delegated zones (2026-11-27, tried on a node with ns8-dnsapi). See README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -632,8 +632,8 @@ Creating and deleting zones, DNSSEC and other zone-level settings belong to the 
 
 ## Delegated access for an API module (draft)
 
-Status: phase 1 implemented and tried on a node (2026-11-21); phase 2 implemented (2026-11-27,
-unit tests and the UI harness; not yet tried on a node); phase 3 is design only.
+Status: phase 1 implemented and tried on a node (2026-11-21); phase 2 implemented and tried on a
+node (2026-11-27); phase 3 is design only.
 Phase 1 was tested on the test node with a throwaway consumer module that had the `dnswriter`
 role (`tests/integration/consumer`):
 - default deny;
@@ -795,6 +795,25 @@ Built (2026-11-27), with these decisions made while building it:
 - The UI: the "Delegated to dnsapi1" tag, "Take over" in place of "Edit" and "Change
   credential", and the delegates as a comma-separated list on the Settings page. The harness
   seeds a delegated zone with `POST /dev/delegate`.
+
+Tried on the test node (2026-11-27), with ns8-dnsapi's phase 2 branch as the delegate
+(`dnsapi4`, its grant `dnshelper@any:dnswriter,dnszoneadmin`) and a throwaway PowerDNS on the
+node's loopback; ns8-dnsapi's DESIGN.md, build order step 12, lists every check. What it showed
+for dnshelper:
+
+- `update-module` created the `dnszoneadmin` role and the api-server let the module run its
+  actions; a module not in `delegates` got `not_permitted`, listed it was let through.
+- Credentials and zones the module added were marked `delegated_to: "module/dnsapi4"`, shown so
+  by `get-configuration`, with secrets hidden; the module wrote records in its zone with no
+  policy rule, and the history named its `on_behalf_of`.
+- `zone_already_configured` for one of the administrator's zones and `zone_overlaps` for a zone
+  inside one; the administrator's `update-zone` on a delegated zone refused with `delegated`.
+- `remove-zone` and `remove-credential` by the module; `take-over-credential` cleared the
+  marker, after which the module's `list-zones` reported the zone `delegated: false`.
+- The PowerDNS API key given in the tasks' input was not in NS8's task records in Redis.
+
+Not tried on a node: `module-removed` for a delegate, and a restore with delegated credentials
+(unit tests only).
 
 ### Phase 3: zones hosted on ns8-powerdns
 
