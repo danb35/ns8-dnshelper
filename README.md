@@ -12,7 +12,7 @@ who build, test or call dnshelper.
 
 ## Status
 
-The latest release is [0.7.1](https://github.com/danb35/ns8-dnshelper/releases/tag/0.7.1) (the first
+The latest release is [0.8.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.8.0) (the first
 was [0.1.0](https://github.com/danb35/ns8-dnshelper/releases/tag/0.1.0)); see the
 [releases](https://github.com/danb35/ns8-dnshelper/releases) for what changed. Every step of the
 build order in [DESIGN.md](DESIGN.md) is implemented: the module, its Go helper, actions,
@@ -90,13 +90,14 @@ Each action has `validate-input.json` and `validate-output.json` under `imageroo
 
 | Group | Actions |
 |---|---|
-| Admin | `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
+| Admin | `list-provider-zones`, `suggest-zones`, `add-credential`, `update-credential`, `remove-credential`, `take-over-credential`, `add-zone`, `update-zone`, `remove-zone`, `validate-zone`, `get-policy`, `set-policy`, `sync-powerdns` |
+| Delegates | `list-provider-zones`, `validate-zone`, the credential and zone actions, for a module's own credentials and zones (see [Delegates](#delegates-modules-that-add-zones)) |
 | Consumer | `list-zones`, `has-zone`, `get-records`, `append-records`, `set-records`, `delete-records`, `apply-changes`, `list-owners`, `check-propagation`, `list-providers` |
 | Snapshots (admin) | `list-snapshots`, `get-snapshot`, `create-snapshot`, `delete-snapshot`, `diff-snapshot` |
 | Zone files (admin) | `export-zone`, `import-zone` (plans only) |
 | Record owners | `list-owners`: which modules wrote which record (modules too, limited to what they may read); `release-records` (admin): keep records of removed modules |
 | Propagation | `check-propagation`: what each authoritative name server serves for a name and type (modules too, for what they may read) |
-| UI convention | `configure-module` (snapshot retention), `get-configuration` |
+| UI convention | `configure-module` (snapshot retention, delegates), `get-configuration` |
 
 `has-zone` takes a zone or a host name (`mail.example.com`) and returns the longest managed
 zone containing it. `validate-zone` checks a saved zone, a zone with a saved credential, or a
@@ -187,8 +188,8 @@ TXT is one plain, unquoted string of any length, MX is `"priority target"` and S
 
 | Action | Input | Output |
 |---|---|---|
-| `has-zone` | `name`: a zone or a host name; optional `records`: `[{"name", "type"}]` with full host names | `{"managed", "zone", "allowed", "access", "full"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it, `access` and `full` say how much it may do there (see below). With `records`, also `"records": [{"name", "type", "read", "write"}]`, in the same order: whether the caller may read each record and change it (see below) |
-| `list-zones` | none | `{"zones": [{"zone", "credential", "provider", "access", "full"}]}`, only the zones the caller has a rule for |
+| `has-zone` | `name`: a zone or a host name; optional `records`: `[{"name", "type"}]` with full host names | `{"managed", "zone", "allowed", "delegated", "access", "full"}`; `zone` is the longest managed zone containing the name, `allowed` is whether the caller has any rule for it, `access` and `full` say how much it may do there (see below), `delegated` whether it is the caller's own (see [Delegates](#delegates-modules-that-add-zones)). With `records`, also `"records": [{"name", "type", "read", "write"}]`, in the same order: whether the caller may read each record and change it (see below) |
+| `list-zones` | none | `{"zones": [{"zone", "credential", "provider", "delegated", "access", "full"}]}`, only the zones the caller has a rule for, or that are its own as a delegate |
 | `get-records` | `zone`; optional `name`, `type` filters | `{"records": [...]}`, only records the caller's rules cover |
 | `append-records` | `zone`, `records`, optional `dry_run` | `{"dry_run", "changes": {"add", "remove"}, "records"}`; adds records, never removes; adding one that already exists is not an error |
 | `set-records` | `zone`, `records`, optional `dry_run`, `mode`, `replace_prefixes` | as above; see below |
@@ -262,6 +263,57 @@ module with the role can call the actions but is refused everything.
 - Administrators (any caller that is not `module/...`, seen as `AGENT_TASK_USER`) are not
   restricted by the policy.
 
+### Delegates: modules that add zones
+
+A module such as [ns8-dnsapi](https://github.com/danb35/ns8-dnsapi) may need to add zones itself:
+a hosting portal adds a customer's domain with the customer's DNS host and credentials. That is
+off by default, and takes two steps, as the policy table does for records:
+
+- **The role** `dnszoneadmin`: `dnswriter` plus `list-provider-zones`, `validate-zone`,
+  `add-credential`, `update-credential`, `remove-credential`, `add-zone`, `update-zone` and
+  `remove-zone`. The module asks for it with `dnshelper@any:dnszoneadmin`.
+- **The setting** `delegates` (`configure-module`, Settings page): the module ids allowed to use
+  it, for example `["dnsapi1"]`. Empty by default. A module with the role that is not listed is
+  refused every one of those actions with `not_permitted`.
+
+What a delegate may do:
+
+- `add-credential` marks the credential `"delegated_to": "module/<id>"` (the caller; it cannot
+  be given in the input). A zone is delegated when its credential is.
+- It may update or remove only its own credentials, add zones only with its own credentials, and
+  update or remove only its own zones. Anything else is `not_permitted`, the administrator's
+  zones and credentials and other delegates' included.
+- It may not add a zone inside, or around, a zone that is not its own (`zone_overlaps`): names
+  there would be written with the wrong credential. A zone already managed is
+  `zone_already_configured`.
+- `validate-zone` works with inline `provider` and `fields` (nothing stored), with one of its
+  own credentials, or on one of its own zones; `list-provider-zones` with inline fields or one
+  of its own credentials.
+- Its own zones need no policy rule: it reads and writes every record there, as under a rule with
+  names `*` and types `*`. `list-zones` and `has-zone` report them with `delegated: true`,
+  `access: "write"` and `full: true`. The safety rails apply (no SOA, no apex NS, CNAME checks).
+- Taken out of `delegates`, the module loses all of that, its own zones included, until it is
+  listed again. The zones and credentials stay.
+
+What the administrator may do with delegated objects (`get-configuration` returns `delegated_to`
+for each credential and zone, and the Zones page tags them):
+
+- validate and remove them;
+- not edit them in place, nor give a delegated credential another zone: `update-credential`,
+  `update-zone` and `add-zone` refuse with `delegated`;
+- take one over with `take-over-credential` (`{"id"}`, administrators only): the marker is
+  cleared on the credential, so on every zone that uses it, and the delegate keeps access only
+  where a policy rule gives it some. The output is `{"id", "delegated_to", "zones"}`.
+
+When a delegate is removed (`module-removed`), its credentials and zones become the
+administrator's: the marker is cleared, nothing is deleted, and an audit line names what it left.
+A restored delegate has a new id, so its old objects are no longer its own: a restore of
+dnshelper warns about credentials delegated to a module that does not exist, and the
+administrator takes them over.
+
+Credential fields reach dnshelper in the task input, as they do from the UI: a delegate must not
+store or log them. `get-configuration` shows secrets only as "set", as for every credential.
+
 ### Audit log and events
 
 Every change, and every call by another module, writes one line to the module's journal, for
@@ -269,7 +321,7 @@ example `dnshelper audit: caller="module/mail1" action="append-records" result="
 zone="example.com" add=["mail._domainkey TXT v=DKIM1..."] remove=[]`. Refusals are logged with
 `result="rejected"` and the error code. Credentials and provider messages never appear.
 
-Adding, changing or removing a zone publishes `service-dnshelper-changed` on
+Adding, changing or removing a zone, or taking a credential over, publishes `service-dnshelper-changed` on
 `module/<id>/event/`, with `{"key", "module_id", "module_uuid"}` as payload. The service key is
 `module/<id>/srv/api/dnshelper`.
 

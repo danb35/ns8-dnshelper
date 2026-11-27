@@ -69,7 +69,8 @@
     "import-zone": "Prepara importazione zona",
     "list-owners": "Elenca proprietari dei record",
     "check-propagation": "Verifica propagazione",
-    "release-records": "Mantieni record"
+    "release-records": "Mantieni record",
+    "take-over-credential": "Rileva credenziale"
   },
   "error": {
     "error": "Errore",
@@ -123,7 +124,8 @@
     "sync_multiple_title": "Più di un server primario PowerDNS",
     "sync_multiple": "{modules} dichiarano tutti di essere il server primario PowerDNS. Non è stato cambiato nulla.",
     "sync_failed": "Impossibile sincronizzare con PowerDNS",
-    "remove_zone_snapshots": "Viene eliminato anche lo snapshot della zona. | Vengono eliminati anche i {count} snapshot della zona."
+    "remove_zone_snapshots": "Viene eliminato anche lo snapshot della zona. | Vengono eliminati anche i {count} snapshot della zona.",
+    "delegated_to": "Delegato a {module}"
   },
   "records": {
     "title": "Record",
@@ -298,7 +300,12 @@
     "credential_id_taken": "Esiste già una credenziale con l’id del modulo PowerDNS",
     "stale": "La zona è cambiata da quando è stata letta; confronta di nuovo",
     "snapshot_not_found": "Snapshot non trovato",
-    "invalid_snapshot_id": "Snapshot non valido"
+    "invalid_snapshot_id": "Snapshot non valido",
+    "delegated": "Appartiene a un modulo delegato: rilevalo prima",
+    "not_delegated": "Questa credenziale non è delegata",
+    "zone_overlaps": "Questa zona è dentro, o contiene, una zona già gestita",
+    "invalid_module_id": "Id del modulo non valido",
+    "too_many_delegates": "Troppi moduli delegati"
   },
   "snapshots": {
     "button": "Snapshot",
@@ -341,7 +348,13 @@
     "max_count_help": "Da 1 a 1000",
     "max_age": "Età massima in giorni",
     "max_age_help": "Da 1 a 3650",
-    "invalid_number": "Fuori intervallo"
+    "invalid_number": "Fuori intervallo",
+    "delegates_title": "Moduli delegati",
+    "delegates_intro": "Un modulo delegato, come dnsapi, può aggiungere credenziali e zone proprie, per esempio i domini che un portale di hosting aggiunge per i suoi clienti, e cambiare tutti i record di quelle zone senza una regola di accesso. Non può usare, cambiare o rimuovere le tue credenziali e zone. Il modulo ha bisogno anche del ruolo dnszoneadmin, che la sua immagine richiede. Le sue credenziali e zone sono contrassegnate nella pagina Zone, dove puoi rimuoverle o rilevarle.",
+    "delegates_warning": "Un delegato conserva le credenziali che i suoi utenti gli forniscono. Elenca solo moduli a cui le affideresti.",
+    "delegates": "Moduli delegati",
+    "delegates_placeholder": "dnsapi1",
+    "delegates_help": "Id dei moduli, separati da virgole. Lascia vuoto per non consentirne nessuno."
   },
   "record_form": {
     "address": "Indirizzo",
@@ -501,5 +514,13 @@
     "caching": "I resolver che hanno memorizzato nella cache la vecchia risposta la mantengono finché il suo TTL non scade.",
     "failed": "Non è stato possibile verificare i name server",
     "again": "Verifica di nuovo"
+  },
+  "delegation": {
+    "take_over": "Rileva",
+    "take_over_title": "Rileva {name}",
+    "take_over_description": "{module} ha aggiunto questa credenziale tramite la sua API. Rilevandola, la credenziale e tutte le zone che la usano diventano tue: potrai modificarle qui, e {module} non potrà più cambiarle né cambiarne i record, a meno che una regola di accesso non lo consenta.",
+    "take_over_zones": "Zone che la usano: {zones}",
+    "taken_over_title": "Credenziale rilevata",
+    "taken_over": "{name} e le sue zone non sono più delegate a {module}."
   }
 }

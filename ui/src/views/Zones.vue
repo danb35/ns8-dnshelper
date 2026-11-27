@@ -105,6 +105,14 @@
                     kind="purple"
                     class="mg-left-sm"
                   />
+                  <NsTag
+                    v-if="row.delegatedTo"
+                    :label="
+                      $t('zones.delegated_to', { module: row.delegatedTo })
+                    "
+                    kind="teal"
+                    class="mg-left-sm"
+                  />
                 </cv-data-table-cell>
                 <cv-data-table-cell>{{ row.providerLabel }}</cv-data-table-cell>
                 <cv-data-table-cell>{{
@@ -119,12 +127,21 @@
                       />
                     </cv-overflow-menu-item>
                     <cv-overflow-menu-item
-                      v-if="!row.managedBy"
+                      v-if="!row.managedBy && !row.delegatedTo"
                       @click="showChangeCredential(row)"
                     >
                       <NsMenuItem
                         :icon="Edit20"
                         :label="$t('zones.change_credential')"
+                      />
+                    </cv-overflow-menu-item>
+                    <cv-overflow-menu-item
+                      v-if="row.delegatedTo"
+                      @click="showTakeOver(row.credential)"
+                    >
+                      <NsMenuItem
+                        :icon="Edit20"
+                        :label="$t('delegation.take_over')"
                       />
                     </cv-overflow-menu-item>
                     <NsMenuDivider v-if="!row.managedBy" />
@@ -206,6 +223,14 @@
                     kind="purple"
                     class="mg-left-sm"
                   />
+                  <NsTag
+                    v-if="row.delegatedTo"
+                    :label="
+                      $t('zones.delegated_to', { module: row.delegatedTo })
+                    "
+                    kind="teal"
+                    class="mg-left-sm"
+                  />
                 </cv-data-table-cell>
                 <cv-data-table-cell>{{ row.providerLabel }}</cv-data-table-cell>
                 <cv-data-table-cell>
@@ -229,7 +254,19 @@
                     flip-menu
                     class="table-overflow-menu"
                   >
-                    <cv-overflow-menu-item @click="showEditCredential(row)">
+                    <cv-overflow-menu-item
+                      v-if="row.delegatedTo"
+                      @click="showTakeOver(row.id)"
+                    >
+                      <NsMenuItem
+                        :icon="Edit20"
+                        :label="$t('delegation.take_over')"
+                      />
+                    </cv-overflow-menu-item>
+                    <cv-overflow-menu-item
+                      v-else
+                      @click="showEditCredential(row)"
+                    >
                       <NsMenuItem
                         :icon="Edit20"
                         :label="core.$t('common.edit')"
@@ -337,6 +374,50 @@
         </p>
       </template>
     </ConfirmDeleteModal>
+    <!-- take a delegated credential over -->
+    <NsModal
+      size="default"
+      :visible="isTakeOverShown"
+      :primary-button-disabled="loading.takeOver"
+      :isLoading="loading.takeOver"
+      @modal-hidden="isTakeOverShown = false"
+      @primary-click="takeOver"
+    >
+      <template slot="title">{{
+        $t("delegation.take_over_title", {
+          name: takeOverCredential ? takeOverCredential.name : "",
+        })
+      }}</template>
+      <template slot="content" v-if="takeOverCredential">
+        <p class="mg-bottom-md">
+          {{
+            $t("delegation.take_over_description", {
+              module: takeOverCredential.delegatedTo,
+            })
+          }}
+        </p>
+        <p class="mg-bottom-md" v-if="takeOverCredential.zones.length">
+          <strong>{{
+            $t("delegation.take_over_zones", {
+              zones: takeOverCredential.zones.join(", "),
+            })
+          }}</strong>
+        </p>
+        <NsInlineNotification
+          v-if="error.takeOver"
+          kind="error"
+          :title="$t('action.take-over-credential')"
+          :description="error.takeOver"
+          :showCloseButton="false"
+        />
+      </template>
+      <template slot="secondary-button">{{
+        core.$t("common.cancel")
+      }}</template>
+      <template slot="primary-button">{{
+        $t("delegation.take_over")
+      }}</template>
+    </NsModal>
     <!-- remove a credential -->
     <ConfirmDeleteModal
       :isShown="isRemoveCredentialShown"
@@ -401,12 +482,15 @@ export default {
       isChangeCredentialShown: false,
       isRemoveZoneShown: false,
       isRemoveCredentialShown: false,
+      isTakeOverShown: false,
+      takeOverId: "",
       notice: { kind: "success", title: "", text: "" },
       loading: {
         load: false,
         changeCredential: false,
         removeZone: false,
         removeCredential: false,
+        takeOver: false,
         sync: false,
       },
       error: {
@@ -415,6 +499,7 @@ export default {
         changeCredential: "",
         removeZone: "",
         removeCredential: "",
+        takeOver: "",
       },
     };
   },
@@ -445,6 +530,7 @@ export default {
           credential: z.credential,
           snapshots: z.snapshots || 0,
           managedBy: this.moduleOf(z.managed_by),
+          delegatedTo: this.moduleOf(z.delegated_to),
           credentialName: cred
             ? cred.name
             : this.$t("zones.missing_credential"),
@@ -456,6 +542,7 @@ export default {
       return this.credentials.map((c) => ({
         ...c,
         managedBy: this.moduleOf(c.managed_by),
+        delegatedTo: this.moduleOf(c.delegated_to),
         providerLabel: this.providerLabel(c.provider),
         zones: this.zones
           .filter((z) => z.credential === c.id)
@@ -465,9 +552,13 @@ export default {
     hasAdopted() {
       return this.zones.some((z) => z.managed_by);
     },
-    // credentials adopted from ns8-powerdns cannot be given to other zones
+    // credentials adopted from ns8-powerdns, or a delegate module's, cannot
+    // be given to other zones
     manualCredentials() {
-      return this.credentials.filter((c) => !c.managed_by);
+      return this.credentials.filter((c) => !c.managed_by && !c.delegated_to);
+    },
+    takeOverCredential() {
+      return this.credentialRows.find((c) => c.id === this.takeOverId) || null;
     },
     credentialOptions() {
       return this.manualCredentials.map((c) => ({
@@ -654,6 +745,34 @@ export default {
       this.current = row;
       this.error.removeCredential = "";
       this.isRemoveCredentialShown = true;
+    },
+    showTakeOver(id) {
+      this.takeOverId = id;
+      this.error.takeOver = "";
+      this.isTakeOverShown = true;
+    },
+    async takeOver() {
+      this.loading.takeOver = true;
+      this.error.takeOver = "";
+      const name = this.takeOverCredential ? this.takeOverCredential.name : "";
+      try {
+        const out = await this.callAction("take-over-credential", {
+          data: { id: this.takeOverId },
+        });
+        this.isTakeOverShown = false;
+        this.say(
+          "success",
+          this.$t("delegation.taken_over_title"),
+          this.$t("delegation.taken_over", {
+            name,
+            module: this.moduleOf(out.delegated_to),
+          })
+        );
+        this.load();
+      } catch (err) {
+        this.error.takeOver = this.errorText(err);
+      }
+      this.loading.takeOver = false;
     },
     async removeCredential() {
       this.loading.removeCredential = true;

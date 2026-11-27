@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 dnshelper contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# The core publishes cluster/event/module-removed {"module", "node"} after it
+# has deleted the module's keys. When the removed module was a delegate, the
+# credentials and zones it added become the administrator's: the marker is
+# cleared and nothing is deleted, since a wrong guess would remove live DNS
+# (DESIGN.md, Delegated access, phase 2).
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.environ['AGENT_INSTALL_DIR'], 'pypkg'))
+import agent
+import dnshelper_lib
+
+try:
+    removed = json.load(sys.stdin).get('module')
+except (ValueError, AttributeError):
+    removed = None
+
+if removed and removed != os.environ.get('MODULE_ID'):
+    try:
+        left = dnshelper_lib.forget_delegate(removed)
+    except OSError as e:
+        print(agent.SD_WARNING + 'dnshelper: cannot clear the credentials delegated to %s: %s'
+              % (removed, type(e).__name__), file=sys.stderr)
+        sys.exit(0)
+    for cid, zones in sorted(left.items()):
+        print(agent.SD_INFO + 'dnshelper audit: caller="-" action="module-removed" result="ok" '
+              'credential=%s delegated_to=%s zones=%s' % (json.dumps(cid), json.dumps('module/' + removed),
+                                                          json.dumps(zones)), file=sys.stderr)
+    if left:
+        dnshelper_lib._publish_change(agent)

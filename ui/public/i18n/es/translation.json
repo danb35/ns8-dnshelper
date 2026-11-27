@@ -69,7 +69,8 @@
     "import-zone": "Planificar importación de zona",
     "list-owners": "Listar propietarios de registros",
     "check-propagation": "Comprobar propagación",
-    "release-records": "Conservar registros"
+    "release-records": "Conservar registros",
+    "take-over-credential": "Asumir credencial"
   },
   "error": {
     "error": "Error",
@@ -123,7 +124,8 @@
     "sync_multiple_title": "Más de un servidor primario PowerDNS",
     "sync_multiple": "{modules} dicen ser el servidor primario PowerDNS. No se ha cambiado nada.",
     "sync_failed": "No se puede sincronizar con PowerDNS",
-    "remove_zone_snapshots": "También se elimina la instantánea de la zona. | También se eliminan las {count} instantáneas de la zona."
+    "remove_zone_snapshots": "También se elimina la instantánea de la zona. | También se eliminan las {count} instantáneas de la zona.",
+    "delegated_to": "Delegado a {module}"
   },
   "records": {
     "title": "Registros",
@@ -298,7 +300,12 @@
     "credential_id_taken": "Ya existe una credencial con el identificador del módulo PowerDNS",
     "stale": "La zona ha cambiado desde que se leyó; compare de nuevo",
     "snapshot_not_found": "Instantánea no encontrada",
-    "invalid_snapshot_id": "Instantánea no válida"
+    "invalid_snapshot_id": "Instantánea no válida",
+    "delegated": "Pertenece a un módulo delegado: asúmelo primero",
+    "not_delegated": "Esta credencial no está delegada",
+    "zone_overlaps": "Esta zona está dentro de una zona ya gestionada, o la contiene",
+    "invalid_module_id": "Identificador de módulo no válido",
+    "too_many_delegates": "Demasiados módulos delegados"
   },
   "snapshots": {
     "button": "Instantáneas",
@@ -341,7 +348,13 @@
     "max_count_help": "De 1 a 1000",
     "max_age": "Antigüedad máxima en días",
     "max_age_help": "De 1 a 3650",
-    "invalid_number": "Fuera de rango"
+    "invalid_number": "Fuera de rango",
+    "delegates_title": "Módulos delegados",
+    "delegates_intro": "Un módulo delegado, como dnsapi, puede añadir credenciales y zonas propias, por ejemplo los dominios que un portal de alojamiento añade para sus clientes, y cambiar todos los registros de esas zonas sin una regla de acceso. No puede usar, cambiar ni eliminar tus credenciales y zonas. El módulo también necesita el rol dnszoneadmin, que su imagen solicita. Sus credenciales y zonas aparecen marcadas en la página Zonas, donde puedes eliminarlas o asumirlas.",
+    "delegates_warning": "Un delegado guarda las credenciales que le dan sus usuarios. Incluye solo módulos a los que se las confiarías.",
+    "delegates": "Módulos delegados",
+    "delegates_placeholder": "dnsapi1",
+    "delegates_help": "Identificadores de módulos, separados por comas. Déjalo vacío para no permitir ninguno."
   },
   "record_form": {
     "address": "Dirección",
@@ -501,5 +514,13 @@
     "caching": "Los resolvedores que guardaron en caché la respuesta anterior la mantienen hasta que vence su TTL.",
     "failed": "No se pudieron comprobar los servidores de nombres",
     "again": "Comprobar de nuevo"
+  },
+  "delegation": {
+    "take_over": "Asumir",
+    "take_over_title": "Asumir {name}",
+    "take_over_description": "{module} añadió esta credencial a través de su API. Al asumirla, la credencial y todas las zonas que la usan pasan a ser tuyas: podrás editarlas aquí, y {module} ya no podrá cambiarlas ni cambiar sus registros, salvo que una regla de acceso lo permita.",
+    "take_over_zones": "Zonas que la usan: {zones}",
+    "taken_over_title": "Credencial asumida",
+    "taken_over": "{name} y sus zonas ya no están delegadas a {module}."
   }
 }

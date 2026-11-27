@@ -143,10 +143,10 @@ class SnapshotTests(Base):
 
     def test_settings(self):
         self.assertEqual(lib.get_configuration({})['settings'],
-                         {'snapshot_max_count': 50, 'snapshot_max_age_days': 90})
+                         {'snapshot_max_count': 50, 'snapshot_max_age_days': 90, 'delegates': []})
         lib.configure_module(None)  # the UI may send no payload
         lib.configure_module({'snapshot_max_age_days': 30})
-        self.assertEqual(lib.load_settings(), {'snapshot_max_count': 50, 'snapshot_max_age_days': 30})
+        self.assertEqual(lib.load_settings(), {'snapshot_max_count': 50, 'snapshot_max_age_days': 30, 'delegates': []})
         self.assertEqual(load(os.path.join(self.state, 'settings.json'))['snapshot_max_age_days'], 30)
 
     def test_restore_drops_unreadable_snapshots(self):

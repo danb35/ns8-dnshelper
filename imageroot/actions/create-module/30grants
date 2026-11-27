@@ -30,5 +30,19 @@ writer_actions=(
     delete-records
     apply-changes
 )
+# Delegates (DESIGN.md, Delegated access, phase 2): also add credentials and
+# zones of their own. The role alone is not enough: the module must also be
+# listed in the "delegates" setting.
+zoneadmin_actions=(
+    list-provider-zones
+    validate-zone
+    add-credential
+    update-credential
+    remove-credential
+    add-zone
+    update-zone
+    remove-zone
+)
 redis-exec SADD "${AGENT_ID}/roles/dnsreader" "${reader_actions[@]}"
 redis-exec SADD "${AGENT_ID}/roles/dnswriter" "${reader_actions[@]}" "${writer_actions[@]}"
+redis-exec SADD "${AGENT_ID}/roles/dnszoneadmin" "${reader_actions[@]}" "${writer_actions[@]}" "${zoneadmin_actions[@]}"

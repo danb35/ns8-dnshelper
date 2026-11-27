@@ -2,7 +2,7 @@
 
 Helper module for NethServer 8 (NS8) that lets other modules create, edit and remove DNS
 records through DNS hosts' APIs. Built on Go `libdns` (github.com/libdns/libdns, v1.x).
-Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones (tested live 2026-11-05); the records editor (snapshots, editing, pending and bulk changes, zone files, record owners, PTR records, propagation check) and record-ownership cleanup (2026-11-06/07, each tried on a node); phase 1 of delegated access for an API module (2026-11-21, tried on a node). See README. Items marked **VERIFY** were not confirmed from docs.
+Status: build order steps 1-7 done (scaffold, Go helper, actions + credential store, roles/policy/audit, backup/restore, UI, node integration test); adoption of ns8-powerdns zones (tested live 2026-11-05); the records editor (snapshots, editing, pending and bulk changes, zone files, record owners, PTR records, propagation check) and record-ownership cleanup (2026-11-06/07, each tried on a node); phase 1 of delegated access for an API module (2026-11-21, tried on a node); phase 2, delegated zones (2026-11-27, tried on a node with ns8-dnsapi). See README. Items marked **VERIFY** were not confirmed from docs.
 
 ## Requirements (from the owner)
 
@@ -632,7 +632,8 @@ Creating and deleting zones, DNSSEC and other zone-level settings belong to the 
 
 ## Delegated access for an API module (draft)
 
-Status: phase 1 implemented and tried on a node (2026-11-21); phases 2 and 3 are design only.
+Status: phase 1 implemented and tried on a node (2026-11-21); phase 2 implemented and tried on a
+node (2026-11-27); phase 3 is design only.
 Phase 1 was tested on the test node with a throwaway consumer module that had the `dnswriter`
 role (`tests/integration/consumer`):
 - default deny;
@@ -756,6 +757,63 @@ means a module creates credentials and zones, which today only an administrator 
   only, as for every credential.
 - Backup and restore: the marker is in the credential file, already backed up;
   `check_restored_state` must accept the field.
+
+Built (2026-11-27), with these decisions made while building it:
+
+- **Being listed counts for records too.** A delegate's own zones are writable without a rule
+  only while it is in `delegates`. Taken out of the setting, it loses them as well as the zone
+  actions; the zones stay, tagged, until the administrator takes them over or removes them. The
+  setting is then a single switch for the whole feature.
+- **How the rule-free access is done.** `_rules_for(zone)` adds a rule (write, names `*`, types
+  `*`) for the delegate's own zone, so every check that reads the rules (`_require_access`,
+  `get-records`, `list-owners`, `check-propagation`, `list-zones`, `has-zone`) treats the zone
+  the same way without code of its own.
+- **`delegated` in `list-zones` and `has-zone`**: true when the zone is the caller's own, so a
+  delegate can tell the zones it added from the ones a rule gives it (dnsapi removes only its
+  own). Always false for administrators, who get `delegated_to` from `get-configuration`.
+- **No overlapping zones** (`zone_overlaps`): a delegate may not add a zone inside or around one
+  that is not its own. `has-zone` picks the longest managed zone, so `shop.example.com` added by
+  a delegate inside the administrator's `example.com` would send other modules' writes for those
+  names to the customer's credential. Inside its own zones it may.
+- **`validate-zone` and `list-provider-zones`** for a delegate: inline `provider` and `fields`
+  (nothing stored), its own credentials, its own zones. Not other zones: `write_test` writes a
+  record, which a rule limited to some names would not allow.
+- **The administrator** cannot give a zone a delegated credential either (`add-zone` and
+  `update-zone` refuse with `delegated`): that would hand the zone to the delegate.
+- **Errors**: a delegate gets `not_permitted` for any object that is not its own, including a
+  zone that does not exist, so `remove-zone` and `update-zone` do not say which zones exist.
+  `add-zone` still says `zone_already_configured`, which dnsapi needs.
+- **Restores.** A restored delegate has a new module id, and its credentials still name the old
+  one. dnshelper's own restore warns about credentials delegated to a module that does not exist,
+  and about such a module in `delegates`; if only the delegate is restored, removing the old
+  instance hands its objects to the administrator (`module-removed`). In both cases the
+  administrator takes them over and adds a rule for the new instance. No "move to another
+  delegate" action: it would let one module's identity pass to another without the
+  administrator looking at it. Revisit if restores of the API module turn out to be common.
+- `take-over-credential` and the removal of a delegate publish `service-dnshelper-changed`: the
+  delegate's access changed, though the set of zones did not.
+- The UI: the "Delegated to dnsapi1" tag, "Take over" in place of "Edit" and "Change
+  credential", and the delegates as a comma-separated list on the Settings page. The harness
+  seeds a delegated zone with `POST /dev/delegate`.
+
+Tried on the test node (2026-11-27), with ns8-dnsapi's phase 2 branch as the delegate
+(`dnsapi4`, its grant `dnshelper@any:dnswriter,dnszoneadmin`) and a throwaway PowerDNS on the
+node's loopback; ns8-dnsapi's DESIGN.md, build order step 12, lists every check. What it showed
+for dnshelper:
+
+- `update-module` created the `dnszoneadmin` role and the api-server let the module run its
+  actions; a module not in `delegates` got `not_permitted`, listed it was let through.
+- Credentials and zones the module added were marked `delegated_to: "module/dnsapi4"`, shown so
+  by `get-configuration`, with secrets hidden; the module wrote records in its zone with no
+  policy rule, and the history named its `on_behalf_of`.
+- `zone_already_configured` for one of the administrator's zones and `zone_overlaps` for a zone
+  inside one; the administrator's `update-zone` on a delegated zone refused with `delegated`.
+- `remove-zone` and `remove-credential` by the module; `take-over-credential` cleared the
+  marker, after which the module's `list-zones` reported the zone `delegated: false`.
+- The PowerDNS API key given in the tasks' input was not in NS8's task records in Redis.
+
+Not tried on a node: `module-removed` for a delegate, and a restore with delegated credentials
+(unit tests only).
 
 ### Phase 3: zones hosted on ns8-powerdns
 

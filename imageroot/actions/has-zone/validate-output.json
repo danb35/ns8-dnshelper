@@ -69,6 +69,10 @@
                     }
                 }
             }
+        },
+        "delegated": {
+            "type": "boolean",
+            "description": "Whether the zone is the calling module's own: it added it as a delegate, with a credential of its own. Always false for administrators"
         }
     }
 }
